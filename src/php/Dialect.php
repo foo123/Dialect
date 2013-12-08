@@ -35,62 +35,6 @@
                     ->sql();
 */
 
-// http://www.php.net/manual/en/refs.database.abstract.php
-// http://www.php.net/manual/en/intro.pdo.php
-// maybe use a config here per dialect/vendor probably in combination with ADOdb classes
-$config = array(
-    
-    'mysql'=>array(
-        // http://php.net/manual/en/function.mysql-real-escape-string.php
-    ),
-    
-    'mysqli'=>array(
-        // http://www.php.net/manual/en/mysqli.real-escape-string.php
-        'escape'    =>  'mysqli_real_escape_string ( mysqli $link , string $escapestr )',
-        'timestamp' =>  'CURRENT_TIMESTAMP()',
-        'quote'     =>  '`',
-        'nulldate'  =>  '0000-00-00 00:00:00',
-        'concat'    =>  '',
-        'YEAR'      =>  'YEAR(__{{DATE}}__)',
-        'MONTH'     =>  'MONTH(__{{DATE}}__)',
-        'DAY'       =>  'DAY(__{{DATE}}__)',
-        'HOUR'      =>  'HOUR(__{{DATE}}__)',
-        'MINUTE'    =>  'MINUTE(__{{DATE}}__)',
-        'SECOND'    =>  'SECOND(__{{DATE}}__)',
-    ),
-    
-    'postgre'=>array(
-        // http://www.php.net/manual/en/function.pg-escape-string.php
-        'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
-        'timestamp' =>  'NOW()',
-        'quote'     =>  '"',
-        'nulldate'  =>  '1970-01-01 00:00:00',
-        'concat'    =>  '||',
-        'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
-        'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
-        'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
-        'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
-        'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
-        'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)',
-    ),
-    
-    'sql_server'=>array(
-        // http://www.php.net/manual/en/function.pg-escape-string.php
-        'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
-        'timestamp' =>  'NOW()',
-        'quote'     =>  '"',
-        'nulldate'  =>  '1900-01-01 00:00:00',
-        'concat'    =>  '||',
-        'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
-        'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
-        'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
-        'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
-        'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
-        'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)',
-    )
-);
-$config['mysql'] = $config['mysqli'];
-
 
 /**
 **
@@ -103,18 +47,18 @@ if ( !class_exists('Dialect') )
 
 class DialectTable
 {
+    private static $_cnt = 0;
+    
     private $_id = 0;
     private $_table = null;
     private $_alias = null;
     private $_asAlias = null;
     
-    public function __construct( $table, $id=0 )
+    public function __construct( $table )
     {
         $this->_table = $table;
-        $this->_id = $id;
-        $this->_alias = $table;
-        $this->_asAlias =  $table;
-        //$this->useAlias( false );
+        $this->_id = self::$_cnt++;
+        $this->useAlias( false );
     }
     
     public function useAlias( $bool = true )
@@ -150,22 +94,25 @@ class DialectTable
 
 class DialectField
 {
+    private static $_cnt = 0;
+    
     private $_id = 0;
     private $_field = null;
     private $_alias = null;
     private $_asAlias = null;
     private $_table = null;
     
-    public function __construct( $field, $id=0 )
+    public function __construct( $field, $table=null )
     {
         $parts = $this->parseField( $field );
         
         $this->_field = $parts[ 'field' ];
-        $this->_id = intval($id);
-        $this->_alias = $this->_field;
-        $this->_asAlias =  $this->_field;
+        $this->_id = ++self::$_cnt;
         
-        if ( isset( $parts[ 'table' ] ) )
+        if ( $table )
+            $this->setTable( $table );
+        
+        else if ( isset( $parts[ 'table' ] ) )
             $this->setTable( $parts[ 'table' ] );
             
         $this->useAlias( false );
@@ -322,24 +269,15 @@ class DialectExpression
 
 class Dialect
 {
-    private static $_fieldCnt = 0;
-    private static $_tableCnt = 0;
+    private static $isInited = false;
+    private static $vendors = null;
+    private static $query_types = null;
     
     private $_vendor = null;
-    
-    private $_default_types = array('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALTER TABLE');
-    
-    private $_default_clauses = array(
-                'SELECT' => array('FROM', 'JOIN', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT'),
-                'INSERT' => array('INTO', 'VALUES'),
-                'UPDATE' => array('SET', 'WHERE'),
-                'DELETE' => array('FROM', 'WHERE'),
-                'ALTER TABLE' => array()
-            );
-    
-    private $_ops = array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100);
-    
-    private $_rel_ops = array('AND', 'OR');
+    private $_vendor_clauses = null;
+    private $_vendor_tpls = null;
+    private $_ops = null;
+    private $_rel_ops = null;
     
     private $_type = null;
     private $_sanitize = true;
@@ -352,14 +290,162 @@ class Dialect
     private $_conditionsH = null;
     private $_clauses = null;
     
+    public static init()
+    {
+        if ( self::$isInited ) return;
+        
+        // http://www.php.net/manual/en/refs.database.abstract.php
+        // http://www.php.net/manual/en/intro.pdo.php
+        self::$vendors = array(
+            
+            'mysqli'=>array(
+                // http://php.net/manual/en/function.mysql-real-escape-string.php
+                // http://www.php.net/manual/en/mysqli.real-escape-string.php
+                //'escape'    =>  'mysqli_real_escape_string ( mysqli $link , string $escapestr )',
+                'quote'     =>  '`',
+                'concat'    =>  '',
+                'clauses'   =>  array(
+                    'SELECT' => array('FROM', 'JOIN', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT'),
+                    'INSERT' => array('INTO', 'VALUES'),
+                    'UPDATE' => array('SET', 'WHERE'),
+                    'DELETE' => array('FROM', 'WHERE'),
+                    'ALTER' => array()
+                ),
+                'ops'       =>  array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100),
+                'rel_ops'   =>  array('AND', 'OR'),
+                'tpls'      =>  array(
+                    'INSERT'    => 'INSERT __{{ALIASED_FIELDS}}__ ',
+                    'UPDATE'    => 'UPDATE __{{ALIASED_TABLES}}__ ',
+                    'DELETE'    => 'DELETE ',
+                    'ALTER'     => 'ALTER TABLE __{{ALIASED_TABLES}}__ ',
+                    'INTO'      => 'INTO __{{ALIASED_TABLES}}__ ',
+                    'VALUES'    => 'VALUES __{{VALUES}}__ ',
+                    'SET'       => 'SET ',
+                    'SELECT'    => 'SELECT __{{ALIASED_FIELDS}}__ ',
+                    
+                    'FROM'      => 'FROM __{{ALIASED_TABLES}}__ ',
+                    'JOIN'      => '__{{JOIN_TYPE}}__ __{{ALIASED_TABLE}}__ __{{ON_CONDITION}}__ ',
+                    'WHERE'     => 'WHERE __{{WHERE_EXPRESSION}}__',
+                    'GROUP'     => 'GROUP BY __{{GROUP_FIELDS}}__',
+                    'HAVING'    => 'HAVING __{{HAVING_EXPRESSION}}__',
+                    'ORDER'     => 'ORDER BY __{{ORDER_FIELDS}}__',
+                    'LIMIT'     => 'LIMIT __{{OFFSET}}__, __{{COUNT}}__',
+                    
+                    'CURRENT'   =>  'CURRENT_TIMESTAMP()',
+                    'NULLDATE'  =>  '0000-00-00 00:00:00',
+                    'YEAR'      =>  'YEAR(__{{DATE}}__)',
+                    'MONTH'     =>  'MONTH(__{{DATE}}__)',
+                    'DAY'       =>  'DAY(__{{DATE}}__)',
+                    'HOUR'      =>  'HOUR(__{{DATE}}__)',
+                    'MINUTE'    =>  'MINUTE(__{{DATE}}__)',
+                    'SECOND'    =>  'SECOND(__{{DATE}}__)'
+                )
+            ),
+            
+            'postgre'=>array(
+                // http://www.php.net/manual/en/function.pg-escape-string.php
+                //'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
+                'quote'     =>  '"',
+                'concat'    =>  '||',
+                'clauses'   =>  array(
+                    'SELECT' => array('FROM', 'JOIN', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT'),
+                    'INSERT' => array('INTO', 'VALUES'),
+                    'UPDATE' => array('SET', 'WHERE'),
+                    'DELETE' => array('FROM', 'WHERE'),
+                    'ALTER' => array()
+                ),
+                'ops'       =>  array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100),
+                'rel_ops'   =>  array('AND', 'OR'),
+                'tpls'      =>  array(
+                    'INSERT'    => 'INSERT __{{ALIASED_FIELDS}}__ ',
+                    'UPDATE'    => 'UPDATE __{{ALIASED_TABLES}}__ ',
+                    'DELETE'    => 'DELETE ',
+                    'ALTER'     => 'ALTER TABLE __{{ALIASED_TABLES}}__ ',
+                    'INTO'      => 'INTO __{{ALIASED_TABLES}}__ ',
+                    'VALUES'    => 'VALUES __{{VALUES}}__ ',
+                    'SET'       => 'SET ',
+                    'SELECT'    => 'SELECT __{{ALIASED_FIELDS}}__ ',
+                    
+                    'FROM'      => 'FROM __{{ALIASED_TABLES}}__ ',
+                    'JOIN'      => '__{{JOIN_TYPE}}__ __{{ALIASED_TABLE}}__ __{{ON_CONDITION}}__ ',
+                    'WHERE'     => 'WHERE __{{WHERE_EXPRESSION}}__',
+                    'GROUP'     => 'GROUP BY __{{GROUP_FIELDS}}__',
+                    'HAVING'    => 'HAVING __{{HAVING_EXPRESSION}}__',
+                    'ORDER'     => 'ORDER BY __{{ORDER_FIELDS}}__',
+                    'LIMIT'     => 'LIMIT __{{OFFSET}}__, __{{COUNT}}__',
+                    
+                    'CURRENT'   =>  'NOW()',
+                    'NULLDATE'  =>  '1970-01-01 00:00:00',
+                    'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
+                    'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
+                    'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
+                    'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
+                    'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
+                    'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)'
+                )
+            ),
+            
+            'sql_server'=>array(
+                // http://www.php.net/manual/en/function.pg-escape-string.php
+                //'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
+                'quote'     =>  '"',
+                'concat'    =>  '||',
+                'clauses'   =>  array(
+                    'SELECT' => array('FROM', 'JOIN', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT'),
+                    'INSERT' => array('INTO', 'VALUES'),
+                    'UPDATE' => array('SET', 'WHERE'),
+                    'DELETE' => array('FROM', 'WHERE'),
+                    'ALTER' => array()
+                ),
+                'ops'       =>  array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100),
+                'rel_ops'   =>  array('AND', 'OR'),
+                'tpls'      =>  array(
+                    'INSERT'    => 'INSERT __{{ALIASED_FIELDS}}__ ',
+                    'UPDATE'    => 'UPDATE __{{ALIASED_TABLES}}__ ',
+                    'DELETE'    => 'DELETE ',
+                    'ALTER'     => 'ALTER TABLE __{{ALIASED_TABLES}}__ ',
+                    'INTO'      => 'INTO __{{ALIASED_TABLES}}__ ',
+                    'VALUES'    => 'VALUES __{{VALUES}}__ ',
+                    'SET'       => 'SET ',
+                    'SELECT'    => 'SELECT __{{ALIASED_FIELDS}}__ ',
+                    
+                    'FROM'      => 'FROM __{{ALIASED_TABLES}}__ ',
+                    'JOIN'      => '__{{JOIN_TYPE}}__ __{{ALIASED_TABLE}}__ __{{ON_CONDITION}}__ ',
+                    'WHERE'     => 'WHERE __{{WHERE_EXPRESSION}}__',
+                    'GROUP'     => 'GROUP BY __{{GROUP_FIELDS}}__',
+                    'HAVING'    => 'HAVING __{{HAVING_EXPRESSION}}__',
+                    'ORDER'     => 'ORDER BY __{{ORDER_FIELDS}}__',
+                    'LIMIT'     => 'LIMIT __{{OFFSET}}__, __{{COUNT}}__',
+                    
+                    'CURRENT'   =>  'NOW()',
+                    'NULLDATE'  =>  '1970-01-01 00:00:00',
+                    'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
+                    'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
+                    'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
+                    'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
+                    'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
+                    'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)'
+                )
+            )
+        );
+        self::$vendors['mysql'] = self::$vendors['mysqli'];
+        
+        self::$query_types = array('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'ALTER');
+        
+        self::$isInited = true;
+    }
+    
     // static builder method
-    public static function create( $vendor="mysql" )
+    public static function create( $vendor='mysql' )
     {
         return new self( $vendor );
     }
     
     public function __construct( $vendor='mysql' )
     {
+        $this->_vendor = strtolower($vendor);
+        $this->_vendor_clauses = self::$vendors[ $this->_vendor ]['clauses'];
+        $this->_vendor_tpls = self::$vendors[ $this->_vendor ]['tpls'];
         $this->reset( )->sanitize( true );
     }
     
@@ -374,8 +460,9 @@ class Dialect
         $this->_conditionsH = array();
         $this->_clauses = array();
         
-        foreach ($this->_default_clauses as $type => $clauses)
+        foreach ($this->_vendor_clauses as $type => $clauses)
         {
+            $this->_clauses[ $type ] = '';
             foreach ($clauses as $clause)
                 $this->_clauses[ $clause ] = '';
         }
@@ -403,13 +490,15 @@ class Dialect
     }
     
     // return a field reference
-    public function field( $field )
+    public function field( $field, $table=null )
     {
-        if ( $field instanceof DialectField ) return $field;
+        if ( null === $field ) return $field;
+        
+        else if ( $field instanceof DialectField ) return $field;
         
         if ( !isset( $this->_fields[ $field ] ) )
         {
-            $f = new DialectField($field, ++self::$_fieldCnt);
+            $f = new DialectField($field, $table);
             $this->_fields[ $field ] = $f;
             
             $t = $f->table();
@@ -543,7 +632,7 @@ class Dialect
     public function delete()
     {
         $this->reset();
-        $this->_type = 'UPDATE';
+        $this->_type = 'DELETE';
         return $this;
     }
     
@@ -764,4 +853,7 @@ class Dialect
         return $this->limit($per_page, ($page-1)*$per_page);
     }
 }
+
+// init 
+Dialect::init();
 }
