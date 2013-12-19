@@ -3,7 +3,8 @@ Dialect
 
 Cross-Platform SQL construction
 
-__IN PROGRESS__
+__IN PROGRESS DO NOT USE__
+
 
 __Requirements:__
 
