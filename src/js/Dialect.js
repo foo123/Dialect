@@ -1,4 +1,4 @@
-<?php
+!function(root, undef){
 /**
 *
 *   Dialect Cross-Platform SQL Builder
@@ -29,233 +29,208 @@ __Requirements:__
 *
 **/
 
-if ( !class_exists('Dialect') )
-{
+var Dialect = root.Dialect = {};
 
-class DialectTable
-{
-    private static $_cnt = 0;
+Dialect.Table = function(table, id, quote) {
+    var _cnt = 0;
     
-    private $_id = 0;
-    private $_table = null;
-    private $_alias = null;
-    private $_asAlias = null;
-    private $quote = '';
+    var _id = 0;
+    var _table = null;
+    var _alias = null;
+    var _asAlias = null;
+    var _quote = '';
     
-    public function __construct( $table, $id=null, $quote = '' )
-    {
-        $this->_table = trim($table);
-        $this->_id = $id ? $id : ++self::$_cnt;
-        $this->quote = $quote;
-        $this->useAlias( false );
-    }
-    
-    public function useAlias( $bool = true )
-    {
-        if ( $bool )
+    this.useAlias = function( bool ) {
+        bool = undef === bool ? true : !!bool;
+        
+        if ( bool )
         {
-            $this->_alias = $this->quote . $this->_table . "_talias_" . $this->_id . $this->quote;
-            $this->_asAlias = $this->quote . $this->_table . $this->quote . " AS " . $this->quote . $this->_alias . $this->quote;
+            _alias = _quote + _table + "_talias_" + _id + _quote;
+            _asAlias = _quote + _table + _quote + " AS " + _quote + _alias + _quote;
         }
         else
         {
-            $this->_alias = $this->quote . $this->_table . $this->quote;
-            $this->_asAlias = $this->quote . $this->_table . $this->quote;
+            _alias = _quote + _table + _quote;
+            _asAlias = _quote + _table + _quote;
         }
-        return $this;
-    }
+        return this;
+    };
     
-    public function table()
-    {
-        return $this->_table;
-    }
+    this.table = function() {
+        return _table;
+    };
     
-    public function alias()
-    {
-        return $this->_alias;
-    }
+    this.alias = function() {
+        return _alias;
+    };
     
-    public function asAlias()
-    {
-        return $this->_asAlias;
-    }
-}
+    this.asAlias = function() {
+        return _asAlias;
+    };
+    
+    _table = trim(table);
+    _id = id ? id : ++_cnt;
+    _quote = quote || '';
+    this.useAlias( false );
+};
 
-class DialectField
-{
-    private static $_cnt = 0;
+Dialect.Field = function( field, table, quote) {
+    var _cnt = 0;
     
-    private $_id = 0;
-    private $_field = null;
-    private $_alias = null;
-    private $_asAlias = null;
-    private $_table = null;
-    private $quote = '';
+    var _id = 0;
+    var _field = null;
+    var _alias = null;
+    var _asAlias = null;
+    var _table = null;
+    var _quote = '';
     
-    public function __construct( $field, $table=null, $quote='' )
-    {
-        $parts = $this->parseField( $field );
+    this.useAlias = function( bool ) {
+        bool = undef === bool ? true : !!bool;
         
-        $this->_field = $parts[ 'field' ];
-        $this->quote = $quote;
-        $this->_id = ++self::$_cnt;
+        var table = '';
         
-        if ( $table ) $this->setTable( $table );
-        
-        else if ( isset( $parts[ 'table' ] ) )  $this->setTable( $parts[ 'table' ] );
-            
-        $this->useAlias( false );
-    }
-    
-    public function useAlias( $bool = true )
-    {
-        $table = '';
-        
-        if ( $this->_table )
+        if ( _table )
         {
-            $table = $this->_table->alias(). ".";
+            table = _table.alias() + ".";
         }
         
-        if ( $bool )
+        if ( bool )
         {
-            $this->_alias = $this->quote . $this->_field . "_falias_" . $this->_id . $this->quote;
-            $this->_asAlias = $table . $this->quote . $this->_field . $this->quote . " AS " . $this->quote . $this->_alias . $this->quote;
+            _alias = _quote + _field + "_falias_" + _id + _quote;
+            _asAlias = table + _quote + _field + _quote + " AS " + _quote + _alias + _quote;
         }
         else
         {
-            $this->_alias = $this->quote . $this->_field . $this->quote;
-            $this->_asAlias = $table . $this->quote . $this->_field . $this->quote;
+            _alias = _quote + _field + _quote;
+            _asAlias = table + _quote + _field + _quote;
         }
-        return $this;
-    }
+        return this;
+    };
     
-    public function setTable( $table )
-    {
-        if ( !($table instanceof DialectTable) )  $table = new DialectTable( $table );
-        $this->_table = $table;
-        return $this;
-    }
+    this.setTable = function( table ) {
+        if ( !(table instanceof Dialect.Table) )  table = new Dialect.Table( table );
+        _table = table;
+        return this;
+    };
     
-    public function field()
-    {
-        return $this->_field;
-    }
+    this.field = function() {
+        return _field;
+    };
     
-    public function alias()
-    {
-        return $this->_alias;
-    }
+    this.alias = function() {
+        return _alias;
+    };
     
-    public function asAlias()
-    {
-        return $this->_asAlias;
-    }
+    this.asAlias = function() {
+        return _asAlias;
+    };
     
-    public function table()
-    {
-        return $this->_table;
-    }
+    this.table = function() {
+        return _table;
+    };
     
-    public function parseField( $f )
-    {
-        //preg_match('~([^\.]+?)\.?([^\.]*?)~', $str, $m);
-        //print_r($f);
+    this.parseField = function( f )  {
         
-        $tmp = explode('.', $f, 2);
-        $parts = array();
+        var tmp = f.split('.', 2);
+        var parts = {};
         
-        if ( isset( $tmp[1] ) )
+        if ( tmp[1] )
         {
-            $parts[ 'table' ] = $tmp[0];
-            $parts[ 'field' ] = $tmp[1];
+            parts[ 'table' ] = tmp[0];
+            parts[ 'field' ] = tmp[1];
         }
         else
         {   
-            $parts[ 'field' ] = $tmp[0];
+            parts[ 'field' ] = tmp[0];
         }
-        return $parts;
-    }
-}
+        return parts;
+    };
+    
+    var parts = this.parseField( field );
+    
+    _field = parts[ 'field' ];
+    _quote = quote || '';
+    _id = ++_cnt;
+    
+    if ( table ) this.setTable( table );
+    
+    else if ( parts[ 'table' ] )  this.setTable( parts[ 'table' ] );
+        
+    this.useAlias( false );
+};
 
-class DialectExpression
-{
-    private $config = null;
-    private $e = array();
-    private $rel_ops = array('AND', 'OR');
-    private $ops = array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100);
+Dialect.Expression = function(_config) {
+
+    var config = null;
+    var e = [];
+    var rel_ops = ['AND', 'OR'];
+    var ops = {'=':1, '>':1, '<':1, '>=':1, '<=':1, '<>':1, 'LIKE':1, 'NOT_LIKE':1, 'BETWEEN':2, 'IN':100, 'NOT_IN':100};
     
-    public function __construct( $config=null )
-    {
-        $this->config = $config;
-        $this->reset();
-    }
+    this.toString = function()  {
+        return this.get();
+    };
     
-    public function __toString()
-    {
-        return $this->get();
-    }
+    this.reset = function() {
+        e = [];
+        return this;
+    };
     
-    public function reset()
-    {
-        $this->e = array();
-        return $this;
-    }
+    this.get = function() {
+        return e.join(' ');
+    };
     
-    public function get()
-    {
-        return implode(' ', $this->e);
-    }
-    
-    public function expr()
-    {
-        $_args = func_get_args();
-        $_argslen = count($_args);
+    this.expr = function() {
+        var _args = Array.prototype.slice.call(arguments)
+        var _argslen = _args.length;
         
-        if ( $_argslen > 1 && is_array( $_args[0] ) )
+        if ( _argslen > 1 && is_array( _args[0] ) )
         {
-            $_args = $_args[0];
-            $_argslen = count($_args);
+            _args = _args[0];
+            _argslen = _args.length;
         }
         
-        if ($_argslen < 3 ) return $this;
+        if (_argslen < 3 ) return this;
         
-        $field = $_args[0];
-        $op = $_args[1];
-        $args = $_args[2];
-        $q = ( isset($_args[3]) ) ? $_args[3] : '';
+        var field = _args[0];
+        var op = _args[1];
+        var args = _args[2];
+        var q = ( _args[3] ) ? _args[3] : '';
         
         // process operator
-        $opc = preg_replace('/\s+/', '_', trim(strtoupper($op)));
+        var opc = op.toUpperCase().replace('/\s+/', '_');
         
         // nothing to do
-        if ( !isset($this->ops[$opc]) )  return $this;
+        if ( !ops[opc] )  return this;
         
-        $op = str_replace('_', ' ', $opc);
-        $expr = $field->alias() . " " . $op . " ";
+        op = opc.replace('_', ' ');
+        var expr = field.alias() + " " + op + " ";
         
-        $args = array_values((array)$args);
-        switch( $this->ops[$opc] )
+        //args = array_values((array)$args);
+        switch( ops[opc] )
         {
             case 100:
-                $expr .= '(' . $q.implode("{$q},{$q}", $args).$q . ')';
+                expr += '(' + q+args.join("{$q},{$q}")+q + ')';
                 break;
             case 2:
-                $expr .= "({$q}{$args[0]}{$q}, {$q}{$args[1]}{$q})";
+                expr += "({$q}{$args[0]}{$q}, {$q}{$args[1]}{$q})";
                 break;
             case 1:
             default:
-                $expr .= $q.$args[0].$q;
+                expr += q+args[0]+q;
                 break;
         }
         
-        $this->e[] = "({$expr})";
+        e,push( "({$expr})" );
         
-        return $this;
-    }
-}
+        return this;
+    };
+    
+    config = _config;
+    this.reset();
+};
 
-class Dialect
-{
+Dialect.SQL = function() {
+
     const VERSION = "0.2";
     
     private static $isInited = false;
@@ -933,5 +908,6 @@ _CLAUSE_
 }
 
 // init 
-Dialect::init();
-}
+Dialect.init();
+
+}(this);
