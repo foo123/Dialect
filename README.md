@@ -1,7 +1,8 @@
 Dialect
 =======
 
-Cross-Platform SQL construction
+**Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript**
+
 
 __IN PROGRESS DO NOT USE__
 

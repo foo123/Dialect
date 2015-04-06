@@ -1,6 +1,6 @@
 ##
 #
-#   Dialect Cross-Platform SQL Builder
+#   Dialect Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 #   https://github.com/foo123/Dialect
 # 
 #   Abstract the construction of SQL queries

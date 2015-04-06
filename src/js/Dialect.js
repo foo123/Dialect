@@ -1,7 +1,6 @@
-!function(root, undef){
 /**
 *
-*   Dialect Cross-Platform SQL Builder
+*   Dialect Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 *   https://github.com/foo123/Dialect
 * 
 *   Abstract the construction of SQL queries
@@ -9,7 +8,40 @@
 *   Intuitive and Flexible API
 *
 **/
+!function( root, name, factory ) {
+    "use strict";
+    
+    //
+    // export the module, umd-style (no other dependencies)
+    var isCommonJS = ("object" === typeof(module)) && module.exports, 
+        isAMD = ("function" === typeof(define)) && define.amd, m;
+    
+    // CommonJS, node, etc..
+    if ( isCommonJS ) 
+        module.exports = (module.$deps = module.$deps || {})[ name ] = module.$deps[ name ] || (factory.call( root, {NODE:module} ) || 1);
+    
+    // AMD, requireJS, etc..
+    else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) && require.specified(name) ) 
+        define( name, ['require', 'exports', 'module'], function( require, exports, module ){ return factory.call( root, {AMD:module} ); } );
+    
+    // browser, web worker, etc.. + AMD, other loaders
+    else if ( !(name in root) ) 
+        (root[ name ] = (m=factory.call( root, {} ) || 1)) && isAMD && define( name, [], function( ){ return m; } );
 
+
+}(  /* current root */          this, 
+    /* module name */           "Dialect",
+    /* module factory */        function( exports, undef ) {
+"use strict";
+var __version__ = "0.1", 
+    PROTO = 'prototype', HAS = 'hasOwnProperty', 
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/Trim
+    trim = String[PROTO].trim 
+            ? function( s ){ return s.trim( ); } 
+            : function( s ){ return s.replace(/^\s+|\s+$/g, ''); }, 
+    Tpl, Table, Field, Expression, SQL, Dialect = {VERSION: __version__};
+
+    
 /*
 
 __Requirements:__
@@ -29,18 +61,167 @@ __Requirements:__
 *
 **/
 
-var Dialect = root.Dialect = {};
+/**
+*
+*  Dialect Template, Dialect.Tpl
+*
+**/
+Dialect.Tpl = Tpl = function Tpl( tpl, replacements, compiled ) {
+    var self = this;
+    if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
+    self.id = null;
+    self._renderer = null;
+    self.tpl = Tpl.multisplit( tpl||'', replacements||Tpl.defaultArgs );
+    if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
+    self.fixRenderer( );
+};
+Tpl.defaultArgs = {'$-5':-5,'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4,'$5':5};
+Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
+    var r, sr, s, i, j, a, b, c, al, bl;
+    as_array = !!as_array;
+    a = [ [1, tpl] ];
+    for ( r in reps )
+    {
+        if ( reps.hasOwnProperty( r ) )
+        {
+            c = [ ]; sr = as_array ? reps[ r ] : r; s = [0, reps[ r ]];
+            for (i=0,al=a.length; i<al; i++)
+            {
+                if ( 1 === a[ i ][ 0 ] )
+                {
+                    b = a[ i ][ 1 ].split( sr ); bl = b.length;
+                    c.push( [1, b[0]] );
+                    if ( bl > 1 )
+                    {
+                        for (j=0; j<bl-1; j++)
+                        {
+                            c.push( s );
+                            c.push( [1, b[j+1]] );
+                        }
+                    }
+                }
+                else
+                {
+                    c.push( a[ i ] );
+                }
+            }
+            a = c;
+        }
+    }
+    return a;
+};
+Tpl.multisplit_re = function multisplit_re( tpl, re ) {
+    var a = [ ], i = 0, m;
+    while ( m = re.exec( tpl ) )
+    {
+        a.push([1, tpl.slice(i, re.lastIndex - m[0].length)]);
+        a.push([0, m[1] ? m[1] : m[0]]);
+        i = re.lastIndex;
+    }
+    a.push([1, tpl.slice(i)]);
+    return a;
+};
+Tpl.arg = function( key, argslen ) { 
+    var i, k, kn, kl, givenArgsLen, out = 'args';
+    
+    if ( arguments.length && null != key )
+    {
+        if ( key.substr ) 
+            key = key.length ? key.split('.') : [];
+        else 
+            key = [key];
+        kl = key.length;
+        givenArgsLen = !!(argslen && argslen.substr);
+        
+        for (i=0; i<kl; i++)
+        {
+            k = key[ i ]; kn = +k;
+            if ( !isNaN(kn) ) 
+            {
+                if ( kn < 0 ) k = givenArgsLen ? (argslen+(-kn)) : (out+'.length-'+(-kn));
+                out += '[' + k + ']';
+            }
+            else
+            {
+                out += '["' + k + '"]';
+            }
+        }
+    }
+    return out; 
+};
+Tpl.compile = function( tpl, raw ) {
+    var l = tpl.length, 
+        i, notIsSub, s, out;
+    
+    if ( true === raw )
+    {
+        out = '"use strict"; return (';
+        for (i=0; i<l; i++)
+        {
+            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
+            out += notIsSub ? s : Tpl.arg(s);
+        }
+        out += ');';
+    }
+    else
+    {
+        out = '"use strict"; var argslen=args.length; return (';
+        for (i=0; i<l; i++)
+        {
+            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
+            if ( notIsSub ) out += "'" + s.replace(SQUOTE, "\\'").replace(NEWLINE, "' + \"\\n\" + '") + "'";
+            else out += " + String(" + Tpl.arg(s,"argslen") + ") + ";
+        }
+        out += ');';
+    }
+    return F('args', out);
+};
+Tpl[PROTO] = {
+    constructor: Tpl
+    
+    ,id: null
+    ,tpl: null
+    ,_renderer: null
+    
+    ,dispose: function( ) {
+        this.id = null;
+        this.tpl = null;
+        this._renderer = null;
+        return this;
+    }
+    ,fixRenderer: function( ) {
+        if ( 'function' === typeof this._renderer )
+            this.render = this._renderer;
+        else
+            this.render = this.constructor[PROTO].render;
+        return this;
+    }
+    ,render: function( args ) {
+        args = args || [ ];
+        //if ( this._renderer ) return this._renderer( args );
+        var tpl = this.tpl, l = tpl.length, 
+            argslen = args.length, 
+            i, notIsSub, s, out = ''
+        ;
+        for (i=0; i<l; i++)
+        {
+            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
+            out += (notIsSub ? s : (!s.substr && s < 0 ? args[ argslen+s ] : args[ s ]));
+        }
+        return out;
+    }
+};
 
-Dialect.Table = function(table, id, quote) {
-    var _cnt = 0;
+
+/**
+*
+*  Dialect Table, Dialect.Table
+*
+**/
+Dialect.Table = Table = function Table(table, id, quote) {
+    var self = this, _cnt = 0, _id = 0, _table = null, _alias = null, _asAlias = null, _quote = '';
     
-    var _id = 0;
-    var _table = null;
-    var _alias = null;
-    var _asAlias = null;
-    var _quote = '';
-    
-    this.useAlias = function( bool ) {
+    self.useAlias = function( bool ) {
         bool = undef === bool ? true : !!bool;
         
         if ( bool )
@@ -53,38 +234,37 @@ Dialect.Table = function(table, id, quote) {
             _alias = _quote + _table + _quote;
             _asAlias = _quote + _table + _quote;
         }
-        return this;
+        return self;
     };
     
-    this.table = function() {
+    self.table = function() {
         return _table;
     };
     
-    this.alias = function() {
+    self.alias = function() {
         return _alias;
     };
     
-    this.asAlias = function() {
+    self.asAlias = function() {
         return _asAlias;
     };
     
     _table = trim(table);
     _id = id ? id : ++_cnt;
     _quote = quote || '';
-    this.useAlias( false );
+    self.useAlias( false );
 };
 
-Dialect.Field = function( field, table, quote) {
-    var _cnt = 0;
+
+/**
+*
+*  Dialect Field, Dialect.Field
+*
+**/
+Dialect.Field = Field = function Field( field, table, quote) {
+    var self = this, _cnt = 0, _id = 0, _field = null, _alias = null, _asAlias = null, _table = null, _quote = '';
     
-    var _id = 0;
-    var _field = null;
-    var _alias = null;
-    var _asAlias = null;
-    var _table = null;
-    var _quote = '';
-    
-    this.useAlias = function( bool ) {
+    self.useAlias = function( bool ) {
         bool = undef === bool ? true : !!bool;
         
         var table = '';
@@ -104,32 +284,32 @@ Dialect.Field = function( field, table, quote) {
             _alias = _quote + _field + _quote;
             _asAlias = table + _quote + _field + _quote;
         }
-        return this;
+        return self;
     };
     
-    this.setTable = function( table ) {
+    self.setTable = function( table ) {
         if ( !(table instanceof Dialect.Table) )  table = new Dialect.Table( table );
         _table = table;
-        return this;
+        return self;
     };
     
-    this.field = function() {
+    self.field = function() {
         return _field;
     };
     
-    this.alias = function() {
+    self.alias = function() {
         return _alias;
     };
     
-    this.asAlias = function() {
+    self.asAlias = function() {
         return _asAlias;
     };
     
-    this.table = function() {
+    self.table = function() {
         return _table;
     };
     
-    this.parseField = function( f )  {
+    self.parseField = function( f )  {
         
         var tmp = f.split('.', 2);
         var parts = {};
@@ -146,41 +326,43 @@ Dialect.Field = function( field, table, quote) {
         return parts;
     };
     
-    var parts = this.parseField( field );
+    var parts = self.parseField( field );
     
     _field = parts[ 'field' ];
     _quote = quote || '';
     _id = ++_cnt;
     
-    if ( table ) this.setTable( table );
-    
-    else if ( parts[ 'table' ] )  this.setTable( parts[ 'table' ] );
+    if ( table ) self.setTable( table );
+    else if ( parts[ 'table' ] )  self.setTable( parts[ 'table' ] );
         
-    this.useAlias( false );
+    self.useAlias( false );
 };
 
-Dialect.Expression = function(_config) {
 
-    var config = null;
-    var e = [];
-    var rel_ops = ['AND', 'OR'];
-    var ops = {'=':1, '>':1, '<':1, '>=':1, '<=':1, '<>':1, 'LIKE':1, 'NOT_LIKE':1, 'BETWEEN':2, 'IN':100, 'NOT_IN':100};
+/**
+*
+*  Dialect Expression, Dialect.Expression
+*
+**/
+Dialect.Expression = Expression = function Expression(_config) {
+    var self = this, config = null, e = [], rel_ops = ['AND', 'OR'],
+        ops = {'=':1, '>':1, '<':1, '>=':1, '<=':1, '<>':1, 'LIKE':1, 'NOT_LIKE':1, 'BETWEEN':2, 'IN':100, 'NOT_IN':100};
     
-    this.toString = function()  {
-        return this.get();
+    self.toString = function()  {
+        return self.get();
     };
     
-    this.reset = function() {
+    self.reset = function() {
         e = [];
-        return this;
+        return self;
     };
     
-    this.get = function() {
+    self.get = function() {
         return e.join(' ');
     };
     
-    this.expr = function() {
-        var _args = Array.prototype.slice.call(arguments)
+    self.expr = function() {
+        var _args = Array[PROTO].slice.call(arguments)
         var _argslen = _args.length;
         
         if ( _argslen > 1 && is_array( _args[0] ) )
@@ -189,7 +371,7 @@ Dialect.Expression = function(_config) {
             _argslen = _args.length;
         }
         
-        if (_argslen < 3 ) return this;
+        if (_argslen < 3 ) return self;
         
         var field = _args[0];
         var op = _args[1];
@@ -200,7 +382,7 @@ Dialect.Expression = function(_config) {
         var opc = op.toUpperCase().replace('/\s+/', '_');
         
         // nothing to do
-        if ( !ops[opc] )  return this;
+        if ( !ops[opc] )  return self;
         
         op = opc.replace('_', ' ');
         var expr = field.alias() + " " + op + " ";
@@ -222,482 +404,215 @@ Dialect.Expression = function(_config) {
         
         e,push( "({$expr})" );
         
-        return this;
+        return self;
     };
     
     config = _config;
-    this.reset();
+    self.reset();
 };
 
-Dialect.SQL = function() {
 
-    const VERSION = "0.2";
+/**
+*
+*  Dialect SQL, Dialect.SQL
+*
+**/
+Dialect.SQL = SQL = function SQL( vendor ) {
+    var self = this;
+    if ( !(self instanceof SQL) ) return new SQL(vendor);
+    self._vendor = vendor.toLowerCase();
+    self._q = vendors[ self._vendor ]['quote'];
+    self._vendor_clauses = vendors[ self._vendor ]['clauses'];
+    self._vendor_tpls = vendors[ self._vendor ]['tpls'];
+    self.reset( ).sanitize( true );
+};    
+SQL[PROTO] = {
+    constructor: SQL
     
-    private static $isInited = false;
-    private static $vendors = array();
+    ,_vendor: null
+    ,_vendor_clauses: null
+    ,_vendor_tpls: null
+    ,_quote: ''
+    ,_q: ''
+    ,_sanitize: false
+    ,_fields: null
+    ,_tables: null
+    ,_whereExpr: null
+    ,_havingExpr: null
+    ,_conditionsW: null
+    ,_conditionsH: null
+    ,_clauses: null
     
-    private $_vendor = null;
-    private $_vendor_clauses = null;
-    private $_quote = '';
-    private $_vendor_tpls = null;
-    private $_ops = null;
-    private $_rel_ops = null;
-    
-    private $_type = null;
-    private $_sanitize = true;
-    private $_q = '';
-    private $_whereExpr = null;
-    private $_havingExpr = null;
-    private $_tables = null;
-    private $_fields = null;
-    private $_conditionsW = null;
-    private $_conditionsH = null;
-    private $_clauses = null;
-    
-    public static addVendor($vendor=null, $config=null)
-    {
-        if ( $vendor && $config )
+    ,dispose: function( ) {
+        var self = this;
+        self._vendor = null;
+        self._vendor_clauses = null;
+        self._vendor_tpls = null;
+        self._quote = null;
+        self._q = null;
+        self._sanitize = null;
+        self._fields = null;
+        self._tables = null;
+        self._whereExpr = null;
+        self._havingExpr = null;
+        self._conditionsW = null;
+        self._conditionsH = null;
+        self._clauses = null;
+        return self;
+    }
+    ,reset: function( ) {
+        var self = this;
+        self._q = '';
+        self._fields = [];
+        self._tables = [];
+        self._whereExpr = null;
+        self._havingExpr = null;
+        self._conditionsW = [];
+        self._conditionsH = [];
+        self._clauses = [];
+        for (var type in self._vendor_clauses)
         {
-            self::$vendors[ strtolower($vendor) ] = (array)$config;
-        }
-    }
-    
-    public static init()
-    {
-        if ( self::$isInited ) return;
-        
-        // http://www.php.net/manual/en/refs.database.abstract.php
-        // http://www.php.net/manual/en/intro.pdo.php
-        
-        self::addVendor('mysql', array(
-            // http://php.net/manual/en/function.mysql-real-escape-string.php
-            // http://www.php.net/manual/en/mysqli.real-escape-string.php
-            //'escape'    =>  'mysqli_real_escape_string ( mysqli $link , string $escapestr )',
-            
-            'quote'         =>  '`',
-            
-            'concat'        =>  '',
-            
-            'operatorss'    =>  array(
-                '=' => 1, 
-                '>' => 1, 
-                '<' => 1, 
-                '>=' => 1, 
-                '<=' => 1, 
-                '<>' => 1, 
-                'LIKE' => 1, 
-                'NOT_LIKE' => 1, 
-                'BETWEEN' => 2, 
-                'IN' => 100, 
-                'NOT_IN' => 100
-            ),
-            
-            'rel_operatorss'   =>  array('AND', 'OR'),
-            
-            'datetime'        => array(
-                'CURRENT'   =>  'CURRENT_TIMESTAMP()',
-                'NULLDATE'  =>  '0000-00-00 00:00:00',
-                'YEAR'      =>  'YEAR(__{{DATE}}__)',
-                'MONTH'     =>  'MONTH(__{{DATE}}__)',
-                'DAY'       =>  'DAY(__{{DATE}}__)',
-                'HOUR'      =>  'HOUR(__{{DATE}}__)',
-                'MINUTE'    =>  'MINUTE(__{{DATE}}__)',
-                'SECOND'    =>  'SECOND(__{{DATE}}__)'
-            ),
-            
-            'clauses'   =>  array(
-                'SELECT' => <<<_CLAUSE_
-SELECT __{{SELECT_EXPRS}}__
-FROM __{{TABLE_REFS}}__
-WHERE __{{WHERE_CONDS}}__
-GROUP BY __{{GROUP_EXPRS}}__
-HAVING __{{HAVING_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMITS}}__
-_CLAUSE_
-,
-                'INSERT' => <<<_CLAUSE_
-INSERT INTO __{{TABLE_REF}}__
-VALUES __{{VAL_EXPRS}}__
-_CLAUSE_
-,
-                'UPDATE' => <<<_CLAUSE_
-UPDATE __{{TABLE_REFS}}__
-SET __{{KEY_VAL_EXPRS}}__
-WHERE __{{WHERE_CONDS}}__
-_CLAUSE_
-,
-                'DELETE' => <<<_CLAUSE_
-DELETE FROM __{{TABLE_REF}}__
-WHERE __{{WHERE_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMIT_COUNT}}__
-_CLAUSE_
-,
-                'ALTER' => <<<_CLAUSE_
-ALTER [IGNORE] TABLE tbl_name
-    [alter_specification [, alter_specification] ...]
-
-alter_specification:
-    table_options
-  | ADD [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name ]
-  | ADD [COLUMN] (col_name column_definition,...)
-  | ADD {INDEX|KEY} [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]] PRIMARY KEY
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        UNIQUE [INDEX|KEY] [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [FULLTEXT|SPATIAL] [INDEX|KEY] [index_name]
-        (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        FOREIGN KEY [index_name] (index_col_name,...)
-        reference_definition
-  | ALTER [COLUMN] col_name {SET DEFAULT literal | DROP DEFAULT}
-  | CHANGE [COLUMN] old_col_name new_col_name column_definition
-        [FIRST|AFTER col_name]
-  | MODIFY [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name]
-  | DROP [COLUMN] col_name
-  | DROP PRIMARY KEY
-  | DROP {INDEX|KEY} index_name
-  | DROP FOREIGN KEY fk_symbol
-  | DISABLE KEYS
-  | ENABLE KEYS
-  | RENAME [TO|AS] new_tbl_name
-  | ORDER BY col_name [, col_name] ...
-  | CONVERT TO CHARACTER SET charset_name [COLLATE collation_name]
-  | [DEFAULT] CHARACTER SET [=] charset_name [COLLATE [=] collation_name]
-  | DISCARD TABLESPACE
-  | IMPORT TABLESPACE
-_CLAUSE_
-
-            )
-        ));
-        
-        self::addVendor('postgre', array(
-            // http://www.php.net/manual/en/function.pg-escape-string.php
-            //'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
-            
-            'quote'     =>  '"',
-            
-            'concat'    =>  '||',
-            
-            'operatorss'    =>  array(
-                '=' => 1, 
-                '>' => 1, 
-                '<' => 1, 
-                '>=' => 1, 
-                '<=' => 1, 
-                '<>' => 1, 
-                'LIKE' => 1, 
-                'NOT_LIKE' => 1, 
-                'BETWEEN' => 2, 
-                'IN' => 100, 
-                'NOT_IN' => 100
-            ),
-            
-            'rel_operatorss'   =>  array('AND', 'OR'),
-            
-            'datetime'  =>  array(
-                'CURRENT'   =>  'NOW()',
-                'NULLDATE'  =>  '1970-01-01 00:00:00',
-                'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
-                'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
-                'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
-                'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
-                'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
-                'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)'
-            ),
-            
-            'clauses'   =>  array(
-                'SELECT' => <<<_CLAUSE_
-SELECT __{{SELECT_EXPRS}}__
-FROM __{{TABLE_REFS}}__
-WHERE __{{WHERE_CONDS}}__
-GROUP BY __{{GROUP_EXPRS}}__
-HAVING __{{HAVING_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMITS}}__
-_CLAUSE_
-,
-                'INSERT' => <<<_CLAUSE_
-INSERT INTO __{{TABLE_REF}}__
-VALUES __{{VAL_EXPRS}}__
-_CLAUSE_
-,
-                'UPDATE' => <<<_CLAUSE_
-UPDATE __{{TABLE_REFS}}__
-SET __{{KEY_VAL_EXPRS}}__
-WHERE __{{WHERE_CONDS}}__
-_CLAUSE_
-,
-                'DELETE' => <<<_CLAUSE_
-DELETE FROM __{{TABLE_REF}}__
-WHERE __{{WHERE_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMIT_COUNT}}__
-_CLAUSE_
-,
-                'ALTER' => <<<_CLAUSE_
-ALTER [IGNORE] TABLE tbl_name
-    [alter_specification [, alter_specification] ...]
-
-alter_specification:
-    table_options
-  | ADD [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name ]
-  | ADD [COLUMN] (col_name column_definition,...)
-  | ADD {INDEX|KEY} [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]] PRIMARY KEY
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        UNIQUE [INDEX|KEY] [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [FULLTEXT|SPATIAL] [INDEX|KEY] [index_name]
-        (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        FOREIGN KEY [index_name] (index_col_name,...)
-        reference_definition
-  | ALTER [COLUMN] col_name {SET DEFAULT literal | DROP DEFAULT}
-  | CHANGE [COLUMN] old_col_name new_col_name column_definition
-        [FIRST|AFTER col_name]
-  | MODIFY [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name]
-  | DROP [COLUMN] col_name
-  | DROP PRIMARY KEY
-  | DROP {INDEX|KEY} index_name
-  | DROP FOREIGN KEY fk_symbol
-  | DISABLE KEYS
-  | ENABLE KEYS
-  | RENAME [TO|AS] new_tbl_name
-  | ORDER BY col_name [, col_name] ...
-  | CONVERT TO CHARACTER SET charset_name [COLLATE collation_name]
-  | [DEFAULT] CHARACTER SET [=] charset_name [COLLATE [=] collation_name]
-  | DISCARD TABLESPACE
-  | IMPORT TABLESPACE
-_CLAUSE_
-
-            )
-        ));
-            
-        self::$isInited = true;
-    }
-    
-    // static builder method
-    public static function create( $vendor='mysql' )
-    {
-        return new self( $vendor );
-    }
-    
-    public function __construct( $vendor='mysql' )
-    {
-        $this->_vendor = strtolower($vendor);
-        $this->_quote = self::$vendors[ $this->_vendor ]['quote'];
-        $this->_vendor_clauses = self::$vendors[ $this->_vendor ]['clauses'];
-        $this->_vendor_tpls = self::$vendors[ $this->_vendor ]['tpls'];
-        $this->reset( )->sanitize( true );
-    }
-    
-    public function reset()
-    {
-        $this->_q = '';
-        $this->_fields = array();
-        $this->_tables = array();
-        $this->_whereExpr = null;
-        $this->_havingExpr = null;
-        $this->_conditionsW = array();
-        $this->_conditionsH = array();
-        $this->_clauses = array();
-        
-        foreach ($this->_vendor_clauses as $type => $clauses)
-        {
-            $this->_clauses[ $type ] = '';
-            foreach ($clauses as $clause)
-                $this->_clauses[ $clause ] = '';
-        }
-        
-        return $this;
-    }
-    
-    // return the sql as string, if this object is cast as a string ;)
-    public function __toString()
-    {
-        return $this->sql();
-    }
-    
-    // return a table reference
-    public function table( $table )
-    {
-        if ( !$table ) return $table;
-        
-        elseif ( $table instanceof DialectTable ) return $table;
-        
-        if ( !isset( $this->_tables[ $table ] ) )
-            $this->_tables[ $table ] = new DialectTable($table, ++self::$_tableCnt, $this->_quote);
-        
-        return $this->_tables[ $table ];
-    }
-    
-    // return a field reference
-    public function field( $field, $table=null )
-    {
-        if ( null === $field ) return $field;
-        
-        else if ( $field instanceof DialectField ) return $field;
-        
-        if ( !isset( $this->_fields[ $field ] ) )
-        {
-            $f = new DialectField($field, $table);
-            $this->_fields[ $field ] = $f;
-            
-            $t = $f->table();
-            if ( $t && !isset( $this->_tables[ $t->table() ]) )
-                $this->_tables[ $t->table() ] = $t;
-        }
-        return $this->_fields[ $field ];
-    }
-    
-    // return an expression reference
-    public function expression( $field, $op, $args, $q='' )
-    {   
-        $expr = new DialectExpression();
-        $expr->expr($field, $op, $args, $q);
-        return $expr;
-    }
-    
-    // try to sanitize if possible
-    public function sanitize($bool)
-    {
-        $this->_sanitize = (bool)$bool;
-        return $this;
-    }
-    
-    // simple prepare using sprintf
-    public function prepare( $sql, $params=null )
-    {
-        if ( !$params && is_array($sql) )
-        {
-            $params = $sql;
-            $sql = $this->sql();
-        }
-        return vsprintf( $sql, $params );
-    }
-    
-    protected function buildQuery( $part=null )
-    {
-        // allow to get partial query back
-        if (!$part)
-            $parts = array_flip( $this->_default_clauses[ $this->_type ] );
-        else
-            $parts = array_flip( (array)$part );
-            
-        $parts2 = $parts; // clone
-        
-        $sql = '';
-        $type = $this->_type;
-        
-        if ('SELECT'==$type)
-        {
-            $sql .= 'SELECT ';
-            
-            $i = 0;
-            foreach ($this->_fields as $field)
+            if ( self._vendor_clauses[HAS](type) )
             {
-                if ($i)  $sql .= ", ";
-                $sql .= $field->asAlias();
-                $i++;
+                var clauses = self._vendor_clauses[type];
+                self._clauses[ $type ] = '';
+                for (var clause in clauses) if (clauses[HAS](clause) ) self._clauses[ clause ] = '';
             }
-            $sql .= " ";
+        }
+        return self;
+    }
+    // return a table reference
+    ,table: function( table ) {
+        var self = this;
+        if ( !table || table instanceof Dialect.Table ) return table;
+        
+        if ( !self._tables[HAS]( table ) )
+            self._tables[ table ] = new Dialect.Table(table, ++_tableCnt, self._quote);
+        
+        return self._tables[ table ];
+    }
+    // return a field reference
+    ,field: function( field, table ) {
+        var self = this;
+        if ( null === field || field instanceof Dialect.Field ) return field;
+        
+        if ( !self._fields[HAS]( field ) )
+        {
+            var f = new Dialect.Field(field, table||null);
+            self._fields[ field ] = f;
+            
+            var t = f->table();
+            if ( t && !self._tables[HAS]( t.table() ) )
+                self._tables[ t.table() ] = t;
+        }
+        return self._fields[ field ];
+    }
+    // return an expression reference
+    ,expression: function( field, op, args, q ) {   
+        var expr = new Dialect.Expression();
+        expr->expr(field, op, args, q||'');
+        return expr;
+    }
+    // try to sanitize if possible
+    ,sanitize: function( bool ) {
+        var self = this;
+        self._sanitize = !!bool;
+        return self;
+    }
+    ,buildQuery: function( part/*=null*/ ) {
+        var self = this, parts;
+        // allow to get partial query back
+        if (!part)
+            parts = array_flip( self._default_clauses[ self._type ] );
+        else
+            parts = array_flip( part );
+            
+        var parts2 = parts; // clone
+        
+        var sql = '';
+        var type = self._type;
+        
+        if ( 'SELECT'==type )
+        {
+            sql += 'SELECT ';
+            
+            var i = 0;
+            for (self._fields as field)
+            {
+                if (i)  sql += ", ";
+                sql += field.asAlias();
+                i++;
+            }
+            sql += " ";
         }    
         
-        elseif ('INSERT'==$type)
+        else if ( 'INSERT'==type )
         {
             // TODO
-            $sql .= 'INSERT ';
+            sql += 'INSERT ';
         }    
         
-        elseif ('UPDATE'==$type)
+        else if ( 'UPDATE'==type )
         {
             // TODO
-            $sql .= 'UPDATE ';
+            sql += 'UPDATE ';
         }    
         
-        elseif ('DELETE'==$type)
+        else if ( 'DELETE'==type )
         {
             // TODO
-            $sql .= 'DELETE ';
+            sql += 'DELETE ';
         }
         
-        elseif ('ALTER'==$type)
+        else if ( 'ALTER'==type )
         {
             // TODO
-            $sql .= 'ALTET TABLE ';
+            sql += 'ALTER TABLE ';
         }
         
-        $sql .= "\n" . implode(   "\n",  
-                            array_filter(
-                                array_values(
-                                    array_intersect_key( 
-                                        array_merge( $parts, $this->_clauses )
-                                    , $parts2)
-                            ), 'strlen')
-                        );
-        return $sql;
+        sql += "\n" +  array_values(
+                        array_intersect_key( 
+                            array_merge( parts, self._clauses )
+                        , parts2)
+                    ).filter(Boolean).join("\n");
+        return sql;
     }
-    
-    // just placeholder here
-    public function escape( $val )
-    {
-        return $val;
+    ,query: function( q/*=false*/ ) {
+        var self = this;
+        self._q = q ? q : '';
+        return self;
     }
-    
-    public function query( $q=false )
-    {
-        $this->_q = ($q) ? $q : '';
-        return $this;
-    }
-    
-    public function sql( $part=false )
-    {
+    ,sql: function( part ) {
+        var self = this;
         // build the query here
-        if (empty($this->_q))  $this->_q = $this->buildQuery( $part );
-        return $this->_q;
+        if (!self._q) self._q = self.buildQuery( part );
+        return self._q;
     }
-    
-    public function insert()
-    {
+    // return the sql as string, if this object is cast as a string ;)
+    ,toString: function( ) {
+        return this.sql();
+    }
+    ,insert: function(){
         $this->reset();
         $this->_type = 'INSERT';
         return $this;
     }
-    
-    public function update()
-    {
+    ,update: function(){
         $this->reset();
         $this->_type = 'UPDATE';
         return $this;
     }
-    
-    public function delete()
-    {
+    ,del: function() {
         $this->reset();
         $this->_type = 'DELETE';
         return $this;
     }
-    
-    public function alter()
-    {
+    ,alter: function(){
         $this->reset();
         $this->_type = 'ALTER';
         return $this;
     }
-    
-    public function select( $fields = array() )
-    {
+    ,select: function( $fields = array() ) {
         $this->reset();
         $this->_type = 'SELECT';
         
@@ -716,9 +631,7 @@ _CLAUSE_
         
         return $this;
     }
-    
-    public function from( $tables )
-    {
+    ,from: function( $tables ){
         $tables = array_values( (array)$tables );
         
         $this->_tables = $tables;
@@ -743,10 +656,8 @@ _CLAUSE_
             
         return $this;
     }
-    
     // partially sanitized using white-list
-    public function join($on, $jointable=null, $type='INNER')
-    {
+    ,join: function($on, $jointable=null, $type='INNER'){
         $on = array_values( (array)$on );
         $type = strtoupper( $type );
         $jointable = $this->table( $jointable );
@@ -781,9 +692,7 @@ _CLAUSE_
         }
         return $this;
     }
-    
-    public function where($rel, $expr)
-    {
+    ,where: function($rel, $expr){
         $args = func_get_args();
         array_shift( $args );
         $argslen = count($args);
@@ -812,10 +721,8 @@ _CLAUSE_
         }
         return $this;
     }
-    
     // partially sanitized using white-list
-    public function groupBy($by, $ord='ASC')
-    {
+    ,groupBy: function($by, $ord='ASC'){
         $by = $this->field( $by )->alias();
         $ord = strtoupper($ord);
         
@@ -826,9 +733,7 @@ _CLAUSE_
         
         return $this;
     }
-    
-    public function having($rel, $expr)
-    {
+    ,having: function($rel, $expr){
         $args = func_get_args();
         array_shift( $args );
         $argslen = count($args);
@@ -857,10 +762,8 @@ _CLAUSE_
         }
         return $this;
     }
-    
     // partially sanitized using white-list
-    public function orderBy($by, $ord='ASC')
-    {
+    ,orderBy: function($by, $ord='ASC'){
         $add_comma = true;
         
         if (empty($this->_clauses['ORDER']))
@@ -882,10 +785,8 @@ _CLAUSE_
         
         return $this;
     }
-    
     // sanitized using intval
-    public function limit($count, $offset=0)
-    {
+    ,limit: function($count, $offset=0){
         // perform some sanitization
         $offset = intval($offset);
         $count = intval($count);
@@ -893,10 +794,8 @@ _CLAUSE_
         
         return $this;
     }
-    
     // sanitized using intval
-    public function paged($per_page, $page=1)
-    {
+    ,paged: function($per_page, $page=1){
         // perform some sanitization
         $page = intval($page);
         if ($page < 1)
@@ -905,9 +804,8 @@ _CLAUSE_
         
         return $this->limit($per_page, ($page-1)*$per_page);
     }
-}
+};
 
-// init 
-Dialect.init();
-
-}(this);
+// export it
+return Dialect;
+});

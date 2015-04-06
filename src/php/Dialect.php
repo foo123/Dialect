@@ -1,7 +1,7 @@
 <?php
 /**
 *
-*   Dialect Cross-Platform SQL Builder
+*   Dialect Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 *   https://github.com/foo123/Dialect
 * 
 *   Abstract the construction of SQL queries
@@ -15,8 +15,8 @@
 __Requirements:__
 
 * Support multiple DB vendors (eg. MySQL, Postgre, Oracle, SQL Server )
-* Easily extended to new DBs ( preferably through a config setting )
-* Flexible and Intuitive API
+* Easily extended to new vendors ( preferably through a config setting )
+* Simple, Flexible and Intuitive API
 * Light-weight ( one class/file per implementation if possible )
 * Speed
 
@@ -28,588 +28,344 @@ __Requirements:__
 *  Main Dialect Classes
 *
 **/
-
 if ( !class_exists('Dialect') )
 {
-
 class DialectTable
 {
     private static $_cnt = 0;
+    private $q = '';
     
-    private $_id = 0;
-    private $_table = null;
-    private $_alias = null;
-    private $_asAlias = null;
-    private $quote = '';
+    public $id = 0;
+    public $name = null;
+    public $alias = null;
+    public $asAlias = null;
+    public $isAliased = false;
     
-    public function __construct( $table, $id=null, $quote = '' )
+    public static function parse( $t )
     {
-        $this->_table = trim($table);
-        $this->_id = $id ? $id : ++self::$_cnt;
-        $this->quote = $quote;
-        $this->useAlias( false );
-    }
-    
-    public function useAlias( $bool = true )
-    {
-        if ( $bool )
+        $parts = array( );
+        $tmp = explode(' AS ', $t);
+        $parts[ 'name' ] = trim($tmp[ 0 ]);
+        if ( count( $tmp ) > 1 )
         {
-            $this->_alias = $this->quote . $this->_table . "_talias_" . $this->_id . $this->quote;
-            $this->_asAlias = $this->quote . $this->_table . $this->quote . " AS " . $this->quote . $this->_alias . $this->quote;
+            $parts[ 'alias' ] = trim($tmp[ 1 ]);
         }
         else
         {
-            $this->_alias = $this->quote . $this->_table . $this->quote;
-            $this->_asAlias = $this->quote . $this->_table . $this->quote;
+            $parts[ 'alias' ] = false;
+        }
+        return (object)$parts;
+    }
+    
+    public function __construct( $name, $quote='' )
+    {
+        $parts = is_object( $name ) ? $name : self::parse( $name );
+        $this->q = $quote;
+        $this->id = ++self::$_cnt;
+        $this->name = $parts->name;
+        $this->useAlias( $parts->alias );
+    }
+    
+    public function useAlias( $alias = true )
+    {
+        if ( !$alias )
+        {
+            $this->alias = implode('', array($this->q, $this->name, $this->q));
+            $this->asAlias = implode('', array($this->q, $this->name, $this->q));
+            $this->isAliased = false;
+        }
+        elseif ( true === $alias )
+        {
+            $this->alias = implode('', array($this->q, "t_", $this->id, "_", $this->name, $this->q));
+            $this->asAlias = implode('', array($this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
+            $this->isAliased = true;
+        }
+        elseif ( $alias )
+        {
+            $this->alias = implode('', array($this->q, '' . $alias, $this->q));
+            $this->asAlias = implode('', array($this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
+            $this->isAliased = true;
         }
         return $this;
-    }
-    
-    public function table()
-    {
-        return $this->_table;
-    }
-    
-    public function alias()
-    {
-        return $this->_alias;
-    }
-    
-    public function asAlias()
-    {
-        return $this->_asAlias;
     }
 }
 
 class DialectField
 {
     private static $_cnt = 0;
+    private $q = '';
     
-    private $_id = 0;
-    private $_field = null;
-    private $_alias = null;
-    private $_asAlias = null;
-    private $_table = null;
-    private $quote = '';
+    public $id = 0;
+    public $name = null;
+    public $table = null;
+    public $alias = null;
+    public $asAlias = null;
+    public $isAliased = false;
     
-    public function __construct( $field, $table=null, $quote='' )
+    public static function parse( $f )
     {
-        $parts = $this->parseField( $field );
+        $tmp = explode('.', $f);
+        $parts = array( );
         
-        $this->_field = $parts[ 'field' ];
-        $this->quote = $quote;
-        $this->_id = ++self::$_cnt;
-        
-        if ( $table ) $this->setTable( $table );
-        
-        else if ( isset( $parts[ 'table' ] ) )  $this->setTable( $parts[ 'table' ] );
-            
-        $this->useAlias( false );
-    }
-    
-    public function useAlias( $bool = true )
-    {
-        $table = '';
-        
-        if ( $this->_table )
+        if ( count( $tmp ) > 1 )
         {
-            $table = $this->_table->alias(). ".";
-        }
-        
-        if ( $bool )
-        {
-            $this->_alias = $this->quote . $this->_field . "_falias_" . $this->_id . $this->quote;
-            $this->_asAlias = $table . $this->quote . $this->_field . $this->quote . " AS " . $this->quote . $this->_alias . $this->quote;
-        }
-        else
-        {
-            $this->_alias = $this->quote . $this->_field . $this->quote;
-            $this->_asAlias = $table . $this->quote . $this->_field . $this->quote;
-        }
-        return $this;
-    }
-    
-    public function setTable( $table )
-    {
-        if ( !($table instanceof DialectTable) )  $table = new DialectTable( $table );
-        $this->_table = $table;
-        return $this;
-    }
-    
-    public function field()
-    {
-        return $this->_field;
-    }
-    
-    public function alias()
-    {
-        return $this->_alias;
-    }
-    
-    public function asAlias()
-    {
-        return $this->_asAlias;
-    }
-    
-    public function table()
-    {
-        return $this->_table;
-    }
-    
-    public function parseField( $f )
-    {
-        //preg_match('~([^\.]+?)\.?([^\.]*?)~', $str, $m);
-        //print_r($f);
-        
-        $tmp = explode('.', $f, 2);
-        $parts = array();
-        
-        if ( isset( $tmp[1] ) )
-        {
-            $parts[ 'table' ] = $tmp[0];
-            $parts[ 'field' ] = $tmp[1];
+            $parts[ 'table' ] = trim($tmp[ 0 ]);
+            $parts[ 'name' ] = trim($tmp[ 1 ]);
         }
         else
         {   
-            $parts[ 'field' ] = $tmp[0];
+            $parts[ 'table' ] = false;
+            $parts[ 'name' ] = trim($tmp[ 0 ]);
         }
-        return $parts;
+        $tmp = explode(' AS ', $parts[ 'field' ]);
+        if ( count( $tmp ) > 1 )
+        {
+            $parts[ 'alias' ] = trim($tmp[ 1 ]);
+            $parts[ 'name' ] = trim($tmp[ 0 ]);
+        }
+        else
+        {
+            $parts[ 'alias' ] = false;
+        }
+        return (object)$parts;
+    }
+    
+    public function __construct( $name, $quote='' )
+    {
+        $parts = is_object( $name ) ? $name : self::parse( $name );
+        $this->q = $quote;
+        $this->id = ++self::$_cnt;
+        $this->name = $parts->name;
+        $this->table = $parts->table;
+        $this->useAlias( $parts->alias );
+    }
+    
+    public function useAlias( $alias = true )
+    {
+        $table = $this->table ? ($this->table . ".") : '';
+        
+        if ( !$alias )
+        {
+            $this->alias = implode('', array($this->q, $this->name, $this->q));
+            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q));
+            $this->isAliased = false;
+        }
+        elseif ( true === $alias )
+        {
+            $this->alias = implode('', array($this->q, "f_", $this->id, "_", $this->name, $this->q));
+            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
+            $this->isAliased = true;
+        }
+        elseif ( $alias )
+        {
+            $this->alias = implode('', array($this->q, ''. $alias, $this->q));
+            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
+            $this->isAliased = true;
+        }
+        return $this;
     }
 }
 
-class DialectExpression
-{
-    private $config = null;
-    private $e = array();
-    private $rel_ops = array('AND', 'OR');
-    private $ops = array('='=>1, '>'=>1, '<'=>1, '>='=>1, '<='=>1, '<>'=>1, 'LIKE'=>1, 'NOT_LIKE'=>1, 'BETWEEN'=>2, 'IN'=>100, 'NOT_IN'=>100);
-    
-    public function __construct( $config=null )
-    {
-        $this->config = $config;
-        $this->reset();
-    }
-    
-    public function __toString()
-    {
-        return $this->get();
-    }
-    
-    public function reset()
-    {
-        $this->e = array();
-        return $this;
-    }
-    
-    public function get()
-    {
-        return implode(' ', $this->e);
-    }
-    
-    public function expr()
-    {
-        $_args = func_get_args();
-        $_argslen = count($_args);
-        
-        if ( $_argslen > 1 && is_array( $_args[0] ) )
-        {
-            $_args = $_args[0];
-            $_argslen = count($_args);
-        }
-        
-        if ($_argslen < 3 ) return $this;
-        
-        $field = $_args[0];
-        $op = $_args[1];
-        $args = $_args[2];
-        $q = ( isset($_args[3]) ) ? $_args[3] : '';
-        
-        // process operator
-        $opc = preg_replace('/\s+/', '_', trim(strtoupper($op)));
-        
-        // nothing to do
-        if ( !isset($this->ops[$opc]) )  return $this;
-        
-        $op = str_replace('_', ' ', $opc);
-        $expr = $field->alias() . " " . $op . " ";
-        
-        $args = array_values((array)$args);
-        switch( $this->ops[$opc] )
-        {
-            case 100:
-                $expr .= '(' . $q.implode("{$q},{$q}", $args).$q . ')';
-                break;
-            case 2:
-                $expr .= "({$q}{$args[0]}{$q}, {$q}{$args[1]}{$q})";
-                break;
-            case 1:
-            default:
-                $expr .= $q.$args[0].$q;
-                break;
-        }
-        
-        $this->e[] = "({$expr})";
-        
-        return $this;
-    }
-}
 
 class Dialect
 {
-    const VERSION = "0.2";
+    const VERSION = "0.1";
     
-    private static $isInited = false;
-    private static $vendors = array();
+    private static $_vendor = null;
     
-    private $_vendor = null;
-    private $_vendor_clauses = null;
+    private $_query = '';
     private $_quote = '';
-    private $_vendor_tpls = null;
-    private $_ops = null;
-    private $_rel_ops = null;
+    private $_sanitize = true;
     
     private $_type = null;
-    private $_sanitize = true;
-    private $_q = '';
+    private $_clauses = null;
+    private $_tables = null;
+    private $_join_tables = null;
+    private $_fields = null;
     private $_whereExpr = null;
     private $_havingExpr = null;
-    private $_tables = null;
-    private $_fields = null;
     private $_conditionsW = null;
     private $_conditionsH = null;
-    private $_clauses = null;
     
-    public static addVendor($vendor=null, $config=null)
+    public static vendor( $config=null )
     {
-        if ( $vendor && $config )
+        if ( !empty($config) )
         {
-            self::$vendors[ strtolower($vendor) ] = (array)$config;
+            self::$_vendor = (array)$config;
         }
-    }
-    
-    public static init()
-    {
-        if ( self::$isInited ) return;
-        
-        // http://www.php.net/manual/en/refs.database.abstract.php
-        // http://www.php.net/manual/en/intro.pdo.php
-        
-        self::addVendor('mysql', array(
-            // http://php.net/manual/en/function.mysql-real-escape-string.php
-            // http://www.php.net/manual/en/mysqli.real-escape-string.php
-            //'escape'    =>  'mysqli_real_escape_string ( mysqli $link , string $escapestr )',
-            
-            'quote'         =>  '`',
-            
-            'concat'        =>  '',
-            
-            'operatorss'    =>  array(
-                '=' => 1, 
-                '>' => 1, 
-                '<' => 1, 
-                '>=' => 1, 
-                '<=' => 1, 
-                '<>' => 1, 
-                'LIKE' => 1, 
-                'NOT_LIKE' => 1, 
-                'BETWEEN' => 2, 
-                'IN' => 100, 
-                'NOT_IN' => 100
-            ),
-            
-            'rel_operatorss'   =>  array('AND', 'OR'),
-            
-            'datetime'        => array(
-                'CURRENT'   =>  'CURRENT_TIMESTAMP()',
-                'NULLDATE'  =>  '0000-00-00 00:00:00',
-                'YEAR'      =>  'YEAR(__{{DATE}}__)',
-                'MONTH'     =>  'MONTH(__{{DATE}}__)',
-                'DAY'       =>  'DAY(__{{DATE}}__)',
-                'HOUR'      =>  'HOUR(__{{DATE}}__)',
-                'MINUTE'    =>  'MINUTE(__{{DATE}}__)',
-                'SECOND'    =>  'SECOND(__{{DATE}}__)'
-            ),
-            
-            'clauses'   =>  array(
-                'SELECT' => <<<_CLAUSE_
-SELECT __{{SELECT_EXPRS}}__
-FROM __{{TABLE_REFS}}__
-WHERE __{{WHERE_CONDS}}__
-GROUP BY __{{GROUP_EXPRS}}__
-HAVING __{{HAVING_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMITS}}__
-_CLAUSE_
-,
-                'INSERT' => <<<_CLAUSE_
-INSERT INTO __{{TABLE_REF}}__
-VALUES __{{VAL_EXPRS}}__
-_CLAUSE_
-,
-                'UPDATE' => <<<_CLAUSE_
-UPDATE __{{TABLE_REFS}}__
-SET __{{KEY_VAL_EXPRS}}__
-WHERE __{{WHERE_CONDS}}__
-_CLAUSE_
-,
-                'DELETE' => <<<_CLAUSE_
-DELETE FROM __{{TABLE_REF}}__
-WHERE __{{WHERE_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMIT_COUNT}}__
-_CLAUSE_
-,
-                'ALTER' => <<<_CLAUSE_
-ALTER [IGNORE] TABLE tbl_name
-    [alter_specification [, alter_specification] ...]
-
-alter_specification:
-    table_options
-  | ADD [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name ]
-  | ADD [COLUMN] (col_name column_definition,...)
-  | ADD {INDEX|KEY} [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]] PRIMARY KEY
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        UNIQUE [INDEX|KEY] [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [FULLTEXT|SPATIAL] [INDEX|KEY] [index_name]
-        (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        FOREIGN KEY [index_name] (index_col_name,...)
-        reference_definition
-  | ALTER [COLUMN] col_name {SET DEFAULT literal | DROP DEFAULT}
-  | CHANGE [COLUMN] old_col_name new_col_name column_definition
-        [FIRST|AFTER col_name]
-  | MODIFY [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name]
-  | DROP [COLUMN] col_name
-  | DROP PRIMARY KEY
-  | DROP {INDEX|KEY} index_name
-  | DROP FOREIGN KEY fk_symbol
-  | DISABLE KEYS
-  | ENABLE KEYS
-  | RENAME [TO|AS] new_tbl_name
-  | ORDER BY col_name [, col_name] ...
-  | CONVERT TO CHARACTER SET charset_name [COLLATE collation_name]
-  | [DEFAULT] CHARACTER SET [=] charset_name [COLLATE [=] collation_name]
-  | DISCARD TABLESPACE
-  | IMPORT TABLESPACE
-_CLAUSE_
-
-            )
-        ));
-        
-        self::addVendor('postgre', array(
-            // http://www.php.net/manual/en/function.pg-escape-string.php
-            //'escape'    =>  'pg_escape_string ([ resource $connection ], string $data )',
-            
-            'quote'     =>  '"',
-            
-            'concat'    =>  '||',
-            
-            'operatorss'    =>  array(
-                '=' => 1, 
-                '>' => 1, 
-                '<' => 1, 
-                '>=' => 1, 
-                '<=' => 1, 
-                '<>' => 1, 
-                'LIKE' => 1, 
-                'NOT_LIKE' => 1, 
-                'BETWEEN' => 2, 
-                'IN' => 100, 
-                'NOT_IN' => 100
-            ),
-            
-            'rel_operatorss'   =>  array('AND', 'OR'),
-            
-            'datetime'  =>  array(
-                'CURRENT'   =>  'NOW()',
-                'NULLDATE'  =>  '1970-01-01 00:00:00',
-                'YEAR'      =>  'EXTRACT (YEAR FROM __{{DATE}}__)',
-                'MONTH'     =>  'EXTRACT (MONTH FROM __{{DATE}}__)',
-                'DAY'       =>  'EXTRACT (DAY FROM __{{DATE}}__)',
-                'HOUR'      =>  'EXTRACT (HOUR FROM __{{DATE}}__)',
-                'MINUTE'    =>  'EXTRACT (MINUTE FROM __{{DATE}}__)',
-                'SECOND'    =>  'EXTRACT (SECOND FROM __{{DATE}}__)'
-            ),
-            
-            'clauses'   =>  array(
-                'SELECT' => <<<_CLAUSE_
-SELECT __{{SELECT_EXPRS}}__
-FROM __{{TABLE_REFS}}__
-WHERE __{{WHERE_CONDS}}__
-GROUP BY __{{GROUP_EXPRS}}__
-HAVING __{{HAVING_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMITS}}__
-_CLAUSE_
-,
-                'INSERT' => <<<_CLAUSE_
-INSERT INTO __{{TABLE_REF}}__
-VALUES __{{VAL_EXPRS}}__
-_CLAUSE_
-,
-                'UPDATE' => <<<_CLAUSE_
-UPDATE __{{TABLE_REFS}}__
-SET __{{KEY_VAL_EXPRS}}__
-WHERE __{{WHERE_CONDS}}__
-_CLAUSE_
-,
-                'DELETE' => <<<_CLAUSE_
-DELETE FROM __{{TABLE_REF}}__
-WHERE __{{WHERE_CONDS}}__
-ORDER BY __{{ORDER_EXPRS}}__
-LIMIT __{{LIMIT_COUNT}}__
-_CLAUSE_
-,
-                'ALTER' => <<<_CLAUSE_
-ALTER [IGNORE] TABLE tbl_name
-    [alter_specification [, alter_specification] ...]
-
-alter_specification:
-    table_options
-  | ADD [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name ]
-  | ADD [COLUMN] (col_name column_definition,...)
-  | ADD {INDEX|KEY} [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]] PRIMARY KEY
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        UNIQUE [INDEX|KEY] [index_name]
-        [index_type] (index_col_name,...) [index_type]
-  | ADD [FULLTEXT|SPATIAL] [INDEX|KEY] [index_name]
-        (index_col_name,...) [index_type]
-  | ADD [CONSTRAINT [symbol]]
-        FOREIGN KEY [index_name] (index_col_name,...)
-        reference_definition
-  | ALTER [COLUMN] col_name {SET DEFAULT literal | DROP DEFAULT}
-  | CHANGE [COLUMN] old_col_name new_col_name column_definition
-        [FIRST|AFTER col_name]
-  | MODIFY [COLUMN] col_name column_definition
-        [FIRST | AFTER col_name]
-  | DROP [COLUMN] col_name
-  | DROP PRIMARY KEY
-  | DROP {INDEX|KEY} index_name
-  | DROP FOREIGN KEY fk_symbol
-  | DISABLE KEYS
-  | ENABLE KEYS
-  | RENAME [TO|AS] new_tbl_name
-  | ORDER BY col_name [, col_name] ...
-  | CONVERT TO CHARACTER SET charset_name [COLLATE collation_name]
-  | [DEFAULT] CHARACTER SET [=] charset_name [COLLATE [=] collation_name]
-  | DISCARD TABLESPACE
-  | IMPORT TABLESPACE
-_CLAUSE_
-
-            )
-        ));
-            
-        self::$isInited = true;
     }
     
     // static builder method
-    public static function create( $vendor='mysql' )
+    public static function newInstance( )
     {
-        return new self( $vendor );
+        return new self( );
     }
     
-    public function __construct( $vendor='mysql' )
+    public function __construct( )
     {
-        $this->_vendor = strtolower($vendor);
-        $this->_quote = self::$vendors[ $this->_vendor ]['quote'];
-        $this->_vendor_clauses = self::$vendors[ $this->_vendor ]['clauses'];
-        $this->_vendor_tpls = self::$vendors[ $this->_vendor ]['tpls'];
+        if ( self::$_vendor && isset(self::$_vendor['quote']) )
+        {
+            $this->_quote = strval(self::$_vendor['quote']);
+        }
         $this->reset( )->sanitize( true );
     }
     
-    public function reset()
-    {
-        $this->_q = '';
-        $this->_fields = array();
-        $this->_tables = array();
-        $this->_whereExpr = null;
-        $this->_havingExpr = null;
-        $this->_conditionsW = array();
-        $this->_conditionsH = array();
-        $this->_clauses = array();
-        
-        foreach ($this->_vendor_clauses as $type => $clauses)
-        {
-            $this->_clauses[ $type ] = '';
-            foreach ($clauses as $clause)
-                $this->_clauses[ $clause ] = '';
-        }
-        
-        return $this;
-    }
-    
     // return the sql as string, if this object is cast as a string ;)
-    public function __toString()
+    public function __toString( )
     {
-        return $this->sql();
-    }
-    
-    // return a table reference
-    public function table( $table )
-    {
-        if ( !$table ) return $table;
-        
-        elseif ( $table instanceof DialectTable ) return $table;
-        
-        if ( !isset( $this->_tables[ $table ] ) )
-            $this->_tables[ $table ] = new DialectTable($table, ++self::$_tableCnt, $this->_quote);
-        
-        return $this->_tables[ $table ];
-    }
-    
-    // return a field reference
-    public function field( $field, $table=null )
-    {
-        if ( null === $field ) return $field;
-        
-        else if ( $field instanceof DialectField ) return $field;
-        
-        if ( !isset( $this->_fields[ $field ] ) )
-        {
-            $f = new DialectField($field, $table);
-            $this->_fields[ $field ] = $f;
-            
-            $t = $f->table();
-            if ( $t && !isset( $this->_tables[ $t->table() ]) )
-                $this->_tables[ $t->table() ] = $t;
-        }
-        return $this->_fields[ $field ];
-    }
-    
-    // return an expression reference
-    public function expression( $field, $op, $args, $q='' )
-    {   
-        $expr = new DialectExpression();
-        $expr->expr($field, $op, $args, $q);
-        return $expr;
+        return $this->sql( );
     }
     
     // try to sanitize if possible
-    public function sanitize($bool)
+    public function sanitize( $bool=true )
     {
         $this->_sanitize = (bool)$bool;
         return $this;
     }
     
+    // just placeholder here
+    public function escape( $val )
+    {
+        // http://www.php.net/manual/en/pdo.quote.php
+        return PDO::quote( $val, PDO::PARAM_STR );
+    }
+    
     // simple prepare using sprintf
     public function prepare( $sql, $params=null )
     {
-        if ( !$params && is_array($sql) )
+        // http://www.php.net/manual/en/pdo.prepare.php
+        // PDO::prepare
+        if ( !$params && is_array( $sql ) )
         {
             $params = $sql;
             $sql = $this->sql();
         }
         return vsprintf( $sql, $params );
+    }
+    
+    public function reset( )
+    {
+        $this->_query = '';
+        
+        $this->_type = null;
+        
+        $this->_fields = array( );
+        $this->_tables = array( );
+        $this->_join_tables = array( );
+        
+        $this->_clauses = array(
+             'FROM' => null
+            ,'JOIN' => null
+            ,'GROUP' => null
+            ,'HAVING' => null
+            ,'WHERE' => null
+            ,'ORDER' => null
+            ,'LIMIT' => null
+        );
+        $this->_whereExpr = null;
+        $this->_havingExpr = null;
+        $this->_conditionsW = array( );
+        $this->_conditionsH = array( );
+        
+        return $this;
+    }
+    
+    // return a table reference
+    public function table( $tablename )
+    {
+        if ( !$tablename ) return $tablename;
+        
+        $isDialect = false;
+        $table = $tablename;
+        
+        if ( $table instanceof DialectTable ) 
+        {
+            $isDialect = true;
+            $tablename = $table->name;
+        }
+        if ( !isset( $this->_tables[ $tablename ] ) )
+        {
+            if ( !$isDialect ) $table = new DialectTable( $tablename, $this->_quote );
+            $this->_tables[ $tablename ] = $table;
+        }
+        
+        return $table;
+    }
+    
+    // return a field reference
+    public function field( $fieldname, $table=null )
+    {
+        if ( !$fieldname ) return $fieldname;
+        
+        $isDialect = false;
+        $field = $fieldname;
+        
+        if ( $field instanceof DialectField )
+        {
+            $isDialect = true;
+            $fieldname = $field->name;
+        }
+        if ( !isset( $this->_fields[ $fieldname ] ) )
+        {
+            if ( !$isDialect ) $field = new DialectField( $fieldname, null, $this->_quote );
+            $this->_fields[ $fieldname ] = $field;
+            if ( !$field->table && $table )
+            {
+                $field->setTable( $this->table( $table ) );
+            }
+            $table = $field->table;
+            if ( $table && !isset( $this->_tables[ $table->name ]) )
+            {
+                $this->_tables[ $table->name ] = $table;
+            }
+        }
+        
+        return $field;
+    }
+    
+    // return a table reference
+    public function join_table( $table )
+    {
+        if ( !$table ) return $table;
+        
+        $alias = null;
+        $isDialect = false;
+        $tablename = $table;
+        
+        if ( $table instanceof DialectTable ) 
+        {
+            return $table->copy( );
+        }
+        else
+        {
+            $aliased = explode(' AS ', $tablename);
+            $tablename = trim($aliased[ 0 ]);
+            if ( count($aliased) > 1 )
+            {
+                $alias = trim($aliased[ 1 ]);
+            }
+            
+            $table = new DialectTable( $tablename, $this->_quote );
+            if ( $alias )
+            {
+                $table->useAlias( $alias );
+            }
+        }
+        
+        return $table;
+    }
+    
+    public function query( $q=null )
+    {
+        $this->_query = $q ? $q : '';
+        return $this;
+    }
+    
+    public function sql( $part=false )
+    {
+        // build the query here
+        if ( empty($this->_query) )  $this->_query = $this->buildQuery( $part );
+        return $this->_query;
     }
     
     protected function buildQuery( $part=null )
@@ -662,6 +418,10 @@ _CLAUSE_
             // TODO
             $sql .= 'ALTET TABLE ';
         }
+        else
+        {
+            return '';
+        }
         
         $sql .= "\n" . implode(   "\n",  
                             array_filter(
@@ -674,64 +434,40 @@ _CLAUSE_
         return $sql;
     }
     
-    // just placeholder here
-    public function escape( $val )
+    public function insert( )
     {
-        return $val;
-    }
-    
-    public function query( $q=false )
-    {
-        $this->_q = ($q) ? $q : '';
-        return $this;
-    }
-    
-    public function sql( $part=false )
-    {
-        // build the query here
-        if (empty($this->_q))  $this->_q = $this->buildQuery( $part );
-        return $this->_q;
-    }
-    
-    public function insert()
-    {
-        $this->reset();
+        $this->reset( );
         $this->_type = 'INSERT';
         return $this;
     }
     
-    public function update()
+    public function update( )
     {
-        $this->reset();
+        $this->reset( );
         $this->_type = 'UPDATE';
         return $this;
     }
     
-    public function delete()
+    public function delete( )
     {
-        $this->reset();
+        $this->reset( );
         $this->_type = 'DELETE';
         return $this;
     }
     
-    public function alter()
+    public function alter( )
     {
-        $this->reset();
+        $this->reset( );
         $this->_type = 'ALTER';
         return $this;
     }
     
-    public function select( $fields = array() )
+    public function select( $fields=array() )
     {
-        $this->reset();
+        $this->reset( ); 
         $this->_type = 'SELECT';
         
         $fields = array_values( (array)$fields );
-        
-        // select all by default
-        if ( empty($fields) ) $fields = array( '*' => '*' );
-        
-        $this->_fields = $fields;
         
         foreach ($fields as $field)
         {
@@ -746,68 +482,40 @@ _CLAUSE_
     {
         $tables = array_values( (array)$tables );
         
-        $this->_tables = $tables;
-        
         foreach ($tables as $table)
         {
             // transform to dialect tables
-            $this->table($table);
+            $this->table( $table );
         }
-        
-        $from = 'FROM ';
-        
-        $i = 0;
-        foreach ($this->_tables as $table)
+        // adjust tables in fields
+        foreach ($this->_fields as $field)
         {
-            if ($i) $from .= ", ";
-            $from .= $table->asAlias();
-            $i++;
+            if ( $field->table && isset($this->_tables[$field->table->name]) )
+            {
+                $field->setTable( $this->_tables[$field->table->name] );
+            }
         }
-        
-        $this->_clauses['FROM'] = $from;
+        $this->_clauses['FROM'] = true;
             
         return $this;
     }
     
     // partially sanitized using white-list
-    public function join($on, $jointable=null, $type='INNER')
+    public function join( $jointable, $fields, $type='INNER' )
     {
-        $on = array_values( (array)$on );
         $type = strtoupper( $type );
-        $jointable = $this->table( $jointable );
+        $jointable = $this->join_table( $jointable );
         
-        foreach ($on as $i => $field)
+        foreach ((array)$fields as $i=>$field)
         {
-            $field = $this->field( $field );
-            $ftable = $field->table();
-            $alias = ($jointable) ? $jointable->asAlias() : $ftable->asAlias();
-            $on[$i] = $field->alias();
+            $field = $this->field( $field )->setTable( $jointable );
+            $fields[ $i ] = $field->alias;
         }
-        $on = implode(' = ', $on);
-        
-        if ( !empty($this->_clauses['JOIN']) )
-            $this->_clauses['JOIN'] .= " ";
-            
-        switch ( $type )
-        {
-            case 'LEFT':
-                $this->_clauses['JOIN'] .= "LEFT JOIN {$alias} ON {$on}";
-                break;
-            case 'RIGHT':
-                $this->_clauses['JOIN'] .= "RIGHT JOIN {$alias} ON {$on}";
-                break;
-            case 'OUTER':
-                $this->_clauses['JOIN'] .= "OUTER JOIN {$alias} ON {$on}";
-                break;
-            case 'INNER':
-            default:
-                $this->_clauses['JOIN'] .= "INNER JOIN {$alias} ON {$on}";
-                break;
-        }
+        $on = implode(' = ', $fields);
         return $this;
     }
     
-    public function where($rel, $expr)
+    public function where( $rel, $expr )
     {
         $args = func_get_args();
         array_shift( $args );
@@ -839,9 +547,9 @@ _CLAUSE_
     }
     
     // partially sanitized using white-list
-    public function groupBy($by, $ord='ASC')
+    public function groupBy( $by, $ord='ASC' )
     {
-        $by = $this->field( $by )->alias();
+        $by = $this->field( $by )->alias;
         $ord = strtoupper($ord);
         
         if (!in_array($ord, array('ASC', 'DESC')))   
@@ -852,7 +560,7 @@ _CLAUSE_
         return $this;
     }
     
-    public function having($rel, $expr)
+    public function having( $rel, $expr )
     {
         $args = func_get_args();
         array_shift( $args );
@@ -884,7 +592,7 @@ _CLAUSE_
     }
     
     // partially sanitized using white-list
-    public function orderBy($by, $ord='ASC')
+    public function orderBy( $by, $ord='ASC' )
     {
         $add_comma = true;
         
@@ -901,7 +609,7 @@ _CLAUSE_
         if ($add_comma)
             $this->_clauses['ORDER'] .= ',';
             
-        $by = $this->field( $by )->alias();
+        $by = $this->field( $by )->alias;
         
         $this->_clauses['ORDER'] .= " {$by} {$ord}";
         
@@ -909,29 +617,25 @@ _CLAUSE_
     }
     
     // sanitized using intval
-    public function limit($count, $offset=0)
+    public function limit( $count, $offset=0 )
     {
         // perform some sanitization
-        $offset = intval($offset);
-        $count = intval($count);
+        $offset = intval( $offset );
+        $count = intval( $count );
         $this->_clauses['LIMIT'] = "LIMIT {$offset}, {$count}";
         
         return $this;
     }
     
     // sanitized using intval
-    public function paged($per_page, $page=1)
+    public function paged( $per_page, $page=1 )
     {
         // perform some sanitization
-        $page = intval($page);
-        if ($page < 1)
-            $page = 1;
+        $page = intval( $page );
+        if ($page < 1) $page = 1;
         $per_page = intval($per_page);
         
         return $this->limit($per_page, ($page-1)*$per_page);
     }
 }
-
-// init 
-Dialect::init();
 }
