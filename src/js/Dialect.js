@@ -1,81 +1,229 @@
 /**
-*
-*   Dialect Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
-*   https://github.com/foo123/Dialect
+*   Dialect, 
+*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
+*   @version: 0.1
+*   https://github.com/foo123/Dialect
+*
 *   Abstract the construction of SQL queries
 *   Support multiple DB vendors
 *   Intuitive and Flexible API
-*
 **/
 !function( root, name, factory ) {
-    "use strict";
-    
-    //
-    // export the module, umd-style (no other dependencies)
-    var isCommonJS = ("object" === typeof(module)) && module.exports, 
-        isAMD = ("function" === typeof(define)) && define.amd, m;
-    
-    // CommonJS, node, etc..
-    if ( isCommonJS ) 
-        module.exports = (module.$deps = module.$deps || {})[ name ] = module.$deps[ name ] || (factory.call( root, {NODE:module} ) || 1);
-    
-    // AMD, requireJS, etc..
-    else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) && require.specified(name) ) 
-        define( name, ['require', 'exports', 'module'], function( require, exports, module ){ return factory.call( root, {AMD:module} ); } );
-    
-    // browser, web worker, etc.. + AMD, other loaders
-    else if ( !(name in root) ) 
-        (root[ name ] = (m=factory.call( root, {} ) || 1)) && isAMD && define( name, [], function( ){ return m; } );
+"use strict";
 
+// export the module, umd-style (no other dependencies)
+var isCommonJS = ("object" === typeof(module)) && module.exports, 
+    isAMD = ("function" === typeof(define)) && define.amd, m;
+
+// CommonJS, node, etc..
+if ( isCommonJS ) 
+    module.exports = (module.$deps = module.$deps || {})[ name ] = module.$deps[ name ] || (factory.call( root, {NODE:module} ) || 1);
+
+// AMD, requireJS, etc..
+else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) && require.specified(name) ) 
+    define( name, ['require', 'exports', 'module'], function( require, exports, module ){ return factory.call( root, {AMD:module} ); } );
+
+// browser, web worker, etc.. + AMD, other loaders
+else if ( !(name in root) ) 
+    (root[ name ] = (m=factory.call( root, {} ) || 1)) && isAMD && define( name, [], function( ){ return m; } );
 
 }(  /* current root */          this, 
     /* module name */           "Dialect",
     /* module factory */        function( exports, undef ) {
 "use strict";
-var __version__ = "0.1", 
-    PROTO = 'prototype', HAS = 'hasOwnProperty', 
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/Trim
-    trim = String[PROTO].trim 
-            ? function( s ){ return s.trim( ); } 
-            : function( s ){ return s.replace(/^\s+|\s+$/g, ''); }, 
-    Tpl, Table, Field, Expression, SQL, Dialect = {VERSION: __version__};
 
+var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toString,
+    F = function( a, c ){ return new Function(a, c); },
+    RE = function( r, f ){ return new RegExp(r, f||''); },
+    is_callable = function( o ){ return "function" === typeof o; },
+    is_string = function( o ){ return "string" === typeof o; },
+    is_array = function( o ){ return o instanceof Array || '[object Array]' === toString.call(o); },
+    is_obj = function( o ){ return o instanceof Object || '[object Object]' === toString.call(o); },
+    array = function( o ){ return is_array( o ) ? o : [o]; },
+    SPACE_RE = /^\s+|\s+$/g,
+    trim = String[PROTO].trim
+        ? function( s ){ return s.trim(); }
+        : function( s ){ return s.replace(SPACE_RE, ''); },
+    ESCAPED_RE = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g,
+    esc_re = function( s ) { return s.replace(ESCAPED_RE, "\\$&"); },
+    Tpl, Dialect
+;
+
+// adapted from phpjs
+function addcslashes( str, charlist )
+{
+    var target = '', chrs = [], i = 0, j = 0, c = '',  next = '',  rangeBegin = '',
+    rangeEnd = '',  chr = '',  begin = 0,  end = 0,  octalLength = 0,  postOctalPos = 0,
+    cca = 0, escHexGrp = [],  encoded = '', percentHex = /%([\dA-Fa-f]+)/g;
     
-/*
+    var _pad = function (n, c) {
+        if ((n = n + '').length < c) {
+            return new Array(++c - n.length).join('0') + n;
+        }
+        return n;
+    };
 
-__Requirements:__
+    for (i = 0; i < charlist.length; i++) 
+    {
+        c = charlist.charAt(i);
+        next = charlist.charAt(i + 1);
+        if (c === '\\' && next && (/\d/).test(next)) 
+        { 
+            // Octal
+            rangeBegin = charlist.slice(i + 1).match(/^\d+/)[0];
+            octalLength = rangeBegin.length;
+            postOctalPos = i + octalLength + 1;
+            if (charlist.charAt(postOctalPos) + charlist.charAt(postOctalPos + 1) === '..') 
+            { 
+                // Octal begins range
+                begin = rangeBegin.charCodeAt(0);
+                if ((/\\\d/).test(charlist.charAt(postOctalPos + 2) + charlist.charAt(postOctalPos + 3))) 
+                { 
+                    // Range ends with octal
+                    rangeEnd = charlist.slice(postOctalPos + 3).match(/^\d+/)[0];
+                    i += 1; // Skip range end backslash
+                } 
+                else if (charlist.charAt(postOctalPos + 2)) 
+                { 
+                    // Range ends with character
+                    rangeEnd = charlist.charAt(postOctalPos + 2);
+                } 
+                else 
+                {
+                    throw 'Range with no end point';
+                }
+                end = rangeEnd.charCodeAt(0);
+                if (end > begin) 
+                { 
+                    // Treat as a range
+                    for (j = begin; j <= end; j++) 
+                        chrs.push(String.fromCharCode(j));
+                } 
+                else 
+                { 
+                    // Supposed to treat period, begin and end as individual characters only, not a range
+                    chrs.push('.', rangeBegin, rangeEnd);
+                }
+                i += rangeEnd.length + 2; // Skip dots and range end (already skipped range end backslash if present)
+            } 
+            else 
+            { 
+                // Octal is by itself
+                chr = String.fromCharCode(parseInt(rangeBegin, 8));
+                chrs.push(chr);
+            }
+            i += octalLength; // Skip range begin
+        } 
+        else if (next + charlist.charAt(i + 2) === '..') 
+        { 
+            // Character begins range
+            rangeBegin = c;
+            begin = rangeBegin.charCodeAt(0);
+            if ((/\\\d/).test(charlist.charAt(i + 3) + charlist.charAt(i + 4))) 
+            { 
+                // Range ends with octal
+                rangeEnd = charlist.slice(i + 4).match(/^\d+/)[0];
+                i += 1; // Skip range end backslash
+            } 
+            else if (charlist.charAt(i + 3)) 
+            { 
+                // Range ends with character
+                rangeEnd = charlist.charAt(i + 3);
+            } 
+            else 
+            {
+                throw 'Range with no end point';
+            }
+            end = rangeEnd.charCodeAt(0);
+            if (end > begin) 
+            { 
+                // Treat as a range
+                for (j = begin; j <= end; j++)
+                    chrs.push(String.fromCharCode(j));
+            } 
+            else 
+            { 
+                // Supposed to treat period, begin and end as individual characters only, not a range
+                chrs.push('.', rangeBegin, rangeEnd);
+            }
+            i += rangeEnd.length + 2; // Skip dots and range end (already skipped range end backslash if present)
+        } 
+        else 
+        { 
+            // Character is by itself
+            chrs.push(c);
+        }
+    }
 
-* Support multiple DB vendors (eg. MySQL, Postgre, Oracle, SQL Server )
-* Easily extended to new DBs ( preferably through a config setting )
-* Flexible and Intuitive API
-* Light-weight ( one class/file per implementation if possible )
-* Speed
+    for (i = 0; i < str.length; i++) 
+    {
+        c = str.charAt(i);
+        if (chrs.indexOf(c) !== -1) 
+        {
+            target += '\\';
+            cca = c.charCodeAt(0);
+            if (cca < 32 || cca > 126) 
+            { 
+                // Needs special escaping
+                switch (c) 
+                {
+                    case '\n': target += 'n'; break;
+                    case '\t': target += 't';  break;
+                    case '\u000D': target += 'r';  break;
+                    case '\u0007': target += 'a'; break;
+                    case '\v': target += 'v'; break;
+                    case '\b': target += 'b';  break;
+                    case '\f': target += 'f'; break;
+                    default:
+                        //target += _pad(cca.toString(8), 3);break; // Sufficient for UTF-16
+                        encoded = encodeURIComponent(c);
+                        // 3-length-padded UTF-8 octets
+                        if ((escHexGrp = percentHex.exec(encoded)) !== null) 
+                            target += _pad(parseInt(escHexGrp[1], 16).toString(8), 3); // already added a slash above
+                        while ((escHexGrp = percentHex.exec(encoded)) !== null) 
+                            target += '\\' + _pad(parseInt(escHexGrp[1], 16).toString(8), 3);
+                        break;
+                }
+            } 
+            else 
+            { 
+                // Perform regular backslashed escaping
+                target += c;
+            }
+        } 
+        else 
+        { 
+            // Just add the character unescaped
+            target += c;
+        }
+    }
+    return target;
+}
 
-*/
+function addslashes( str ) 
+{
+    return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+}
 
+function is_int( mixed_var ) 
+{
+    return mixed_var === +mixed_var && isFinite(mixed_var) && !(mixed_var % 1);
+}
 
-/**
-*
-*  Main Dialect Classes
-*
-**/
-
-/**
-*
-*  Dialect Template, Dialect.Tpl
-*
-**/
-Dialect.Tpl = Tpl = function Tpl( tpl, replacements, compiled ) {
+Tpl = function Tpl( tpl, replacements, compiled ) {
     var self = this;
     if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
     self.id = null;
     self._renderer = null;
-    self.tpl = Tpl.multisplit( tpl||'', replacements||Tpl.defaultArgs );
+    replacements = replacements || Tpl.defaultArgs;
+    self.tpl = replacements instanceof RegExp 
+        ? Tpl.multisplit_re(tpl||'', replacements) 
+        : Tpl.multisplit( tpl||'', replacements );
     if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
     self.fixRenderer( );
 };
-Tpl.defaultArgs = {'$-5':-5,'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4,'$5':5};
+Tpl.defaultArgs = /\$(-?[0-9]+)/g;
 Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
     var r, sr, s, i, j, a, b, c, al, bl;
     as_array = !!as_array;
@@ -111,6 +259,7 @@ Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
     return a;
 };
 Tpl.multisplit_re = function multisplit_re( tpl, re ) {
+    re = re.global ? re : new RegExp(re.source, re.ignoreCase?"gi":"g"); /* make sure global flag is added */
     var a = [ ], i = 0, m;
     while ( m = re.exec( tpl ) )
     {
@@ -212,597 +361,724 @@ Tpl[PROTO] = {
     }
 };
 
-
-/**
-*
-*  Dialect Table, Dialect.Table
-*
-**/
-Dialect.Table = Table = function Table(table, id, quote) {
-    var self = this, _cnt = 0, _id = 0, _table = null, _alias = null, _asAlias = null, _quote = '';
+var dialect = {
+ 'mysql'            : {
     
-    self.useAlias = function( bool ) {
-        bool = undef === bool ? true : !!bool;
-        
-        if ( bool )
-        {
-            _alias = _quote + _table + "_talias_" + _id + _quote;
-            _asAlias = _quote + _table + _quote + " AS " + _quote + _alias + _quote;
-        }
-        else
-        {
-            _alias = _quote + _table + _quote;
-            _asAlias = _quote + _table + _quote;
-        }
-        return self;
-    };
+     'quote'        : [ "'", '`' ]
+    ,'clauses'      : {
+    // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html
+     'select'  : ['select','from','join','where','group','having','order','limit']
+    // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+    ,'insert'  : ['insert','values']
+    // https://dev.mysql.com/doc/refman/5.0/en/update.html
+    ,'update'  : ['update','set','where','order','limit']
+    // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+    ,'delete'  : ['delete','from','where','order','limit']
+    }
+    ,'tpl'        : {
+     'select'   : 'SELECT $0'
+    ,'insert'   : 'INSERT INTO $0 ($1)'
+    ,'update'   : 'UPDATE $0'
+    ,'delete'   : 'DELETE '
+    ,'values'   : 'VALUES $0'
+    ,'values_'  : ',$0'
+    ,'set'      : 'SET $0'
+    ,'set_'     : ',$0'
+    ,'from'     : 'FROM $0'
+    ,'from_'    : ',$0'
+    ,'join'     : 'JOIN $0'
+    ,'alt_join' : '$1 JOIN $0'
+    ,'join_'    : "\n" + 'JOIN $0'
+    ,'alt_join_': "\n" + '$1 JOIN $0'
+    ,'where'    : 'WHERE $0'
+    ,'group'    : 'GROUP BY $0'
+    ,'group_'   : ',$0'
+    ,'having'   : 'HAVING $0'
+    ,'order'    : 'ORDER BY $0'
+    ,'order_'   : ',$0'
+    ,'limit'    : 'LIMIT $0,$1'
     
-    self.table = function() {
-        return _table;
-    };
+    ,'year'     : 'YEAR($0)'
+    ,'month'    : 'MONTH($0)'
+    ,'day'      : 'DAY($0)'
+    ,'hour'     : 'HOUR($0)'
+    ,'minute'   : 'MINUTE($0)'
+    ,'second'   : 'SECOND($0)'
+    }
+ }
+/*
+,'postgre'          : {
+     'quote'        : [ "'", '`' ]
+    ,'clauses'      : {
+    // http://www.postgresql.org/docs/
+     'select'  : ['select','from','join','where','group','having','order','limit']
+    ,'insert'  : ['insert','values']
+    ,'update'  : ['update','set','where','order','limit']
+    ,'delete'  : ['delete','from','where','order','limit']
+    }
+    ,'tpl'        : {
+     'select'   : 'SELECT $0'
+    ,'insert'   : 'INSERT INTO $0 ($1)'
+    ,'update'   : 'UPDATE $0'
+    ,'delete'   : 'DELETE '
+    ,'values'   : 'VALUES $0'
+    ,'values_'  : ',$0'
+    ,'set'      : 'SET $0'
+    ,'set_'     : ',$0'
+    ,'from'     : 'FROM $0'
+    ,'from_'    : ',$0'
+    ,'join'     : 'JOIN $0'
+    ,'alt_join' : '$1 JOIN $0'
+    ,'join_'    : "\n" + 'JOIN $0'
+    ,'alt_join_': "\n" + '$1 JOIN $0'
+    ,'where'    : 'WHERE $0'
+    ,'group'    : 'GROUP BY $0'
+    ,'group_'   : ',$0'
+    ,'having'   : 'HAVING $0'
+    ,'order'    : 'ORDER BY $0'
+    ,'order_'   : ',$0'
+    ,'limit'    : 'LIMIT $1 OFFSET $0'
     
-    self.alias = function() {
-        return _alias;
-    };
-    
-    self.asAlias = function() {
-        return _asAlias;
-    };
-    
-    _table = trim(table);
-    _id = id ? id : ++_cnt;
-    _quote = quote || '';
-    self.useAlias( false );
+    ,'year'     : 'EXTRACT (YEAR FROM $0)'
+    ,'month'    : 'EXTRACT (MONTH FROM $0)'
+    ,'day'      : 'EXTRACT (DAY FROM $0)'
+    ,'hour'     : 'EXTRACT (HOUR FROM $0)'
+    ,'minute'   : 'EXTRACT (MINUTE FROM $0)'
+    ,'second'   : 'EXTRACT (SECOND FROM $0)'
+    }
+}
+*/
 };
 
-
-/**
-*
-*  Dialect Field, Dialect.Field
-*
-**/
-Dialect.Field = Field = function Field( field, table, quote) {
-    var self = this, _cnt = 0, _id = 0, _field = null, _alias = null, _asAlias = null, _table = null, _quote = '';
-    
-    self.useAlias = function( bool ) {
-        bool = undef === bool ? true : !!bool;
-        
-        var table = '';
-        
-        if ( _table )
-        {
-            table = _table.alias() + ".";
-        }
-        
-        if ( bool )
-        {
-            _alias = _quote + _field + "_falias_" + _id + _quote;
-            _asAlias = table + _quote + _field + _quote + " AS " + _quote + _alias + _quote;
-        }
-        else
-        {
-            _alias = _quote + _field + _quote;
-            _asAlias = table + _quote + _field + _quote;
-        }
-        return self;
-    };
-    
-    self.setTable = function( table ) {
-        if ( !(table instanceof Dialect.Table) )  table = new Dialect.Table( table );
-        _table = table;
-        return self;
-    };
-    
-    self.field = function() {
-        return _field;
-    };
-    
-    self.alias = function() {
-        return _alias;
-    };
-    
-    self.asAlias = function() {
-        return _asAlias;
-    };
-    
-    self.table = function() {
-        return _table;
-    };
-    
-    self.parseField = function( f )  {
-        
-        var tmp = f.split('.', 2);
-        var parts = {};
-        
-        if ( tmp[1] )
-        {
-            parts[ 'table' ] = tmp[0];
-            parts[ 'field' ] = tmp[1];
-        }
-        else
-        {   
-            parts[ 'field' ] = tmp[0];
-        }
-        return parts;
-    };
-    
-    var parts = self.parseField( field );
-    
-    _field = parts[ 'field' ];
-    _quote = quote || '';
-    _id = ++_cnt;
-    
-    if ( table ) self.setTable( table );
-    else if ( parts[ 'table' ] )  self.setTable( parts[ 'table' ] );
-        
-    self.useAlias( false );
-};
-
-
-/**
-*
-*  Dialect Expression, Dialect.Expression
-*
-**/
-Dialect.Expression = Expression = function Expression(_config) {
-    var self = this, config = null, e = [], rel_ops = ['AND', 'OR'],
-        ops = {'=':1, '>':1, '<':1, '>=':1, '<=':1, '<>':1, 'LIKE':1, 'NOT_LIKE':1, 'BETWEEN':2, 'IN':100, 'NOT_IN':100};
-    
-    self.toString = function()  {
-        return self.get();
-    };
-    
-    self.reset = function() {
-        e = [];
-        return self;
-    };
-    
-    self.get = function() {
-        return e.join(' ');
-    };
-    
-    self.expr = function() {
-        var _args = Array[PROTO].slice.call(arguments)
-        var _argslen = _args.length;
-        
-        if ( _argslen > 1 && is_array( _args[0] ) )
-        {
-            _args = _args[0];
-            _argslen = _args.length;
-        }
-        
-        if (_argslen < 3 ) return self;
-        
-        var field = _args[0];
-        var op = _args[1];
-        var args = _args[2];
-        var q = ( _args[3] ) ? _args[3] : '';
-        
-        // process operator
-        var opc = op.toUpperCase().replace('/\s+/', '_');
-        
-        // nothing to do
-        if ( !ops[opc] )  return self;
-        
-        op = opc.replace('_', ' ');
-        var expr = field.alias() + " " + op + " ";
-        
-        //args = array_values((array)$args);
-        switch( ops[opc] )
-        {
-            case 100:
-                expr += '(' + q+args.join("{$q},{$q}")+q + ')';
-                break;
-            case 2:
-                expr += "({$q}{$args[0]}{$q}, {$q}{$args[1]}{$q})";
-                break;
-            case 1:
-            default:
-                expr += q+args[0]+q;
-                break;
-        }
-        
-        e,push( "({$expr})" );
-        
-        return self;
-    };
-    
-    config = _config;
-    self.reset();
-};
-
-
-/**
-*
-*  Dialect SQL, Dialect.SQL
-*
-**/
-Dialect.SQL = SQL = function SQL( vendor ) {
+Dialect = function Dialect( type ) {
     var self = this;
-    if ( !(self instanceof SQL) ) return new SQL(vendor);
-    self._vendor = vendor.toLowerCase();
-    self._q = vendors[ self._vendor ]['quote'];
-    self._vendor_clauses = vendors[ self._vendor ]['clauses'];
-    self._vendor_tpls = vendors[ self._vendor ]['tpls'];
-    self.reset( ).sanitize( true );
-};    
-SQL[PROTO] = {
-    constructor: SQL
+    if ( !(self instanceof Dialect) ) return new Dialect( type );
     
-    ,_vendor: null
-    ,_vendor_clauses: null
-    ,_vendor_tpls: null
-    ,_quote: ''
-    ,_q: ''
-    ,_sanitize: false
-    ,_fields: null
-    ,_tables: null
-    ,_whereExpr: null
-    ,_havingExpr: null
-    ,_conditionsW: null
-    ,_conditionsH: null
-    ,_clauses: null
+    self.db = null;
+    self.escdb = null;
+    self.clause = null;
+    self.state = null;
+    type = type || 'mysql';
+    self.clauses = Dialect.dialect[ type ][ 'clauses' ];
+    self.tpl = Dialect.dialect[ type ][ 'tpl' ];
+    self.q = Dialect.dialect[ type ][ 'quote' ][ 0 ];
+    self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
+};
+Dialect.VERSION = "0.1";
+Dialect.dialect = dialect;
+Dialect.Tpl = function( tpl, reps, compiled ) {
+    if ( tpl instanceof Tpl ) return tpl;
+    return new Tpl( tpl, reps, compiled );
+};
+Dialect[PROTO] = {
+    constructor: Dialect
+    
+    ,clause: null
+    ,state: null
+    ,clauses: null
+    ,tpl: null
+    ,db: null
+    ,escdb: null
+    ,q: null
+    ,qn: null
     
     ,dispose: function( ) {
         var self = this;
-        self._vendor = null;
-        self._vendor_clauses = null;
-        self._vendor_tpls = null;
-        self._quote = null;
-        self._q = null;
-        self._sanitize = null;
-        self._fields = null;
-        self._tables = null;
-        self._whereExpr = null;
-        self._havingExpr = null;
-        self._conditionsW = null;
-        self._conditionsH = null;
-        self._clauses = null;
+        self.db = null;
+        self.escdb = null;
+        self.clause = null;
+        self.state = null;
+        self.clauses = null;
+        self.tpl = null;
+        self.q = null;
+        self.qn = null;
         return self;
     }
-    ,reset: function( ) {
+    
+	,toString: function( ) {
+        return this.sql( ) || '';
+    }
+    
+    ,driver: function( db ) {
         var self = this;
-        self._q = '';
-        self._fields = [];
-        self._tables = [];
-        self._whereExpr = null;
-        self._havingExpr = null;
-        self._conditionsW = [];
-        self._conditionsH = [];
-        self._clauses = [];
-        for (var type in self._vendor_clauses)
+        self.db = db ? db : null;
+        return self;
+    }
+    
+    ,escape: function( escdb ) {
+        var self = this;
+        self.escdb = escdb && is_callable(escdb) ? escdb : null;
+        return self;
+    }
+    
+    ,reset: function( clause ) {
+        var self = this, i, l, clauses, c;
+        self.state = { };
+        self.clause = clause;
+        clauses = self.clauses[ self.clause ];
+        for (i=0,l=clauses.length; i<l; i++)
         {
-            if ( self._vendor_clauses[HAS](type) )
+            clause = clauses[ i ];
+            
+            if ( self.tpl[HAS](clause) && !(self.tpl[ clause ] instanceof Tpl) )
+                self.tpl[ clause ] = new Tpl( self.tpl[ clause ] );
+            
+            // continuation clause if exists, ..
+            c = clause + '_';
+            if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
+                self.tpl[ c ] = new Tpl( self.tpl[ c ] );
+            
+            // alternative clause form if exists
+            c = 'alt_' + clause;
+            if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
             {
-                var clauses = self._vendor_clauses[type];
-                self._clauses[ $type ] = '';
-                for (var clause in clauses) if (clauses[HAS](clause) ) self._clauses[ clause ] = '';
+                self.tpl[ c ] = new Tpl( self.tpl[ c ] );
+                
+                // alternative clause form continuation if exists, ..
+                c = c + '_';
+                if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
+                    self.tpl[ c ] = new Tpl( self.tpl[ c ] );
             }
         }
         return self;
     }
-    // return a table reference
-    ,table: function( table ) {
+    
+    ,clear: function( ) {
         var self = this;
-        if ( !table || table instanceof Dialect.Table ) return table;
-        
-        if ( !self._tables[HAS]( table ) )
-            self._tables[ table ] = new Dialect.Table(table, ++_tableCnt, self._quote);
-        
-        return self._tables[ table ];
-    }
-    // return a field reference
-    ,field: function( field, table ) {
-        var self = this;
-        if ( null === field || field instanceof Dialect.Field ) return field;
-        
-        if ( !self._fields[HAS]( field ) )
-        {
-            var f = new Dialect.Field(field, table||null);
-            self._fields[ field ] = f;
-            
-            var t = f->table();
-            if ( t && !self._tables[HAS]( t.table() ) )
-                self._tables[ t.table() ] = t;
-        }
-        return self._fields[ field ];
-    }
-    // return an expression reference
-    ,expression: function( field, op, args, q ) {   
-        var expr = new Dialect.Expression();
-        expr->expr(field, op, args, q||'');
-        return expr;
-    }
-    // try to sanitize if possible
-    ,sanitize: function( bool ) {
-        var self = this;
-        self._sanitize = !!bool;
+        self.clause = null;
+        self.state = null;
         return self;
     }
-    ,buildQuery: function( part/*=null*/ ) {
-        var self = this, parts;
-        // allow to get partial query back
-        if (!part)
-            parts = array_flip( self._default_clauses[ self._type ] );
+    
+    ,sql: function( ) {
+        var self = this, query = null, i, l, clause, clauses;
+        if ( self.clause && self.state && self.clauses[HAS]( self.clause ) )
+        {
+            query = [ ];
+            clauses = self.clauses[ self.clause ];
+            for (i=0,l=clauses.length; i<l; i++)
+            {
+                clause = clauses[ i ];
+                if ( self.state[ HAS ]( clause ) )
+                    query.push( self.state[ clause ] );
+            }
+            query = query.join("\n");
+        }
+        self.clear( );
+        return query;
+    }
+    
+    ,prepare: function( query, args, left, right ) {
+        var self = this, pattern, offset, m, pos, len, param, type, prepared;
+        if ( query && args )
+        {
+            // custom delimiters
+            left = left ? esc_re( left ) : '%';
+            right = right ? esc_re( right ) : '%';
+            
+            // custom prepared parameter format
+            pattern = RE(left + '(ad|as|l|r|d|s)\\(([0-9a-zA-Z_]+)\\)' + right);
+            prepared = '';
+            while ( query.length && (m = query.match( pattern )) )
+            {
+                pos = m.index;
+                len = m[0].length;
+                param = m[2];
+                if ( args[HAS](param) )
+                {
+                    type = m[1];
+                    switch( type )
+                    {
+                        // array of integers param
+                        case 'ad': param = '(' + self.intval( array(args[param]) ).join(',') + ')'; break;
+                        // array of strings param
+                        case 'as': param = '(' + self.quote( array(args[param]) ).join(',') + ')'; break;
+                        // like param
+                        case 'l': param = self.like( args[param] ); break;
+                        // raw param
+                        case 'r': param = args[param]; break;
+                        // integer param
+                        case 'd': param = self.intval( args[param] ); break;
+                        // string param
+                        case 's': default: param = self.quote( args[param] ); break;
+                    }
+                    prepared += query.slice(0, pos) + param;
+                }
+                else
+                {
+                    prepared += query.slice(0, pos) + self.quote('');
+                }
+                query = query.slice( pos+len );
+            }
+            if ( query.length ) prepared += query;
+            return prepared;
+        }
+        return query;
+    }
+    
+    ,year: function( field ) {
+        var self = this;
+        self.tpl.year = Dialect.Tpl( self.tpl.year );
+        return self.tpl.year.render( [ field ] );
+    }
+    
+    ,month: function( field ) {
+        var self = this;
+        self.tpl.month = Dialect.Tpl( self.tpl.month );
+        return self.tpl.month.render( [ field ] );
+    }
+    
+    ,day: function( field ) {
+        var self = this;
+        self.tpl.day = Dialect.Tpl( self.tpl.day );
+        return self.tpl.day.render( [ field ] );
+    }
+    
+    ,hour: function( field ) {
+        var self = this;
+        self.tpl.hour = Dialect.Tpl( self.tpl.hour );
+        return self.tpl.hour.render( [ field ] );
+    }
+    
+    ,minute: function( field ) {
+        var self = this;
+        self.tpl.minute = Dialect.Tpl( self.tpl.minute );
+        return self.tpl.minute.render( [ field ] );
+    }
+    
+    ,second: function( field ) {
+        var self = this;
+        self.tpl.second = Dialect.Tpl( self.tpl.second );
+        return self.tpl.second.render( [ field ] );
+    }
+    
+    ,select: function( fields ) {
+        var self = this;
+        self.reset('select');
+        if ( !fields || !fields.length ) fields = '*';
+        self.state.select = self.tpl.select.render( [ array(fields).join(',') ] );
+        return self;
+    }
+    
+    ,insert: function( table, fields ) {
+        var self = this;
+        selfreset('insert');
+        self.state.insert = self.tpl.insert.render( [ table, array(fields).join(',') ] );
+        return self;
+    }
+    
+    ,values: function( values ) {
+        var self = this, count, insert_values, vals, i, val, j, l, vs;
+        // array of arrays
+        if ( undef === values[0] || !is_array(values[0]) ) values = [values];
+        count = values.length;
+        insert_values = [];
+        for (i=0; i<count; i++)
+        {
+            vs = array( values[i] );
+            if ( vs.length )
+            {
+                vals = [];
+                for (j=0,l=vs.length; j<l; j++)
+                {
+                    val = vs[j];
+                    if ( is_obj(val) )
+                    {
+                        if ( val[HAS]('integer') )
+                        {
+                            vals.push( self.intval( val['integer'] ) );
+                        }
+                        else if ( val[HAS]('string') )
+                        {
+                            vals.push( self.quote( val['string'] ) );
+                        }
+                        else if ( val[HAS]('prepared') )
+                        {
+                            vals.push( val['prepared'] );
+                        }
+                    }
+                    else
+                    {
+                        vals.push( is_int(val) ? val : self.quote( val ) );
+                    }
+                }
+                insert_values.push( '(' + vals.join(',') + ')' );
+            }
+        }
+        insert_values = insert_values.join(',');
+        if ( self.state.values ) self.state.values += self.tpl.values_.render( [ insert_values ] );
+        else self.state.values = self.tpl.values.render( [ insert_values ] );
+        return self;
+    }
+    
+    ,update: function( tables ) {
+        var self = this;
+        self.reset('update');
+        self.state.update = self.tpl.update.render( [ array(tables).join(',') ] );
+        return self;
+    }
+    
+    ,set: function( fields_values ) {
+        var self = this, set_values, field, value;
+        set_values = [];
+        for (field in fields_values)
+        {
+            if ( !fields_values[HAS](field) ) continue;
+            value = fields_values[field];
+            if ( is_obj(value) )
+            {
+                if ( value[HAS]('integer') )
+                {
+                    set_values.push( field + " = " + self.intval(value['integer']) );
+                }
+                else if ( value[HAS]('string') )
+                {
+                    set_values.push( field + " = " + self.quote(value['string']) );
+                }
+                else if ( value[HAS]('prepared') )
+                {
+                    set_values.push( field + " = " + value['prepared'] );
+                }
+                else if ( value[HAS]('increment') )
+                {
+                    set_values.push( field + " = " + field + " + " + self.intval(value['increment']) );
+                }
+                else if ( value[HAS]('decrement') )
+                {
+                    set_values.push( field + " = " + field + " - " + self.intval(value['increment']) );
+                }
+            }
+            else
+            {
+                set_values.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+            }
+        }
+        set_values = set_values.join(',');
+        if ( self.state.set ) self.state.set += self.tpl.set_.render( [ set_values ] );
+        else self.state.set = self.tpl.set.render( [ set_values ] );
+        return self;
+    }
+    
+    ,del: function( ) {
+        var self = this;
+        self.reset('delete');
+        self.state['delete'] = self.tpl['delete'].render( [] );
+        return self;
+    }
+    
+    ,from: function( tables ) {
+        var self = this;
+        tables = array(tables).join(',');
+        if ( self.state.from ) self.state.from += self.tpl.from_.render( [ tables ] );
+        else self.state.from = self.tpl.from.render( [ tables ] );
+        return self;
+    }
+    
+    ,join: function( table, cond, type ) {
+        var self = this;
+        var join_clause = cond ? (table + " ON " + cond) : table;
+        if ( !type )
+        {
+            if ( self.state.join ) self.state.join += self.tpl.join_.render( [ join_clause ] );
+            else self.state.join = self.tpl.join.render( [ join_clause ] );
+        }
         else
-            parts = array_flip( part );
-            
-        var parts2 = parts; // clone
-        
-        var sql = '';
-        var type = self._type;
-        
-        if ( 'SELECT'==type )
         {
-            sql += 'SELECT ';
-            
-            var i = 0;
-            for (self._fields as field)
-            {
-                if (i)  sql += ", ";
-                sql += field.asAlias();
-                i++;
-            }
-            sql += " ";
-        }    
-        
-        else if ( 'INSERT'==type )
-        {
-            // TODO
-            sql += 'INSERT ';
-        }    
-        
-        else if ( 'UPDATE'==type )
-        {
-            // TODO
-            sql += 'UPDATE ';
-        }    
-        
-        else if ( 'DELETE'==type )
-        {
-            // TODO
-            sql += 'DELETE ';
+            if ( self.state.join ) self.state.join += self.tpl.alt_join_.render( [ join_clause, type.toUpperCase() ] );
+            else self.state.join = self.tpl.alt_join.render( [ join_clause, type.toUpperCase() ] );
         }
-        
-        else if ( 'ALTER'==type )
-        {
-            // TODO
-            sql += 'ALTER TABLE ';
-        }
-        
-        sql += "\n" +  array_values(
-                        array_intersect_key( 
-                            array_merge( parts, self._clauses )
-                        , parts2)
-                    ).filter(Boolean).join("\n");
-        return sql;
-    }
-    ,query: function( q/*=false*/ ) {
-        var self = this;
-        self._q = q ? q : '';
         return self;
     }
-    ,sql: function( part ) {
+    
+    ,where: function( conditions ) {
         var self = this;
-        // build the query here
-        if (!self._q) self._q = self.buildQuery( part );
-        return self._q;
+        if ( conditions )
+            self.state.where = self.tpl.where.render( [ is_string(conditions) ? conditions : self.conditions( conditions ) ] );
+        return self;
     }
-    // return the sql as string, if this object is cast as a string ;)
-    ,toString: function( ) {
-        return this.sql();
+    
+    ,group: function( field, dir ) {
+        var self = this, grouped;
+        dir = dir ? dir.toUpperCase() : "ASC";
+        if ( "DESC" !== dir ) dir = "ASC";
+        grouped = field + " " + dir;
+        if ( self.state.group ) self.state.group += self.tpl.group_.render( [ grouped ] );
+        else self.state.group = self.tpl.group.render( [ grouped ] );
+        return self;
     }
-    ,insert: function(){
-        $this->reset();
-        $this->_type = 'INSERT';
-        return $this;
+    
+    ,having: function( conditions ) {
+        var self = this;
+        if ( conditions )
+            self.state.having = self.tpl.having.render( [ is_string(conditions) ? conditions : self.conditions( conditions ) ] );
+        return self;
     }
-    ,update: function(){
-        $this->reset();
-        $this->_type = 'UPDATE';
-        return $this;
+    
+    ,order: function( field, dir ) {
+        var self = this, ordered;
+        dir = dir ? dir.toUpperCase() : "ASC";
+        if ( "DESC" !== dir ) dir = "ASC";
+        ordered = field + " " + dir;
+        if ( self.state.order ) self.state.order += self.tpl.order_.render( [ ordered ] );
+        else self.state.order = self.tpl.order.render( [ ordered ] );
+        return self;
     }
-    ,del: function() {
-        $this->reset();
-        $this->_type = 'DELETE';
-        return $this;
+    
+    ,limit: function( count, offset ) {
+        var self = this;
+        count = parseInt(count,10); offset = parseInt(offset||0,10);
+        self.state.limit = self.tpl.limit.render( [ offset, count ] );
+        return self;
     }
-    ,alter: function(){
-        $this->reset();
-        $this->_type = 'ALTER';
-        return $this;
+    
+    ,page: function( page, perpage ) {
+        var self = this;
+        page = parseInt(page,10); perpage = parseInt(perpage,10);
+        return self.limit( perpage, page*perpage );
     }
-    ,select: function( $fields = array() ) {
-        $this->reset();
-        $this->_type = 'SELECT';
-        
-        $fields = array_values( (array)$fields );
-        
-        // select all by default
-        if ( empty($fields) ) $fields = array( '*' => '*' );
-        
-        $this->_fields = $fields;
-        
-        foreach ($fields as $field)
+    
+    ,conditions: function( conditions ) {
+        var self = this, condquery = '', conds, field, value, op, key;
+        if ( conditions )
         {
-            // transform to dialect fields
-            $this->field( $field );
+            conds = [];
+            
+            for ( field in conditions)
+            {
+                if ( !conditions[HAS](field) ) continue;
+                
+                value = conditions[field];
+                if ( is_obj( value ) )
+                {
+                    if ( value[HAS]('multi-like') )
+                    {
+                        // Add the search tuple to the query.
+                        conds.push( self.multi_like(field, value['multi-like']) );
+                    }
+                    else if ( value[HAS]('like') )
+                    {
+                        // Add the search tuple to the query.
+                        conds.push( field + " LIKE " + self.like(value['like']) );
+                    }
+                    else if ( value[HAS]('like-prepared') )
+                    {
+                        // prepared dynamically
+                        conds.push( field + " LIKE " + value['like-prepared'] );
+                    }
+                    else if ( value[HAS]('in') )
+                    {
+                        if ( value[HAS]('type') )
+                        {
+                            if ( 'integer' == value['type'] )
+                            {
+                                value['in'] = '(' + self.intval( [].concat(value['in']) ).join(',') + ')';
+                            }
+                            else if ( 'string' == value['type'] )
+                            {
+                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
+                            }
+                            else if ( 'prepared' == value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
+                            }
+                        }
+                        else
+                        {
+                            value['in'] = [].concat($value['in']);
+                            if ( value['in'][0] && is_int(value['in'][0]) )
+                                value['in'] = '(' + self.intval( [].concat(value['in']) ).join(',') + ')';
+                            else
+                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
+                        }
+                        // Add the search tuple to the query.
+                        conds.push( field + " IN " + value['in'] );
+                    }
+                    else if ( value[HAS]('between') )
+                    {
+                        if ( value[HAS]('type') )
+                        {
+                            if ( 'integer' == value['type'] )
+                            {
+                                value['between'] = self.intval( value['between'] );
+                            }
+                            else if ( 'string' == value['type'] )
+                            {
+                                value['between'] = self.quote( value['between'] );
+                            }
+                            else if ( 'prepared' == value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                value['between'] = self.quote( value['between'] );
+                            }
+                        }
+                        else
+                        {
+                            if ( !is_int(value['between'][0]) || !is_int(value['between'][1]) )
+                            {
+                                value['between'] = self.quote( value['between'] );
+                            }
+                        }
+                        // Add the search tuple to the query.
+                        conds.push( field + " BETWEEN " + value['between'][0] + " AND " + value['between'][1] );
+                    }
+                    else if ( value[HAS]('equal') || 
+                        value[HAS]('eq') || 
+                        value[HAS]('gt') || 
+                        value[HAS]('lt') || 
+                        value[HAS]('gte') || 
+                        value[HAS]('lte') 
+                    )
+                    {
+                        if ( value[HAS]('eq') || value[HAS]('equal') )
+                        {
+                            op = '=';
+                            key = value[HAS]('equal') ? 'equal' : 'eq';
+                        }
+                        else if ( value[HAS]('gt') )
+                        {
+                            op = '>';
+                            key = 'gt';
+                        }
+                        else if ( value[HAS]('gte') )
+                        {
+                            op = '>=';
+                            key = 'gte';
+                        }
+                        else if ( value[HAS]('lte') )
+                        {
+                            op = '<=';
+                            key = 'lte';
+                        }
+                        else if ( value[HAS]('lt') )
+                        {
+                            op = '<';
+                            key = 'lt';
+                        }
+                        
+                        if ( value[HAS]('type') )
+                        {
+                            if ( 'integer' == value['type'] )
+                            {
+                                value[$key] = self.intval( value[key] );
+                            }
+                            else if ( 'string' == value['type'] )
+                            {
+                                value[key] = self.quote( value[key] );
+                            }
+                            else if ( 'prepared' == value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                value[key] = self.quote( value[key] );
+                            }
+                        }
+                        else
+                        {
+                            if ( !is_int(value[key]) )
+                                value[key] = self.quote( value[key] );
+                        }
+                        // Add the search tuple to the query.
+                        conds.push( field + " " + op + " " + value[key] );
+                    }
+                }
+                else
+                {
+                    // Add the search tuple to the query.
+                    conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+                }
+            }
+            
+            if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
         }
-        
-        return $this;
+        return condquery;
     }
-    ,from: function( $tables ){
-        $tables = array_values( (array)$tables );
-        
-        $this->_tables = $tables;
-        
-        foreach ($tables as $table)
-        {
-            // transform to dialect tables
-            $this->table($table);
-        }
-        
-        $from = 'FROM ';
-        
-        $i = 0;
-        foreach ($this->_tables as $table)
-        {
-            if ($i) $from .= ", ";
-            $from .= $table->asAlias();
-            $i++;
-        }
-        
-        $this->_clauses['FROM'] = $from;
-            
-        return $this;
+    
+    ,intval: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
+            return v.map(function( v ){return parseInt( v, 10 );});
+        else
+            return parseInt( v, 10 );
     }
-    // partially sanitized using white-list
-    ,join: function($on, $jointable=null, $type='INNER'){
-        $on = array_values( (array)$on );
-        $type = strtoupper( $type );
-        $jointable = $this->table( $jointable );
-        
-        foreach ($on as $i => $field)
-        {
-            $field = $this->field( $field );
-            $ftable = $field->table();
-            $alias = ($jointable) ? $jointable->asAlias() : $ftable->asAlias();
-            $on[$i] = $field->alias();
-        }
-        $on = implode(' = ', $on);
-        
-        if ( !empty($this->_clauses['JOIN']) )
-            $this->_clauses['JOIN'] .= " ";
-            
-        switch ( $type )
-        {
-            case 'LEFT':
-                $this->_clauses['JOIN'] .= "LEFT JOIN {$alias} ON {$on}";
-                break;
-            case 'RIGHT':
-                $this->_clauses['JOIN'] .= "RIGHT JOIN {$alias} ON {$on}";
-                break;
-            case 'OUTER':
-                $this->_clauses['JOIN'] .= "OUTER JOIN {$alias} ON {$on}";
-                break;
-            case 'INNER':
-            default:
-                $this->_clauses['JOIN'] .= "INNER JOIN {$alias} ON {$on}";
-                break;
-        }
-        return $this;
+    
+    ,quote_name: function( f ) {
+        var self = this;
+        if ( is_array( f ) )
+            return f.map(function( f ){return self.qn + f + self.qn;});
+        else
+            return self.qn + f + self.qn;
     }
-    ,where: function($rel, $expr){
-        $args = func_get_args();
-        array_shift( $args );
-        $argslen = count($args);
-        
-        if ( $argslen > 1 )
-        {
-            $args[0] = $this->table( $args[0] );
-            
-            // expression given
-            $this->_whereExpr = new DialectExpression();
-            
-            $this->_whereExpr->expr( $args );
-            
-            $expr = $this->_whereExpr->get();
-        }
-        
-        $rel = strtoupper( $rel );
-        if ( !in_array($rel, $this->_rel_ops)) $rel = 'AND';
-        
-        $this->_conditionsW[] = array($expr, $rel);
-        $this->_clauses['WHERE'] = 'WHERE ';
-        
-        foreach ($this->_conditionsW as $i=>$e)
-        {
-            $this->_clauses['WHERE'] .= ($i) ? $e[1] . ' ' . $e[0] . ' ' : $e[0] . ' ';
-        }
-        return $this;
+    
+    ,quote: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
+            return v.map(function( v ){return self.q + self.esc( v ) + self.q;});
+        else
+            return self.q + self.esc( v ) + self.q;
     }
-    // partially sanitized using white-list
-    ,groupBy: function($by, $ord='ASC'){
-        $by = $this->field( $by )->alias();
-        $ord = strtoupper($ord);
-        
-        if (!in_array($ord, array('ASC', 'DESC')))   
-            $ord = 'ASC';
-            
-        $this->_clauses['GROUP'] = "GROUP BY {$by} {$ord}";
-        
-        return $this;
-    }
-    ,having: function($rel, $expr){
-        $args = func_get_args();
-        array_shift( $args );
-        $argslen = count($args);
-        
-        if ( $argslen > 1 )
+    
+    ,esc: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
         {
-            $args[0] = $this->table( $args[0] );
-            
-            // expression given
-            $this->_havingExpr = new DialectExpression();
-            
-            $this->_havingExpr->expr( $args );
-            
-            $expr = $this->_havingExpr->get();
+            if ( self.escdb ) 
+                return v.map( self.escdb );
+            else
+                return v.map(function( v ){return addslashes( v );});
         }
-        
-        $rel = strtoupper( $rel );
-        if ( !in_array($rel, $this->_rel_ops)) $rel = 'AND';
-        
-        $this->_conditionsH[] = array($expr, $rel);
-        $this->_clauses['HAVING'] = 'HAVING ';
-        
-        foreach ($this->_conditionsH as $i=>$e)
+        else
         {
-            $this->_clauses['HAVING'] .= ($i) ? $e[1] . ' ' . $e[0] . ' ' : $e[0] . ' ';
+            if ( self.escdb ) 
+                return self.escdb( v );
+            else
+                // simple ecsaping using addslashes
+                // '"\ and NUL (the NULL byte).
+                return addslashes( v );
         }
-        return $this;
     }
-    // partially sanitized using white-list
-    ,orderBy: function($by, $ord='ASC'){
-        $add_comma = true;
-        
-        if (empty($this->_clauses['ORDER']))
+    
+    ,esc_like: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
+            return v.map(function( v ){return addcslashes( v, '_%\\' );});
+        else
+            return addcslashes( v, '_%\\' );
+    }
+    
+    ,like: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
+            return v.map(function( v ){return self.q + '%' + self.esc( self.esc_like( v ) ) + '%' + self.q;});
+        else
+            return self.q + '%' + self.esc( self.esc_like( v ) ) + '%' + self.q;
+    }
+    
+    ,multi_like: function( f, v, doTrim ) {
+        var self = this, like, ORs, ANDs, i, l, j, m;
+        doTrim = false !== doTrim;
+        like = f + " LIKE ";
+        ORs = v.split(',');
+        if ( doTrim ) ORs = ORs.map( trim ).filter( Boolean );
+        for (i=0,l=ORs.length; i<l; i++)
         {
-            $this->_clauses['ORDER'] = "ORDER BY";
-            $add_comma = false;
+            ANDs = ORs[i].split('+');
+            if ( doTrim ) ANDs = ANDs.map( trim ).filter( Boolean );
+            for (j=0,m=ASNDs.length; j<m; j++)
+            {
+                ANDs[j] = like + self.like( ANDs[j] );
+            }
+            ORs[i] = '(' + ANDs.join(' AND ') + ')';
         }
-        
-        $ord = strtoupper($ord);
-        if (!in_array($ord, array('ASC', 'DESC')))   
-            $ord = 'ASC';
-            
-        if ($add_comma)
-            $this->_clauses['ORDER'] .= ',';
-            
-        $by = $this->field( $by )->alias();
-        
-        $this->_clauses['ORDER'] .= " {$by} {$ord}";
-        
-        return $this;
-    }
-    // sanitized using intval
-    ,limit: function($count, $offset=0){
-        // perform some sanitization
-        $offset = intval($offset);
-        $count = intval($count);
-        $this->_clauses['LIMIT'] = "LIMIT {$offset}, {$count}";
-        
-        return $this;
-    }
-    // sanitized using intval
-    ,paged: function($per_page, $page=1){
-        // perform some sanitization
-        $page = intval($page);
-        if ($page < 1)
-            $page = 1;
-        $per_page = intval($per_page);
-        
-        return $this->limit($per_page, ($page-1)*$per_page);
+        return ORs.join(' OR ');
     }
 };
 

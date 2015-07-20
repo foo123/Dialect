@@ -1,641 +1,898 @@
 <?php
 /**
-*
-*   Dialect Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
-*   https://github.com/foo123/Dialect
+*   Dialect, 
+*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
+*   @version: 0.1
+*   https://github.com/foo123/Dialect
+*
 *   Abstract the construction of SQL queries
 *   Support multiple DB vendors
 *   Intuitive and Flexible API
-*
-**/
-
-/*
-
-__Requirements:__
-
-* Support multiple DB vendors (eg. MySQL, Postgre, Oracle, SQL Server )
-* Easily extended to new vendors ( preferably through a config setting )
-* Simple, Flexible and Intuitive API
-* Light-weight ( one class/file per implementation if possible )
-* Speed
-
-*/
-
-
-/**
-*
-*  Main Dialect Classes
-*
 **/
 if ( !class_exists('Dialect') )
 {
-class DialectTable
-{
-    private static $_cnt = 0;
-    private $q = '';
-    
-    public $id = 0;
-    public $name = null;
-    public $alias = null;
-    public $asAlias = null;
-    public $isAliased = false;
-    
-    public static function parse( $t )
+class DialectTpl
+{    
+    public static function multisplit($tpl, $reps, $as_array=false)
     {
-        $parts = array( );
-        $tmp = explode(' AS ', $t);
-        $parts[ 'name' ] = trim($tmp[ 0 ]);
-        if ( count( $tmp ) > 1 )
+        $a = array( array(1, $tpl) );
+        foreach ((array)$reps as $r=>$s)
         {
-            $parts[ 'alias' ] = trim($tmp[ 1 ]);
+            $c = array( ); 
+            $sr = $as_array ? $s : $r;
+            $s = array(0, $s);
+            foreach ($a as $ai)
+            {
+                if (1 === $ai[ 0 ])
+                {
+                    $b = explode($sr, $ai[ 1 ]);
+                    $bl = count($b);
+                    $c[] = array(1, $b[0]);
+                    if ($bl > 1)
+                    {
+                        for ($j=0; $j<$bl-1; $j++)
+                        {
+                            $c[] = $s;
+                            $c[] = array(1, $b[$j+1]);
+                        }
+                    }
+                }        
+                else
+                {
+                    $c[] = $ai;
+                }
+            }
+            $a = $c;
         }
+        return $a;
+    }
+
+    public static function multisplit_re( $tpl, $re ) 
+    {
+        $a = array(); 
+        $i = 0; 
+        while ( preg_match($re, $tpl, $m, PREG_OFFSET_CAPTURE, $i) ) 
+        {
+            $a[] = array(1, substr($tpl, $i, $m[0][1]-$i));
+            $a[] = array(0, isset($m[1]) ? $m[1][0] : $m[0][0]);
+            $i = $m[0][1] + strlen($m[0][0]);
+        }
+        $a[] = array(1, substr($tpl, $i));
+        return $a;
+    }
+    
+    public static function arg($key=null, $argslen=null)
+    {
+        $out = '$args';
+        
+        if ($key)
+        {
+            if (is_string($key))
+                $key = !empty($key) ? explode('.', $key) : array();
+            else 
+                $key = array($key);
+            $givenArgsLen = (bool)(null !=$argslen && is_string($argslen));
+            
+            foreach ($key as $k)
+            {
+                $kn = is_string($k) ? intval($k,10) : $k;
+                if (!is_nan($kn))
+                {
+                    if ($kn < 0) $k = ($givenArgsLen ? $argslen : 'count('.$out.')') . ('-'.(-$kn));
+                    
+                    $out .= '[' . $k . ']';
+                }
+                else
+                {
+                    $out .= '["' . $k . '"]';
+                }
+            }
+        }        
+        return $out;
+    }
+
+    public static function compile($tpl, $raw=false)
+    {
+        static $NEWLINE = '/\\n\\r|\\r\\n|\\n|\\r/'; 
+        static $SQUOTE = "/'/";
+        
+        if (true === $raw)
+        {
+            $out = 'return (';
+            foreach ($tpl as $tpli)
+            {
+                $notIsSub = $tpli[ 0 ];
+                $s = $tpli[ 1 ];
+                $out .= $notIsSub ? $s : self::arg($s);
+            }
+            $out .= ');';
+        }    
         else
         {
-            $parts[ 'alias' ] = false;
+            $out = '$argslen=count($args); return (';
+            foreach ($tpl as $tpli)
+            {
+                $notIsSub = $tpli[ 0 ];
+                $s = $tpli[ 1 ];
+                if ($notIsSub) $out .= "'" . preg_replace($NEWLINE, "' + \"\\n\" + '", preg_replace($SQUOTE, "\\'", $s)) . "'";
+                else $out .= " . strval(" . self::arg($s,'$argslen') . ") . ";
+            }
+            $out .= ');';
         }
-        return (object)$parts;
+        return create_function('$args', $out);
+    }
+
+    
+    public static $defaultArgs = '/\\$(-?[0-9]+)/';
+    
+    public $id = null;
+    public $tpl = null;
+    private $_renderer = null;
+    
+    public function __construct($tpl='', $replacements=null, $compiled=false)
+    {
+        $this->id = null;
+        $this->_renderer = null;
+        
+        if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
+        $this->tpl = is_string($replacements)
+                ? self::multisplit_re( $tpl, $replacements)
+                : self::multisplit( $tpl, (array)$replacements);
+        if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
+    }
+
+    public function __destruct()
+    {
+        $this->dispose();
     }
     
-    public function __construct( $name, $quote='' )
+    public function dispose()
     {
-        $parts = is_object( $name ) ? $name : self::parse( $name );
-        $this->q = $quote;
-        $this->id = ++self::$_cnt;
-        $this->name = $parts->name;
-        $this->useAlias( $parts->alias );
-    }
-    
-    public function useAlias( $alias = true )
-    {
-        if ( !$alias )
-        {
-            $this->alias = implode('', array($this->q, $this->name, $this->q));
-            $this->asAlias = implode('', array($this->q, $this->name, $this->q));
-            $this->isAliased = false;
-        }
-        elseif ( true === $alias )
-        {
-            $this->alias = implode('', array($this->q, "t_", $this->id, "_", $this->name, $this->q));
-            $this->asAlias = implode('', array($this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
-            $this->isAliased = true;
-        }
-        elseif ( $alias )
-        {
-            $this->alias = implode('', array($this->q, '' . $alias, $this->q));
-            $this->asAlias = implode('', array($this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
-            $this->isAliased = true;
-        }
+        $this->id = null;
+        $this->tpl = null;
+        $this->_renderer = null;
         return $this;
     }
-}
-
-class DialectField
-{
-    private static $_cnt = 0;
-    private $q = '';
     
-    public $id = 0;
-    public $name = null;
-    public $table = null;
-    public $alias = null;
-    public $asAlias = null;
-    public $isAliased = false;
-    
-    public static function parse( $f )
+    public function render($args=null)
     {
-        $tmp = explode('.', $f);
-        $parts = array( );
+        if (!$args) $args = array();
         
-        if ( count( $tmp ) > 1 )
+        if ($this->_renderer) 
         {
-            $parts[ 'table' ] = trim($tmp[ 0 ]);
-            $parts[ 'name' ] = trim($tmp[ 1 ]);
+            $f = $this->_renderer;
+            return $f( $args );
         }
-        else
-        {   
-            $parts[ 'table' ] = false;
-            $parts[ 'name' ] = trim($tmp[ 0 ]);
-        }
-        $tmp = explode(' AS ', $parts[ 'field' ]);
-        if ( count( $tmp ) > 1 )
-        {
-            $parts[ 'alias' ] = trim($tmp[ 1 ]);
-            $parts[ 'name' ] = trim($tmp[ 0 ]);
-        }
-        else
-        {
-            $parts[ 'alias' ] = false;
-        }
-        return (object)$parts;
-    }
-    
-    public function __construct( $name, $quote='' )
-    {
-        $parts = is_object( $name ) ? $name : self::parse( $name );
-        $this->q = $quote;
-        $this->id = ++self::$_cnt;
-        $this->name = $parts->name;
-        $this->table = $parts->table;
-        $this->useAlias( $parts->alias );
-    }
-    
-    public function useAlias( $alias = true )
-    {
-        $table = $this->table ? ($this->table . ".") : '';
         
-        if ( !$alias )
+        $out = '';
+        
+        foreach ($this->tpl as $tpli)
         {
-            $this->alias = implode('', array($this->q, $this->name, $this->q));
-            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q));
-            $this->isAliased = false;
+            $notIsSub = $tpli[ 0 ];
+            $s = $tpli[ 1 ];
+            $out .= $notIsSub ? $s : strval($args[ $s ]);
         }
-        elseif ( true === $alias )
-        {
-            $this->alias = implode('', array($this->q, "f_", $this->id, "_", $this->name, $this->q));
-            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
-            $this->isAliased = true;
-        }
-        elseif ( $alias )
-        {
-            $this->alias = implode('', array($this->q, ''. $alias, $this->q));
-            $this->asAlias = implode('', array($table, $this->q, $this->name, $this->q, " AS ", $this->q, $this->alias, $this->q));
-            $this->isAliased = true;
-        }
-        return $this;
+        return $out;
     }
-}
-
-
+}    
+ 
 class Dialect
 {
     const VERSION = "0.1";
     
-    private static $_vendor = null;
+    public static $dialect = array(
+     
+     'mysql'            => array(
+        
+         'quote'        => array( "'", '`' )
+        ,'clauses'      => array(
+        // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html
+         'select'  => array('select','from','join','where','group','having','order','limit')
+        // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+        ,'insert'  => array('insert','values')
+        // https://dev.mysql.com/doc/refman/5.0/en/update.html
+        ,'update'  => array('update','set','where','order','limit')
+        // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+        ,'delete'  => array('delete','from','where','order','limit')
+        )
+        ,'tpl'        => array(
+         'select'   => 'SELECT $0'
+        ,'insert'   => 'INSERT INTO $0 ($1)'
+        ,'update'   => 'UPDATE $0'
+        ,'delete'   => 'DELETE '
+        ,'values'   => 'VALUES $0'
+        ,'values_'  => ',$0'
+        ,'set'      => 'SET $0'
+        ,'set_'     => ',$0'
+        ,'from'     => 'FROM $0'
+        ,'from_'    => ',$0'
+        ,'join'     => 'JOIN $0'
+        ,'alt_join' => '$1 JOIN $0'
+        ,'join_'    => "\nJOIN \$0"
+        ,'alt_join_'=> "\n\$1 JOIN \$0"
+        ,'where'    => 'WHERE $0'
+        ,'group'    => 'GROUP BY $0'
+        ,'group_'   => ',$0'
+        ,'having'   => 'HAVING $0'
+        ,'order'    => 'ORDER BY $0'
+        ,'order_'   => ',$0'
+        ,'limit'    => 'LIMIT $0,$1'
+        
+        ,'year'     => 'YEAR($0)'
+        ,'month'    => 'MONTH($0)'
+        ,'day'      => 'DAY($0)'
+        ,'hour'     => 'HOUR($0)'
+        ,'minute'   => 'MINUTE($0)'
+        ,'second'   => 'SECOND($0)'
+        )
+    )
+    /*
+    ,'postgre'          => array(
+         'quote'        => array( "'", '`' )
+        ,'clauses'      => array(
+        // http://www.postgresql.org/docs/
+         'select'  => array('select','from','join','where','group','having','order','limit')
+        ,'insert'  => array('insert','values')
+        ,'update'  => array('update','set','where','order','limit')
+        ,'delete'  => array('delete','from','where','order','limit')
+        )
+        ,'tpl'        => array(
+         'select'   => 'SELECT $0'
+        ,'insert'   => 'INSERT INTO $0 ($1)'
+        ,'update'   => 'UPDATE $0'
+        ,'delete'   => 'DELETE '
+        ,'values'   => 'VALUES $0'
+        ,'values_'  => ',$0'
+        ,'set'      => 'SET $0'
+        ,'set_'     => ',$0'
+        ,'from'     => 'FROM $0'
+        ,'from_'    => ',$0'
+        ,'join'     => 'JOIN $0'
+        ,'alt_join' => '$1 JOIN $0'
+        ,'join_'    => "\n" . 'JOIN $0'
+        ,'alt_join_'=> "\n" . '$1 JOIN $0'
+        ,'where'    => 'WHERE $0'
+        ,'group'    => 'GROUP BY $0'
+        ,'group_'   => ',$0'
+        ,'having'   => 'HAVING $0'
+        ,'order'    => 'ORDER BY $0'
+        ,'order_'   => ',$0'
+        ,'limit'    => 'LIMIT $1 OFFSET $0'
+        
+        ,'year'     => 'EXTRACT (YEAR FROM $0)'
+        ,'month'    => 'EXTRACT (MONTH FROM $0)'
+        ,'day'      => 'EXTRACT (DAY FROM $0)'
+        ,'hour'     => 'EXTRACT (HOUR FROM $0)'
+        ,'minute'   => 'EXTRACT (MINUTE FROM $0)'
+        ,'second'   => 'EXTRACT (SECOND FROM $0)'
+        )
+    )
+    */
+    );
     
-    private $_query = '';
-    private $_quote = '';
-    private $_sanitize = true;
-    
-    private $_type = null;
-    private $_clauses = null;
-    private $_tables = null;
-    private $_join_tables = null;
-    private $_fields = null;
-    private $_whereExpr = null;
-    private $_havingExpr = null;
-    private $_conditionsW = null;
-    private $_conditionsH = null;
-    
-    public static vendor( $config=null )
+    public static function Tpl( $tpl, $reps=null, $compiled=false )
     {
-        if ( !empty($config) )
-        {
-            self::$_vendor = (array)$config;
-        }
+        if ( $tpl instanceof DialectTpl ) return $tpl;
+        return new DialectTpl( $tpl, $reps, $compiled );
     }
     
-    // static builder method
-    public static function newInstance( )
+    private $clause = null;
+    private $state = null;
+    public $clauses = null;
+    public $tpl = null;
+    public $db = null;
+    public $escdb = null;
+    public $q = null;
+    public $qn = null;
+    
+    public function __construct( $type='mysql' )
     {
-        return new self( );
+        $this->db = null;
+        $this->escdb = null;
+        $this->clause = null;
+        $this->state = null;
+        
+        $this->clauses =& self::$dialect[ $type ][ 'clauses' ];
+        $this->tpl =& self::$dialect[ $type ][ 'tpl' ];
+        $this->q = self::$dialect[ $type ][ 'quote' ][ 0 ];
+        $this->qn = self::$dialect[ $type ][ 'quote' ][ 1 ];
     }
     
-    public function __construct( )
+    public function dispose( )
     {
-        if ( self::$_vendor && isset(self::$_vendor['quote']) )
-        {
-            $this->_quote = strval(self::$_vendor['quote']);
-        }
-        $this->reset( )->sanitize( true );
-    }
-    
-    // return the sql as string, if this object is cast as a string ;)
-    public function __toString( )
-    {
-        return $this->sql( );
-    }
-    
-    // try to sanitize if possible
-    public function sanitize( $bool=true )
-    {
-        $this->_sanitize = (bool)$bool;
+        $this->db = null;
+        $this->escdb = null;
+        $this->clause = null;
+        $this->state = null;
+        $this->clauses = null;
+        $this->tpl = null;
+        $this->q = null;
+        $this->qn = null;
         return $this;
     }
     
-    // just placeholder here
-    public function escape( $val )
+    public function __destruct( )
     {
-        // http://www.php.net/manual/en/pdo.quote.php
-        return PDO::quote( $val, PDO::PARAM_STR );
+        $this->dispose( );
     }
     
-    // simple prepare using sprintf
-    public function prepare( $sql, $params=null )
-    {
-        // http://www.php.net/manual/en/pdo.prepare.php
-        // PDO::prepare
-        if ( !$params && is_array( $sql ) )
-        {
-            $params = $sql;
-            $sql = $this->sql();
-        }
-        return vsprintf( $sql, $params );
+	public function __toString()
+	{
+        $sql = $this->sql( );
+        return !$sql||empty($sql) ? '' : $sql;
     }
     
-    public function reset( )
+    public function driver( $db=null )
     {
-        $this->_query = '';
-        
-        $this->_type = null;
-        
-        $this->_fields = array( );
-        $this->_tables = array( );
-        $this->_join_tables = array( );
-        
-        $this->_clauses = array(
-             'FROM' => null
-            ,'JOIN' => null
-            ,'GROUP' => null
-            ,'HAVING' => null
-            ,'WHERE' => null
-            ,'ORDER' => null
-            ,'LIMIT' => null
-        );
-        $this->_whereExpr = null;
-        $this->_havingExpr = null;
-        $this->_conditionsW = array( );
-        $this->_conditionsH = array( );
-        
+        $this->db = $db ? $db : null;
         return $this;
     }
     
-    // return a table reference
-    public function table( $tablename )
+    public function escape( $escdb=null )
     {
-        if ( !$tablename ) return $tablename;
-        
-        $isDialect = false;
-        $table = $tablename;
-        
-        if ( $table instanceof DialectTable ) 
-        {
-            $isDialect = true;
-            $tablename = $table->name;
-        }
-        if ( !isset( $this->_tables[ $tablename ] ) )
-        {
-            if ( !$isDialect ) $table = new DialectTable( $tablename, $this->_quote );
-            $this->_tables[ $tablename ] = $table;
-        }
-        
-        return $table;
+        $this->escdb = $escdb && is_callable($escdb) ? $escdb : null;
+        return $this;
     }
     
-    // return a field reference
-    public function field( $fieldname, $table=null )
+    public function reset( $clause )
     {
-        if ( !$fieldname ) return $fieldname;
+        $this->state = array( );
+        $this->clause = $clause;
         
-        $isDialect = false;
-        $field = $fieldname;
-        
-        if ( $field instanceof DialectField )
+        foreach($this->clauses[ $this->clause ] as $clause)
         {
-            $isDialect = true;
-            $fieldname = $field->name;
-        }
-        if ( !isset( $this->_fields[ $fieldname ] ) )
-        {
-            if ( !$isDialect ) $field = new DialectField( $fieldname, null, $this->_quote );
-            $this->_fields[ $fieldname ] = $field;
-            if ( !$field->table && $table )
-            {
-                $field->setTable( $this->table( $table ) );
-            }
-            $table = $field->table;
-            if ( $table && !isset( $this->_tables[ $table->name ]) )
-            {
-                $this->_tables[ $table->name ] = $table;
-            }
-        }
-        
-        return $field;
-    }
-    
-    // return a table reference
-    public function join_table( $table )
-    {
-        if ( !$table ) return $table;
-        
-        $alias = null;
-        $isDialect = false;
-        $tablename = $table;
-        
-        if ( $table instanceof DialectTable ) 
-        {
-            return $table->copy( );
-        }
-        else
-        {
-            $aliased = explode(' AS ', $tablename);
-            $tablename = trim($aliased[ 0 ]);
-            if ( count($aliased) > 1 )
-            {
-                $alias = trim($aliased[ 1 ]);
-            }
+            if ( isset($this->tpl[ $clause ]) && !($this->tpl[ $clause ] instanceof DialectTpl) )
+                $this->tpl[ $clause ] = new DialectTpl( $this->tpl[ $clause ] );
             
-            $table = new DialectTable( $tablename, $this->_quote );
-            if ( $alias )
+            // continuation clause if exists, ..
+            $c = "{$clause}_";
+            if ( isset($this->tpl[ $c ]) && !($this->tpl[ $c ] instanceof DialectTpl) )
+                $this->tpl[ $c ] = new DialectTpl( $this->tpl[ $c ] );
+            
+            // alternative clause form if exists
+            $c = "alt_{$clause}";
+            if ( isset($this->tpl[ $c ]) && !($this->tpl[ $c ] instanceof DialectTpl) )
             {
-                $table->useAlias( $alias );
+                $this->tpl[ $c ] = new DialectTpl( $this->tpl[ $c ] );
+                
+                // alternative clause form continuation if exists, ..
+                $c = "{$c}_";
+                if ( isset($this->tpl[ $c ]) && !($this->tpl[ $c ] instanceof DialectTpl) )
+                    $this->tpl[ $c ] = new DialectTpl( $this->tpl[ $c ] );
             }
         }
-        
-        return $table;
-    }
-    
-    public function query( $q=null )
-    {
-        $this->_query = $q ? $q : '';
         return $this;
     }
     
-    public function sql( $part=false )
+    public function clear( )
     {
-        // build the query here
-        if ( empty($this->_query) )  $this->_query = $this->buildQuery( $part );
-        return $this->_query;
+        $this->clause = null;
+        $this->state = null;
+        return $this;
     }
     
-    protected function buildQuery( $part=null )
+    public function sql( )
     {
-        // allow to get partial query back
-        if (!$part)
-            $parts = array_flip( $this->_default_clauses[ $this->_type ] );
-        else
-            $parts = array_flip( (array)$part );
-            
-        $parts2 = $parts; // clone
-        
-        $sql = '';
-        $type = $this->_type;
-        
-        if ('SELECT'==$type)
+        $query = null;
+        if ( $this->clause && !empty($this->state) && isset($this->clauses[ $this->clause ]) )
         {
-            $sql .= 'SELECT ';
-            
-            $i = 0;
-            foreach ($this->_fields as $field)
+            $query = array( );
+            foreach($this->clauses[ $this->clause ] as $clause)
             {
-                if ($i)  $sql .= ", ";
-                $sql .= $field->asAlias();
-                $i++;
+                if ( isset($this->state[ $clause ]) )
+                    $query[] = $this->state[ $clause ];
             }
-            $sql .= " ";
-        }    
-        
-        elseif ('INSERT'==$type)
-        {
-            // TODO
-            $sql .= 'INSERT ';
-        }    
-        
-        elseif ('UPDATE'==$type)
-        {
-            // TODO
-            $sql .= 'UPDATE ';
-        }    
-        
-        elseif ('DELETE'==$type)
-        {
-            // TODO
-            $sql .= 'DELETE ';
+            $query = implode("\n", $query);
         }
-        
-        elseif ('ALTER'==$type)
-        {
-            // TODO
-            $sql .= 'ALTET TABLE ';
-        }
-        else
-        {
-            return '';
-        }
-        
-        $sql .= "\n" . implode(   "\n",  
-                            array_filter(
-                                array_values(
-                                    array_intersect_key( 
-                                        array_merge( $parts, $this->_clauses )
-                                    , $parts2)
-                            ), 'strlen')
-                        );
-        return $sql;
+        $this->clear( );
+        return $query;
     }
     
-    public function insert( )
+    public function prepare( $query, $args=array(), $left=null, $right=null )
     {
-        $this->reset( );
-        $this->_type = 'INSERT';
+        if ( $query && !empty($args) )
+        {
+            // custom delimiters
+            $left = $left ? preg_quote($left, '/') : '%';
+            $right = $right ? preg_quote($right, '/') : '%';
+            
+            // custom prepared parameter format
+            $pattern = '/' . $left . '(ad|as|l|r|d|s)\\(([0-9a-zA-Z_]+)\\)' . $right . '/';
+            $prepared = '';
+            while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
+            {
+                $pos = $m[0][1];
+                $len = strlen($m[0][0]);
+                $param = $m[2][0];
+                if ( isset($args[$param]) )
+                {
+                    $type = $m[1][0];
+                    switch($type)
+                    {
+                        // array of integers param
+                        case 'ad': $param = '(' . implode(',', $this->intval((array)$args[$param])) . ')'; break;
+                        // array of strings param
+                        case 'as': $param = '(' . implode(',', $this->quote((array)$args[$param])) . ')'; break;
+                        // like param
+                        case 'l': $param = $this->like($args[$param]); break;
+                        // raw param
+                        case 'r': $param = $args[$param]; break;
+                        // integer param
+                        case 'd': $param = $this->intval($args[$param]); break;
+                        // string param
+                        case 's': default: $param = $this->quote($args[$param]); break;
+                    }
+                    $prepared .= substr($query, 0, $pos) . $param;
+                }
+                else
+                {
+                    $prepared .= substr($query, 0, $pos) . $this->quote('');
+                }
+                $query = substr($query, $pos+$len );
+            }
+            if ( strlen($query) ) $prepared .= $query;
+            return $prepared;
+        }
+        return $query;
+    }
+    
+    public function year( $field )
+    {
+        $this->tpl['year'] = self::Tpl( $this->tpl['year'] );
+        return $this->tpl['year']->render( array( $field ) );
+    }
+    
+    public function month( $field )
+    {
+        $this->tpl['month'] = self::Tpl( $this->tpl['month'] );
+        return $this->tpl['month']->render( array( $field ) );
+    }
+    
+    public function day( $field )
+    {
+        $this->tpl['day'] = self::Tpl( $this->tpl['day'] );
+        return $this->tpl['day']->render( array( $field ) );
+    }
+    
+    public function hour( $field )
+    {
+        $this->tpl['hour'] = self::Tpl( $this->tpl['hour'] );
+        return $this->tpl['hour']->render( array( $field ) );
+    }
+    
+    public function minute( $field )
+    {
+        $this->tpl['minute'] = self::Tpl( $this->tpl['minute'] );
+        return $this->tpl['minute']->render( array( $field ) );
+    }
+    
+    public function second( $field )
+    {
+        $this->tpl['second'] = self::Tpl( $this->tpl['second'] );
+        return $this->tpl['second']->render( array( $field ) );
+    }
+    
+    public function select( $fields='*' )
+    {
+        $this->reset('select');
+        if ( !$fields || empty($fields) ) $fields = '*';
+        $this->state['select'] = $this->tpl['select']->render( array( implode(',',(array)$fields) ) );
         return $this;
     }
     
-    public function update( )
+    public function insert( $table, $fields )
     {
-        $this->reset( );
-        $this->_type = 'UPDATE';
+        $this->reset('insert');
+        $this->state['insert'] = $this->tpl['insert']->render( array( $table, implode(',',(array)$fields) ) );
         return $this;
     }
     
-    public function delete( )
+    public function values( $values )
     {
-        $this->reset( );
-        $this->_type = 'DELETE';
-        return $this;
-    }
-    
-    public function alter( )
-    {
-        $this->reset( );
-        $this->_type = 'ALTER';
-        return $this;
-    }
-    
-    public function select( $fields=array() )
-    {
-        $this->reset( ); 
-        $this->_type = 'SELECT';
-        
-        $fields = array_values( (array)$fields );
-        
-        foreach ($fields as $field)
+        // array of arrays
+        if ( !isset($values[0]) || !is_array($values[0]) ) $values = array($values);
+        $count = count($values);
+        $insert_values = array();
+        for ($i=0; $i<$count; $i++)
         {
-            // transform to dialect fields
-            $this->field( $field );
+            if ( !empty($values[$i]) )
+            {
+                $vals = array();
+                foreach ((array)$values[$i] as $val)
+                {
+                    if ( is_array($val) )
+                    {
+                        if ( isset($val['integer']) )
+                        {
+                            $vals[] = $this->intval( $val['integer'] );
+                        }
+                        elseif ( isset($val['string']) )
+                        {
+                            $vals[] = $this->quote( $val['string'] );
+                        }
+                        elseif ( isset($val['prepared']) )
+                        {
+                            $vals[] = $val['prepared'];
+                        }
+                    }
+                    else
+                    {
+                        $vals[] = is_int($val) ? $val : $this->quote( $val );
+                    }
+                }
+                $insert_values[] = '('.implode(',', $vals).')';
+            }
         }
-        
+        $insert_values = implode(',', $insert_values);
+        if ( isset($this->state['values']) ) $this->state['values'] .= $this->tpl['values_']->render( array( $insert_values ) );
+        else $this->state['values'] = $this->tpl['values']->render( array( $insert_values ) );
+        return $this;
+    }
+    
+    public function update( $tables )
+    {
+        $this->reset('update');
+        $this->state['update'] = $this->tpl['update']->render( array( implode(',', (array)$tables) ) );
+        return $this;
+    }
+    
+    public function set( $fields_values )
+    {
+        $set_values = array();
+        foreach ($fields_values as $field=>$value)
+        {
+            if ( is_array($value) )
+            {
+                if ( isset($value['integer']) )
+                {
+                    $set_values[] = "$field = " . $this->intval($value['integer']);
+                }
+                elseif ( isset($value['string']) )
+                {
+                    $set_values[] = "$field = " . $this->quote($value['string']);
+                }
+                elseif ( isset($value['prepared']) )
+                {
+                    $set_values[] = "$field = {$value['prepared']}";
+                }
+                elseif ( isset($value['increment']) )
+                {
+                    $set_values[] = "$field = $field + " . $this->intval($value['increment']);
+                }
+                elseif ( isset($value['decrement']) )
+                {
+                    $set_values[] = "$field = $field - " . $this->intval($value['decrement']);
+                }
+            }
+            else
+            {
+                $set_values[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+            }
+        }
+        $set_values = implode(',', $set_values);
+        if ( isset($this->state['set']) ) $this->state['set'] .= $this->tpl['set_']->render( array( $set_values ) );
+        else $this->state['set'] = $this->tpl['set']->render( array( $set_values ) );
+        return $this;
+    }
+    
+    public function del( )
+    {
+        $this->reset('delete');
+        $this->state['delete'] = $this->tpl['delete']->render( array() );
         return $this;
     }
     
     public function from( $tables )
     {
-        $tables = array_values( (array)$tables );
-        
-        foreach ($tables as $table)
-        {
-            // transform to dialect tables
-            $this->table( $table );
-        }
-        // adjust tables in fields
-        foreach ($this->_fields as $field)
-        {
-            if ( $field->table && isset($this->_tables[$field->table->name]) )
-            {
-                $field->setTable( $this->_tables[$field->table->name] );
-            }
-        }
-        $this->_clauses['FROM'] = true;
-            
+        $tables = implode(',',(array)$tables);
+        if ( isset($this->state['from']) ) $this->state['from'] .= $this->tpl['from_']->render( array( $tables ) );
+        else $this->state['from'] = $this->tpl['from']->render( array( $tables ) );
         return $this;
     }
     
-    // partially sanitized using white-list
-    public function join( $jointable, $fields, $type='INNER' )
+    public function join( $table, $cond=null, $type=null )
     {
-        $type = strtoupper( $type );
-        $jointable = $this->join_table( $jointable );
-        
-        foreach ((array)$fields as $i=>$field)
+        $join_clause = empty($cond) ? $table : "$table ON $cond";
+        if ( empty($type) )
         {
-            $field = $this->field( $field )->setTable( $jointable );
-            $fields[ $i ] = $field->alias;
+            if ( isset($this->state['join']) ) $this->state['join'] .= $this->tpl['join_']->render( array( $join_clause ) );
+            else $this->state['join'] = $this->tpl['join']->render( array( $join_clause ) );
         }
-        $on = implode(' = ', $fields);
+        else
+        {
+            if ( isset($this->state['join']) ) $this->state['join'] .= $this->tpl['alt_join_']->render( array( $join_clause, strtoupper($type) ) );
+            else $this->state['join'] = $this->tpl['alt_join']->render( array( $join_clause, strtoupper($type) ) );
+        }
         return $this;
     }
     
-    public function where( $rel, $expr )
+    public function where( $conditions )
     {
-        $args = func_get_args();
-        array_shift( $args );
-        $argslen = count($args);
-        
-        if ( $argslen > 1 )
-        {
-            $args[0] = $this->table( $args[0] );
-            
-            // expression given
-            $this->_whereExpr = new DialectExpression();
-            
-            $this->_whereExpr->expr( $args );
-            
-            $expr = $this->_whereExpr->get();
-        }
-        
-        $rel = strtoupper( $rel );
-        if ( !in_array($rel, $this->_rel_ops)) $rel = 'AND';
-        
-        $this->_conditionsW[] = array($expr, $rel);
-        $this->_clauses['WHERE'] = 'WHERE ';
-        
-        foreach ($this->_conditionsW as $i=>$e)
-        {
-            $this->_clauses['WHERE'] .= ($i) ? $e[1] . ' ' . $e[0] . ' ' : $e[0] . ' ';
-        }
+        if ( !empty($conditions) )
+            $this->state['where'] = $this->tpl['where']->render( array( is_string($conditions) ? $conditions : $this->conditions( $conditions ) ) );
         return $this;
     }
     
-    // partially sanitized using white-list
-    public function groupBy( $by, $ord='ASC' )
+    public function group( $field, $dir="asc" )
     {
-        $by = $this->field( $by )->alias;
-        $ord = strtoupper($ord);
-        
-        if (!in_array($ord, array('ASC', 'DESC')))   
-            $ord = 'ASC';
-            
-        $this->_clauses['GROUP'] = "GROUP BY {$by} {$ord}";
-        
+        $dir = strtoupper($dir);
+        if ( "DESC" !== $dir ) $dir = "ASC";
+        $grouped = "$field $dir";
+        if ( isset($this->state['group']) ) $this->state['group'] .= $this->tpl['group_']->render( array( $grouped ) );
+        else $this->state['group'] = $this->tpl['group']->render( array( $grouped ) );
         return $this;
     }
     
-    public function having( $rel, $expr )
+    public function having( $conditions )
     {
-        $args = func_get_args();
-        array_shift( $args );
-        $argslen = count($args);
-        
-        if ( $argslen > 1 )
-        {
-            $args[0] = $this->table( $args[0] );
-            
-            // expression given
-            $this->_havingExpr = new DialectExpression();
-            
-            $this->_havingExpr->expr( $args );
-            
-            $expr = $this->_havingExpr->get();
-        }
-        
-        $rel = strtoupper( $rel );
-        if ( !in_array($rel, $this->_rel_ops)) $rel = 'AND';
-        
-        $this->_conditionsH[] = array($expr, $rel);
-        $this->_clauses['HAVING'] = 'HAVING ';
-        
-        foreach ($this->_conditionsH as $i=>$e)
-        {
-            $this->_clauses['HAVING'] .= ($i) ? $e[1] . ' ' . $e[0] . ' ' : $e[0] . ' ';
-        }
+        if ( !empty($conditions) )
+            $this->state['having'] = $this->tpl['having']->render( array( is_string($conditions) ? $conditions : $this->conditions( $conditions ) ) );
         return $this;
     }
     
-    // partially sanitized using white-list
-    public function orderBy( $by, $ord='ASC' )
+    public function order( $field, $dir="asc" )
     {
-        $add_comma = true;
-        
-        if (empty($this->_clauses['ORDER']))
-        {
-            $this->_clauses['ORDER'] = "ORDER BY";
-            $add_comma = false;
-        }
-        
-        $ord = strtoupper($ord);
-        if (!in_array($ord, array('ASC', 'DESC')))   
-            $ord = 'ASC';
-            
-        if ($add_comma)
-            $this->_clauses['ORDER'] .= ',';
-            
-        $by = $this->field( $by )->alias;
-        
-        $this->_clauses['ORDER'] .= " {$by} {$ord}";
-        
+        $dir = strtoupper($dir);
+        if ( "DESC" !== $dir ) $dir = "ASC";
+        $ordered = "$field $dir";
+        if ( isset($this->state['order']) ) $this->state['order'] .= $this->tpl['order_']->render( array( $ordered ) );
+        else $this->state['order'] = $this->tpl['order']->render( array( $ordered ) );
         return $this;
     }
     
-    // sanitized using intval
     public function limit( $count, $offset=0 )
     {
-        // perform some sanitization
-        $offset = intval( $offset );
-        $count = intval( $count );
-        $this->_clauses['LIMIT'] = "LIMIT {$offset}, {$count}";
-        
+        $count = intval($count,10); $offset = intval($offset,10);
+        $this->state['limit'] = $this->tpl['limit']->render( array( $offset, $count ) );
         return $this;
     }
     
-    // sanitized using intval
-    public function paged( $per_page, $page=1 )
+    public function page( $page, $perpage )
     {
-        // perform some sanitization
-        $page = intval( $page );
-        if ($page < 1) $page = 1;
-        $per_page = intval($per_page);
-        
-        return $this->limit($per_page, ($page-1)*$per_page);
+        $page = intval($page,10); $perpage = intval($perpage,10);
+        return $this->limit( $perpage, $page*$perpage );
+    }
+    
+    public function conditions( $conditions )
+    {
+        $condquery = '';
+        if ( !empty($conditions) )
+        {
+            $conds = array();
+            
+            foreach ($conditions as $field=>$value)
+            {
+                if ( is_array( $value ) )
+                {
+                    if ( isset($value['multi-like']) )
+                    {
+                        // Add the search tuple to the query.
+                        $conds[] = $this->multi_like($field, $value['multi-like']);
+                    }
+                    elseif ( isset($value['like']) )
+                    {
+                        // Add the search tuple to the query.
+                        $conds[] = "$field LIKE " . $this->like($value['like']);
+                    }
+                    elseif ( isset($value['like-prepared']) )
+                    {
+                        // prepared dynamically
+                        $conds[] = "$field LIKE {$value['like-prepared']}";
+                    }
+                    elseif ( isset($value['in']) )
+                    {
+                        if ( isset($value['type']) )
+                        {
+                            if ( 'integer' == $value['type'] )
+                            {
+                                $value['in'] = '(' . implode( ',', $this->intval( (array)$value['in'] ) ) . ')';
+                            }
+                            elseif ( 'string' == $value['type'] )
+                            {
+                                $value['in'] = '(' . implode( ',', $this->quote( (array)$value['in'] ) ) . ')';
+                            }
+                            elseif ( 'prepared' == $value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                $value['in'] = '(' . implode( ',', $this->quote( (array)$value['in'] ) ) . ')';
+                            }
+                        }
+                        else
+                        {
+                            $value['in'] = (array)$value['in'];
+                            if ( isset($value['in'][0]) && is_int($value['in'][0]) )
+                                $value['in'] = '(' . implode( ',', $this->intval( $value['in'] ) ) . ')';
+                            else
+                                $value['in'] = '(' . implode( ',', $this->quote( $value['in'] ) ) . ')';
+                        }
+                        // Add the search tuple to the query.
+                        $conds[] = "$field IN {$value['in']}";
+                    }
+                    elseif ( isset($value['between']) )
+                    {
+                        if ( isset($value['type']) )
+                        {
+                            if ( 'integer' == $value['type'] )
+                            {
+                                $value['between'] = $this->intval( $value['between'] );
+                            }
+                            elseif ( 'string' == $value['type'] )
+                            {
+                                $value['between'] = $this->quote( $value['between'] );
+                            }
+                            elseif ( 'prepared' == $value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                $value['between'] = $this->quote( $value['between'] );
+                            }
+                        }
+                        else
+                        {
+                            if ( !is_int($value['between'][0]) || !is_int($value['between'][1]) )
+                            {
+                                $value['between'] = $this->quote( $value['between'] );
+                            }
+                        }
+                        // Add the search tuple to the query.
+                        $conds[] = "$field BETWEEN {$value['between'][0]} AND {$value['between'][1]}";
+                    }
+                    elseif ( isset($value['equal']) || 
+                        isset($value['eq']) || 
+                        isset($value['gt']) || 
+                        isset($value['lt']) || 
+                        isset($value['gte']) || 
+                        isset($value['lte']) 
+                    )
+                    {
+                        if ( isset($value['eq']) || isset($value['equal']) )
+                        {
+                            $op = '=';
+                            $key = isset($value['equal']) ? 'equal' : 'eq';
+                        }
+                        elseif ( isset($value['gt']) )
+                        {
+                            $op = '>';
+                            $key = 'gt';
+                        }
+                        elseif ( isset($value['gte']) )
+                        {
+                            $op = '>=';
+                            $key = 'gte';
+                        }
+                        elseif ( isset($value['lte']) )
+                        {
+                            $op = '<=';
+                            $key = 'lte';
+                        }
+                        elseif ( isset($value['lt']) )
+                        {
+                            $op = '<';
+                            $key = 'lt';
+                        }
+                        
+                        if ( isset($value['type']) )
+                        {
+                            if ( 'integer' == $value['type'] )
+                            {
+                                $value[$key] = $this->intval( $value[$key] );
+                            }
+                            elseif ( 'string' == $value['type'] )
+                            {
+                                $value[$key] = $this->quote( $value[$key] );
+                            }
+                            elseif ( 'prepared' == $value['type'] )
+                            {
+                                // prepared dynamically
+                            }
+                            else
+                            {
+                                $value[$key] = $this->quote( $value[$key] );
+                            }
+                        }
+                        else
+                        {
+                            if ( !is_int($value[$key]) )
+                                $value[$key] = $this->quote( $value[$key] );
+                        }
+                        // Add the search tuple to the query.
+                        $conds[] = "$field $op {$value[$key]}";
+                    }
+                }
+                else
+                {
+                    // Add the search tuple to the query.
+                    $conds[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+                }
+            }
+            
+            if ( !empty($conds) ) $condquery = '(' . implode(') AND (', $conds) . ')';
+        }
+        return $condquery;
+    }
+    
+    public function intval( $v )
+    {
+        if ( is_array( $v ) )
+            return array_map( array($this, 'intval'), $v );
+        else
+            return intval( $v, 10 );
+    }
+    
+    public function quote_name( $f )
+    {
+        if ( is_array( $f ) )
+            return array_map( array($this, 'quote_name'), $f );
+        else
+            return $this->qn . $f . $this->qn;
+    }
+    
+    public function quote( $v )
+    {
+        if ( is_array( $v ) )
+            return array_map( array($this, 'quote'), $v );
+        else
+            return $this->q . $this->esc($v) . $this->q;
+    }
+    
+    public function esc( $v )
+    {
+        if ( is_array( $v ) )
+        {
+            if ( $this->escdb ) 
+                return array_map( $this->escdb, $v );
+            else
+                return array_map( array($this, 'esc'), $v );
+        }
+        else
+        {
+            if ( $this->escdb ) 
+                return call_user_func( $this->escdb, $v );
+            else
+                // simple ecsaping using addslashes
+                // '"\ and NUL (the NULL byte).
+                return addslashes( $v );
+        }
+    }
+    
+    public function esc_like( $v )
+    {
+        if ( is_array( $v ) )
+            return array_map( array($this, 'esc_like'), $v );
+        else
+            return addcslashes( $v, '_%\\' );
+    }
+    
+    public function like( $v )
+    {
+        if ( is_array( $v ) )
+            return array_map( array($this, 'like'), $v );
+        else
+            return $this->q . '%' . $this->esc( $this->esc_like( $v ) ) . '%' . $this->q;
+    }
+    
+    public function multi_like( $f, $v, $doTrim=true )
+    {
+        $like = "$f LIKE ";
+        $ORs = explode(',', $v);
+        if ( $doTrim ) $ORs = array_filter(array_map('trim', $ORs), 'strlen');
+        foreach($ORs as &$OR)
+        {
+            $ANDs = explode('+', $OR);
+            if ( $doTrim ) $ANDs = array_filter(array_map('trim', $ANDs), 'strlen');
+            foreach($ANDs as &$AND)
+            {
+                $AND = $like . $this->like($AND);
+            }
+            $OR = '(' . implode(' AND ', $ANDs) . ')';
+        }
+        return implode(' OR ', $ORs);
     }
 }
 }

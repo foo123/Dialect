@@ -4,9 +4,6 @@ Dialect
 **Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript**
 
 
-__IN PROGRESS DO NOT USE__
-
-
 __Requirements:__
 
 * Support multiple DB vendors (eg. MySQL, Postgre, Oracle, SQL Server )
@@ -24,5 +21,4 @@ __Requirements:__
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/JS, PHP, Python, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
-* [Simulacra](https://github.com/foo123/Simulacra) a simulation, algebraic, probability and combinatorics PHP package for scientific computations
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
