@@ -398,7 +398,7 @@ class Dialect
             $right = $right ? preg_quote($right, '/') : '%';
             
             // custom prepared parameter format
-            $pattern = '/' . $left . '(ad|as|l|r|d|s)\\(([0-9a-zA-Z_]+)\\)' . $right . '/';
+            $pattern = '/' . $left . '(ad|as|l|r|d|s):([0-9a-zA-Z_]+)' . $right . '/';
             $prepared = '';
             while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
             {

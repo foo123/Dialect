@@ -3,7 +3,7 @@ Dialect.VERSION = 0.1
 SELECT *
 FROM table
 INNER JOIN table2 ON table.id=table2.id
-WHERE (name LIKE %l(name)%) AND (year = 'YEAR(date)')
+WHERE (name LIKE %l:name%) AND (year = 'YEAR(date)')
 ORDER BY field1 ASC,field2 ASC
 LIMIT 2000,1000
 

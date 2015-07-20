@@ -16,7 +16,7 @@ $query = $dialect
         ->from('table')
         ->join('table2', 'table.id=table2.id', 'inner')
         ->where(array(
-            'name'=>array('like-prepared'=>'%l(name)%'),
+            'name'=>array('like-prepared'=>'%l:name%'),
             'year'=>array('eq'=>$dialect->year('date'))
         ))
         ->order('field2')

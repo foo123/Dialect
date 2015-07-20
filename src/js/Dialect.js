@@ -577,7 +577,7 @@ Dialect[PROTO] = {
             right = right ? esc_re( right ) : '%';
             
             // custom prepared parameter format
-            pattern = RE(left + '(ad|as|l|r|d|s)\\(([0-9a-zA-Z_]+)\\)' + right);
+            pattern = RE(left + '(ad|as|l|r|d|s):([0-9a-zA-Z_]+)' + right);
             prepared = '';
             while ( query.length && (m = query.match( pattern )) )
             {

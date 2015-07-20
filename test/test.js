@@ -11,7 +11,7 @@ var query = dialect
         .from('table')
         .join('table2', 'table.id=table2.id', 'inner')
         .where({
-            'name':{'like-prepared':'%l(name)%'},
+            'name':{'like-prepared':'%l:name%'},
             'year':{'eq':dialect.year('date')}
         })
         .order('field2')
