@@ -212,9 +212,11 @@ class Dialect
         ,'join_'    => "\nJOIN \$0"
         ,'alt_join_'=> "\n\$1 JOIN \$0"
         ,'where'    => 'WHERE $0'
+        ,'where_'   => ' AND $0'
         ,'group'    => 'GROUP BY $0'
         ,'group_'   => ',$0'
         ,'having'   => 'HAVING $0'
+        ,'having_'  => ' AND $0'
         ,'order'    => 'ORDER BY $0'
         ,'order_'   => ',$0'
         ,'limit'    => 'LIMIT $0,$1'
@@ -282,6 +284,7 @@ class Dialect
     public $clauses = null;
     public $tpl = null;
     public $db = null;
+    public $prefix = null;
     public $escdb = null;
     public $q = null;
     public $qn = null;
@@ -289,6 +292,7 @@ class Dialect
     public function __construct( $type='mysql' )
     {
         $this->db = null;
+        $this->prefix = '';
         $this->escdb = null;
         $this->clause = null;
         $this->state = null;
@@ -302,6 +306,7 @@ class Dialect
     public function dispose( )
     {
         $this->db = null;
+        $this->prefix = null;
         $this->escdb = null;
         $this->clause = null;
         $this->state = null;
@@ -329,6 +334,12 @@ class Dialect
         return $this;
     }
     
+    public function table_prefix( $prefix='' )
+    {
+        $this->prefix = $prefix ? $prefix : '';
+        return $this;
+    }
+    
     public function escape( $escdb=null )
     {
         $this->escdb = $escdb && is_callable($escdb) ? $escdb : null;
@@ -337,8 +348,8 @@ class Dialect
     
     public function reset( $clause )
     {
-        $this->state = array( );
         $this->clause = $clause;
+        $this->state = array( );
         
         foreach($this->clauses[ $this->clause ] as $clause)
         {
@@ -610,7 +621,11 @@ class Dialect
     public function where( $conditions )
     {
         if ( !empty($conditions) )
-            $this->state['where'] = $this->tpl['where']->render( array( is_string($conditions) ? $conditions : $this->conditions( $conditions ) ) );
+        {
+            $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+            if ( isset($this->state['where']) ) $this->state['where'] .= $this->tpl['where_']->render( array( $conditions ) );
+            else $this->state['where'] = $this->tpl['where']->render( array( $conditions ) );
+        }
         return $this;
     }
     
@@ -627,7 +642,11 @@ class Dialect
     public function having( $conditions )
     {
         if ( !empty($conditions) )
-            $this->state['having'] = $this->tpl['having']->render( array( is_string($conditions) ? $conditions : $this->conditions( $conditions ) ) );
+        {
+            $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+            if ( isset($this->state['having']) ) $this->state['having'] .= $this->tpl['having_']->render( array( $conditions ) );
+            else $this->state['having'] = $this->tpl['having']->render( array( $conditions ) );
+        }
         return $this;
     }
     
@@ -652,6 +671,54 @@ class Dialect
     {
         $page = intval($page,10); $perpage = intval($perpage,10);
         return $this->limit( $perpage, $page*$perpage );
+    }
+    
+    public function join_conditions( $join, &$conditions )
+    {
+        $j = 0;
+        foreach ($conditions as $field=>$cond)
+        {
+            $field_raw = $this->fld( $field );
+            if ( isset($join[$field_raw]) )
+            {
+                $main_table = $join[$field_raw]['table'];
+                $main_id = $join[$field_raw]['id'];
+                $join_table = $join[$field_raw]['join'];
+                $join_id = $join[$field_raw]['join_id'];
+                
+                $j++; $join_alias = "{$join_table}{$j}";
+                
+                $where = array( );
+                if ( isset($join[$field_raw]['key']) && $field_raw !== $join[$field_raw]['key'] )
+                {
+                    $join_key = $join[$field_raw]['key'];
+                    $where["{$join_alias}.{$join_key}"] = $field_raw;
+                }
+                else
+                {
+                    $join_key = $field_raw;
+                }
+                if ( isset($join[$field_raw]['value']) )
+                {
+                    $join_value = $join[$field_raw]['value'];
+                    $where["{$join_alias}.{$join_value}"] = $cond;
+                }
+                else
+                {
+                    $join_value = $join_key;
+                    $where["{$join_alias}.{$join_value}"] = $cond;
+                }
+                
+                $this->join(
+                    "{$join_table} AS {$join_alias}", 
+                    "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
+                    "inner"
+                )->where( $where );
+                
+                unset( $conditions[$field] );
+           }
+        }
+        return $this;
     }
     
     public function conditions( $conditions )
@@ -817,28 +884,38 @@ class Dialect
         return $condquery;
     }
     
+    public function tbl( $table )
+    {
+        if ( is_array($table) ) return array_map(array($this, 'tbl'), (array)$table);
+        return $this->prefix.$table;
+    }
+    
+    public function fld( $field )
+    {
+        if ( is_array($field) ) return array_map(array($this, 'fld'), (array)$field);
+        $field = explode('.', $field);
+        return end($field);
+    }
+    
     public function intval( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'intval'), $v );
-        else
-            return intval( $v, 10 );
+        return intval( $v, 10 );
     }
     
     public function quote_name( $f )
     {
         if ( is_array( $f ) )
             return array_map( array($this, 'quote_name'), $f );
-        else
-            return $this->qn . $f . $this->qn;
+        return $this->qn . $f . $this->qn;
     }
     
     public function quote( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'quote'), $v );
-        else
-            return $this->q . $this->esc($v) . $this->q;
+        return $this->q . $this->esc($v) . $this->q;
     }
     
     public function esc( $v )
@@ -850,31 +927,26 @@ class Dialect
             else
                 return array_map( array($this, 'esc'), $v );
         }
+        if ( $this->escdb ) 
+            return call_user_func( $this->escdb, $v );
         else
-        {
-            if ( $this->escdb ) 
-                return call_user_func( $this->escdb, $v );
-            else
-                // simple ecsaping using addslashes
-                // '"\ and NUL (the NULL byte).
-                return addslashes( $v );
-        }
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            return addslashes( $v );
     }
     
     public function esc_like( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'esc_like'), $v );
-        else
-            return addcslashes( $v, '_%\\' );
+        return addcslashes( $v, '_%\\' );
     }
     
     public function like( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'like'), $v );
-        else
-            return $this->q . '%' . $this->esc( $this->esc_like( $v ) ) . '%' . $this->q;
+        return $this->q . '%' . $this->esc( $this->esc_like( $v ) ) . '%' . $this->q;
     }
     
     public function multi_like( $f, $v, $doTrim=true )

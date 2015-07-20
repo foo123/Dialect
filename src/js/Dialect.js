@@ -391,9 +391,11 @@ var dialect = {
     ,'join_'    : "\n" + 'JOIN $0'
     ,'alt_join_': "\n" + '$1 JOIN $0'
     ,'where'    : 'WHERE $0'
+    ,'where_'   : ' AND $0'
     ,'group'    : 'GROUP BY $0'
     ,'group_'   : ',$0'
     ,'having'   : 'HAVING $0'
+    ,'having_'  : ' AND $0'
     ,'order'    : 'ORDER BY $0'
     ,'order_'   : ',$0'
     ,'limit'    : 'LIMIT $0,$1'
@@ -455,6 +457,7 @@ Dialect = function Dialect( type ) {
     if ( !(self instanceof Dialect) ) return new Dialect( type );
     
     self.db = null;
+    self.prefix = '';
     self.escdb = null;
     self.clause = null;
     self.state = null;
@@ -478,6 +481,7 @@ Dialect[PROTO] = {
     ,clauses: null
     ,tpl: null
     ,db: null
+    ,prefix: null
     ,escdb: null
     ,q: null
     ,qn: null
@@ -485,6 +489,7 @@ Dialect[PROTO] = {
     ,dispose: function( ) {
         var self = this;
         self.db = null;
+        self.prefix = null;
         self.escdb = null;
         self.clause = null;
         self.state = null;
@@ -505,6 +510,12 @@ Dialect[PROTO] = {
         return self;
     }
     
+    ,table_prefix: function( prefix ) {
+        var self = this;
+        self.prefix = prefix ? prefix : '';
+        return self;
+    }
+    
     ,escape: function( escdb ) {
         var self = this;
         self.escdb = escdb && is_callable(escdb) ? escdb : null;
@@ -513,8 +524,8 @@ Dialect[PROTO] = {
     
     ,reset: function( clause ) {
         var self = this, i, l, clauses, c;
-        self.state = { };
         self.clause = clause;
+        self.state = { };
         clauses = self.clauses[ self.clause ];
         for (i=0,l=clauses.length; i<l; i++)
         {
@@ -793,7 +804,11 @@ Dialect[PROTO] = {
     ,where: function( conditions ) {
         var self = this;
         if ( conditions )
-            self.state.where = self.tpl.where.render( [ is_string(conditions) ? conditions : self.conditions( conditions ) ] );
+        {
+            conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+            if ( self.state.where ) self.state.where += self.tpl.where_.render( [ conditions ] );
+            else self.state.where = self.tpl.where.render( [ conditions ] );
+        }
         return self;
     }
     
@@ -810,7 +825,11 @@ Dialect[PROTO] = {
     ,having: function( conditions ) {
         var self = this;
         if ( conditions )
-            self.state.having = self.tpl.having.render( [ is_string(conditions) ? conditions : self.conditions( conditions ) ] );
+        {
+            conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+            if ( self.state.having ) self.state.having += self.tpl.having_.render( [ conditions ] );
+            else self.state.having = self.tpl.having.render( [ conditions ] );
+        }
         return self;
     }
     
@@ -835,6 +854,58 @@ Dialect[PROTO] = {
         var self = this;
         page = parseInt(page,10); perpage = parseInt(perpage,10);
         return self.limit( perpage, page*perpage );
+    }
+    
+    ,join_conditions: function( join, conditions ) {
+        var self = this, j = 0, field, cond, field_raw, where,
+            main_table, main_id, join_table, join_id, join_alias,
+            join_key, join_value;
+        for ( field in conditions )
+        {
+            if ( !conditions[HAS](field) ) continue;
+            
+            field_raw = self.fld( field );
+            if ( join[HAS](field_raw) )
+            {
+                cond = conditions[ field ];
+                main_table = join[field_raw].table;
+                main_id = join[field_raw].id;
+                join_table = join[field_raw].join;
+                join_id = join[field_raw].join_id;
+                
+                j++; join_alias = join_table+j;
+                
+                where = { };
+                if ( join[field_raw][HAS]('key') && field_raw !== join[field_raw].key )
+                {
+                    join_key = join[field_raw].key;
+                    where[join_alias+'.'+join_key] = field_raw;
+                }
+                else
+                {
+                    join_key = field_raw;
+                }
+                if ( join[field_raw][HAS]('value') )
+                {
+                    join_value = join[field_raw].value;
+                    where[join_alias+'.'+join_value] = cond;
+                }
+                else
+                {
+                    join_value = join_key;
+                    where[join_alias+'.'+join_value] = cond;
+                }
+                
+                self.join(
+                    join_table+" AS "+join_alias, 
+                    main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                    "inner"
+                ).where( where );
+                
+                delete conditions[field];
+           }
+        }
+        return self;
     }
     
     ,conditions: function( conditions ) {
@@ -1002,28 +1073,39 @@ Dialect[PROTO] = {
         return condquery;
     }
     
+    ,tbl: function( table ) {
+        var self = this, prefix = self.prefix;
+        if ( is_array( table ) )
+            return table.map(function( table ){return prefix+table;});
+        return prefix+table;
+    }
+    
+    ,fld: function( field ) {
+        var self = this;
+        if ( is_array( field ) )
+            return field.map(function( field ){return field.split('.').pop( );});
+        return field.split('.').pop( );
+    }
+    
     ,intval: function( v ) {
         var self = this;
         if ( is_array( v ) )
             return v.map(function( v ){return parseInt( v, 10 );});
-        else
-            return parseInt( v, 10 );
+        return parseInt( v, 10 );
     }
     
     ,quote_name: function( f ) {
-        var self = this;
+        var self = this, qn = self.qn;
         if ( is_array( f ) )
-            return f.map(function( f ){return self.qn + f + self.qn;});
-        else
-            return self.qn + f + self.qn;
+            return f.map(function( f ){return qn + f + qn;});
+        return qn + f + qn;
     }
     
     ,quote: function( v ) {
-        var self = this;
+        var self = this, q = self.q;
         if ( is_array( v ) )
-            return v.map(function( v ){return self.q + self.esc( v ) + self.q;});
-        else
-            return self.q + self.esc( v ) + self.q;
+            return v.map(function( v ){return q + self.esc( v ) + q;});
+        return q + self.esc( v ) + q;
     }
     
     ,esc: function( v ) {
@@ -1035,31 +1117,26 @@ Dialect[PROTO] = {
             else
                 return v.map(function( v ){return addslashes( v );});
         }
+        if ( self.escdb ) 
+            return self.escdb( v );
         else
-        {
-            if ( self.escdb ) 
-                return self.escdb( v );
-            else
-                // simple ecsaping using addslashes
-                // '"\ and NUL (the NULL byte).
-                return addslashes( v );
-        }
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            return addslashes( v );
     }
     
     ,esc_like: function( v ) {
         var self = this;
         if ( is_array( v ) )
             return v.map(function( v ){return addcslashes( v, '_%\\' );});
-        else
-            return addcslashes( v, '_%\\' );
+        return addcslashes( v, '_%\\' );
     }
     
     ,like: function( v ) {
-        var self = this;
+        var self = this, q = self.q;
         if ( is_array( v ) )
-            return v.map(function( v ){return self.q + '%' + self.esc( self.esc_like( v ) ) + '%' + self.q;});
-        else
-            return self.q + '%' + self.esc( self.esc_like( v ) ) + '%' + self.q;
+            return v.map(function( v ){return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q;});
+        return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q;
     }
     
     ,multi_like: function( f, v, doTrim ) {

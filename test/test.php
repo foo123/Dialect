@@ -10,16 +10,28 @@ echo_();
 
 $dialect = new Dialect();
 
+$conditions = array(
+    'main.name'=>array('like-prepared'=>'%l:name%'),
+    'main.year'=>array('eq'=>$dialect->year('date')),
+    'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
+);
+
 $query = $dialect
         ->select()
-        ->order('field1')
-        ->from('table')
-        ->join('table2', 'table.id=table2.id', 'inner')
-        ->where(array(
-            'name'=>array('like-prepared'=>'%l:name%'),
-            'year'=>array('eq'=>$dialect->year('date'))
-        ))
-        ->order('field2')
+        ->order('main.field1')
+        ->from('table AS main')
+        ->join_conditions(array(
+            'project' => array(
+                'table' => 'main',
+                'id' => 'ID',
+                'join' => 'usermeta',
+                'join_id' => 'user_id',
+                'key' => 'meta_key',
+                'value' => 'meta_value'
+            )
+        ), $conditions)
+        ->where($conditions)
+        ->order('main.field2')
         ->page(2, 1000)
         ->sql( )
     ;
