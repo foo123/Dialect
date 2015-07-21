@@ -40,6 +40,11 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toStri
     is_string = function( o ){ return "string" === typeof o; },
     is_array = function( o ){ return o instanceof Array || '[object Array]' === toString.call(o); },
     is_obj = function( o ){ return o instanceof Object || '[object Object]' === toString.call(o); },
+    empty = function( o ){ 
+        if ( !o ) return true;
+        var to_string = toString.call(o);
+        return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length;
+    },
     array = function( o ){ return is_array( o ) ? o : [o]; },
     SPACE_RE = /^\s+|\s+$/g,
     trim = String[PROTO].trim
@@ -381,23 +386,23 @@ var dialect = {
     ,'update'   : 'UPDATE $0'
     ,'delete'   : 'DELETE '
     ,'values'   : 'VALUES $0'
-    ,'values_'  : ',$0'
+    ,'values_'  : '$0,$1'
     ,'set'      : 'SET $0'
-    ,'set_'     : ',$0'
+    ,'set_'     : '$0,$1'
     ,'from'     : 'FROM $0'
-    ,'from_'    : ',$0'
+    ,'from_'    : '$0,$1'
     ,'join'     : 'JOIN $0'
     ,'alt_join' : '$1 JOIN $0'
-    ,'join_'    : "\n" + 'JOIN $0'
-    ,'alt_join_': "\n" + '$1 JOIN $0'
+    ,'join_'    : '$0' + "\n" + 'JOIN $1'
+    ,'alt_join_': '$0' + "\n" + '$2 JOIN $1'
     ,'where'    : 'WHERE $0'
-    ,'where_'   : ' AND $0'
+    ,'where_'   : '$0 AND $1'
     ,'group'    : 'GROUP BY $0'
-    ,'group_'   : ',$0'
+    ,'group_'   : '$0,$1'
     ,'having'   : 'HAVING $0'
-    ,'having_'  : ' AND $0'
+    ,'having_'  : '$0 AND $0'
     ,'order'    : 'ORDER BY $0'
-    ,'order_'   : ',$0'
+    ,'order_'   : '$0,$1'
     ,'limit'    : 'LIMIT $0,$1'
     
     ,'year'     : 'YEAR($0)'
@@ -627,42 +632,6 @@ Dialect[PROTO] = {
         return query;
     }
     
-    ,year: function( field ) {
-        var self = this;
-        self.tpl.year = Dialect.Tpl( self.tpl.year );
-        return self.tpl.year.render( [ field ] );
-    }
-    
-    ,month: function( field ) {
-        var self = this;
-        self.tpl.month = Dialect.Tpl( self.tpl.month );
-        return self.tpl.month.render( [ field ] );
-    }
-    
-    ,day: function( field ) {
-        var self = this;
-        self.tpl.day = Dialect.Tpl( self.tpl.day );
-        return self.tpl.day.render( [ field ] );
-    }
-    
-    ,hour: function( field ) {
-        var self = this;
-        self.tpl.hour = Dialect.Tpl( self.tpl.hour );
-        return self.tpl.hour.render( [ field ] );
-    }
-    
-    ,minute: function( field ) {
-        var self = this;
-        self.tpl.minute = Dialect.Tpl( self.tpl.minute );
-        return self.tpl.minute.render( [ field ] );
-    }
-    
-    ,second: function( field ) {
-        var self = this;
-        self.tpl.second = Dialect.Tpl( self.tpl.second );
-        return self.tpl.second.render( [ field ] );
-    }
-    
     ,select: function( fields ) {
         var self = this;
         self.reset('select');
@@ -680,6 +649,7 @@ Dialect[PROTO] = {
     
     ,values: function( values ) {
         var self = this, count, insert_values, vals, i, val, j, l, vs;
+        if ( empty(values) ) return self;
         // array of arrays
         if ( undef === values[0] || !is_array(values[0]) ) values = [values];
         count = values.length;
@@ -717,7 +687,7 @@ Dialect[PROTO] = {
             }
         }
         insert_values = insert_values.join(',');
-        if ( self.state.values ) self.state.values += self.tpl.values_.render( [ insert_values ] );
+        if ( self.state.values ) self.state.values = self.tpl.values_.render( [ self.state.values, insert_values ] );
         else self.state.values = self.tpl.values.render( [ insert_values ] );
         return self;
     }
@@ -731,6 +701,7 @@ Dialect[PROTO] = {
     
     ,set: function( fields_values ) {
         var self = this, set_values, field, value;
+        if ( empty(fields_values) ) return self;
         set_values = [];
         for (field in fields_values)
         {
@@ -765,7 +736,7 @@ Dialect[PROTO] = {
             }
         }
         set_values = set_values.join(',');
-        if ( self.state.set ) self.state.set += self.tpl.set_.render( [ set_values ] );
+        if ( self.state.set ) self.state.set = self.tpl.set_.render( [ self.state.set, set_values ] );
         else self.state.set = self.tpl.set.render( [ set_values ] );
         return self;
     }
@@ -779,36 +750,35 @@ Dialect[PROTO] = {
     
     ,from: function( tables ) {
         var self = this;
+        if ( empty(tables) ) return self;
         tables = array(tables).join(',');
-        if ( self.state.from ) self.state.from += self.tpl.from_.render( [ tables ] );
+        if ( self.state.from ) self.state.from = self.tpl.from_.render( [ self.state.from, tables ] );
         else self.state.from = self.tpl.from.render( [ tables ] );
         return self;
     }
     
-    ,join: function( table, cond, type ) {
+    ,join: function( table, on_cond, join_type ) {
         var self = this;
-        var join_clause = cond ? (table + " ON " + cond) : table;
-        if ( !type )
+        var join_clause = on_cond ? (table + " ON " + on_cond) : table;
+        if ( !join_type )
         {
-            if ( self.state.join ) self.state.join += self.tpl.join_.render( [ join_clause ] );
+            if ( self.state.join ) self.state.join = self.tpl.join_.render( [ self.state.join, join_clause ] );
             else self.state.join = self.tpl.join.render( [ join_clause ] );
         }
         else
         {
-            if ( self.state.join ) self.state.join += self.tpl.alt_join_.render( [ join_clause, type.toUpperCase() ] );
-            else self.state.join = self.tpl.alt_join.render( [ join_clause, type.toUpperCase() ] );
+            if ( self.state.join ) self.state.join = self.tpl.alt_join_.render( [ self.state.join, join_clause, join_type.toUpperCase() ] );
+            else self.state.join = self.tpl.alt_join.render( [ join_clause, join_type.toUpperCase() ] );
         }
         return self;
     }
     
     ,where: function( conditions ) {
         var self = this;
-        if ( conditions )
-        {
-            conditions = is_string(conditions) ? conditions : self.conditions( conditions );
-            if ( self.state.where ) self.state.where += self.tpl.where_.render( [ conditions ] );
-            else self.state.where = self.tpl.where.render( [ conditions ] );
-        }
+        if ( empty(conditions) ) return self;
+        conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+        if ( self.state.where ) self.state.where = self.tpl.where_.render( [ self.state.where, conditions ] );
+        else self.state.where = self.tpl.where.render( [ conditions ] );
         return self;
     }
     
@@ -817,19 +787,17 @@ Dialect[PROTO] = {
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
         grouped = field + " " + dir;
-        if ( self.state.group ) self.state.group += self.tpl.group_.render( [ grouped ] );
+        if ( self.state.group ) self.state.group = self.tpl.group_.render( [ self.state.group, grouped ] );
         else self.state.group = self.tpl.group.render( [ grouped ] );
         return self;
     }
     
     ,having: function( conditions ) {
         var self = this;
-        if ( conditions )
-        {
-            conditions = is_string(conditions) ? conditions : self.conditions( conditions );
-            if ( self.state.having ) self.state.having += self.tpl.having_.render( [ conditions ] );
-            else self.state.having = self.tpl.having.render( [ conditions ] );
-        }
+        if ( empty(conditions) ) return self;
+        conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+        if ( self.state.having ) self.state.having = self.tpl.having_.render( [ self.state.having, conditions ] );
+        else self.state.having = self.tpl.having.render( [ conditions ] );
         return self;
     }
     
@@ -838,7 +806,7 @@ Dialect[PROTO] = {
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
         ordered = field + " " + dir;
-        if ( self.state.order ) self.state.order += self.tpl.order_.render( [ ordered ] );
+        if ( self.state.order ) self.state.order = self.tpl.order_.render( [ self.state.order, ordered ] );
         else self.state.order = self.tpl.order.render( [ ordered ] );
         return self;
     }
@@ -895,7 +863,6 @@ Dialect[PROTO] = {
                     join_value = join_key;
                     where[join_alias+'.'+join_value] = cond;
                 }
-                
                 self.join(
                     join_table+" AS "+join_alias, 
                     main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
@@ -1073,6 +1040,43 @@ Dialect[PROTO] = {
         return condquery;
     }
     
+    ,defaults: function( data, defaults ) {
+        var k, v;
+        for (k in defaults)
+        {
+            if ( !defaults[HAS](k) ) continue;
+            if ( !data[HAS](k) )
+                data[ k ] = v;
+        }
+        return data;
+    }
+    
+    ,filter: function( data, filter, positive ) {
+        var filtered, i, l, field;
+        positive = false !== positive;
+        if ( positive )
+        {
+            filtered = { };
+            for (i=0,l=filter.length; i<l; i++)
+            {
+                field = filter[i];
+                if ( data[HAS](field) ) 
+                    filtered[field] = data[field];
+            }
+            return filtered;
+        }
+        else
+        {
+            for (i=0,l=filter.length; i<l; i++)
+            {
+                field = filter[i];
+                if ( data[HAS](field) ) 
+                    delete data[field];
+            }
+            return data;
+        }
+    }
+    
     ,tbl: function( table ) {
         var self = this, prefix = self.prefix;
         if ( is_array( table ) )
@@ -1156,6 +1160,42 @@ Dialect[PROTO] = {
             ORs[i] = '(' + ANDs.join(' AND ') + ')';
         }
         return ORs.join(' OR ');
+    }
+    
+    ,year: function( field ) {
+        var self = this;
+        self.tpl.year = Dialect.Tpl( self.tpl.year );
+        return self.tpl.year.render( [ field ] );
+    }
+    
+    ,month: function( field ) {
+        var self = this;
+        self.tpl.month = Dialect.Tpl( self.tpl.month );
+        return self.tpl.month.render( [ field ] );
+    }
+    
+    ,day: function( field ) {
+        var self = this;
+        self.tpl.day = Dialect.Tpl( self.tpl.day );
+        return self.tpl.day.render( [ field ] );
+    }
+    
+    ,hour: function( field ) {
+        var self = this;
+        self.tpl.hour = Dialect.Tpl( self.tpl.hour );
+        return self.tpl.hour.render( [ field ] );
+    }
+    
+    ,minute: function( field ) {
+        var self = this;
+        self.tpl.minute = Dialect.Tpl( self.tpl.minute );
+        return self.tpl.minute.render( [ field ] );
+    }
+    
+    ,second: function( field ) {
+        var self = this;
+        self.tpl.second = Dialect.Tpl( self.tpl.second );
+        return self.tpl.second.render( [ field ] );
     }
 };
 

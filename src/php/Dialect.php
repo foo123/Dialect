@@ -202,23 +202,23 @@ class Dialect
         ,'update'   => 'UPDATE $0'
         ,'delete'   => 'DELETE '
         ,'values'   => 'VALUES $0'
-        ,'values_'  => ',$0'
+        ,'values_'  => '$0,$1'
         ,'set'      => 'SET $0'
-        ,'set_'     => ',$0'
+        ,'set_'     => '$0,$1'
         ,'from'     => 'FROM $0'
-        ,'from_'    => ',$0'
+        ,'from_'    => '$0,$1'
         ,'join'     => 'JOIN $0'
         ,'alt_join' => '$1 JOIN $0'
-        ,'join_'    => "\nJOIN \$0"
-        ,'alt_join_'=> "\n\$1 JOIN \$0"
+        ,'join_'    => "\$0\nJOIN \$1"
+        ,'alt_join_'=> "\$0\n\$2 JOIN \$1"
         ,'where'    => 'WHERE $0'
-        ,'where_'   => ' AND $0'
+        ,'where_'   => '$0 AND $1'
         ,'group'    => 'GROUP BY $0'
-        ,'group_'   => ',$0'
+        ,'group_'   => '$0,$1'
         ,'having'   => 'HAVING $0'
-        ,'having_'  => ' AND $0'
+        ,'having_'  => '$0 AND $1'
         ,'order'    => 'ORDER BY $0'
-        ,'order_'   => ',$0'
+        ,'order_'   => '$0,$1'
         ,'limit'    => 'LIMIT $0,$1'
         
         ,'year'     => 'YEAR($0)'
@@ -448,42 +448,6 @@ class Dialect
         return $query;
     }
     
-    public function year( $field )
-    {
-        $this->tpl['year'] = self::Tpl( $this->tpl['year'] );
-        return $this->tpl['year']->render( array( $field ) );
-    }
-    
-    public function month( $field )
-    {
-        $this->tpl['month'] = self::Tpl( $this->tpl['month'] );
-        return $this->tpl['month']->render( array( $field ) );
-    }
-    
-    public function day( $field )
-    {
-        $this->tpl['day'] = self::Tpl( $this->tpl['day'] );
-        return $this->tpl['day']->render( array( $field ) );
-    }
-    
-    public function hour( $field )
-    {
-        $this->tpl['hour'] = self::Tpl( $this->tpl['hour'] );
-        return $this->tpl['hour']->render( array( $field ) );
-    }
-    
-    public function minute( $field )
-    {
-        $this->tpl['minute'] = self::Tpl( $this->tpl['minute'] );
-        return $this->tpl['minute']->render( array( $field ) );
-    }
-    
-    public function second( $field )
-    {
-        $this->tpl['second'] = self::Tpl( $this->tpl['second'] );
-        return $this->tpl['second']->render( array( $field ) );
-    }
-    
     public function select( $fields='*' )
     {
         $this->reset('select');
@@ -501,6 +465,7 @@ class Dialect
     
     public function values( $values )
     {
+        if ( empty($values) ) return $this;
         // array of arrays
         if ( !isset($values[0]) || !is_array($values[0]) ) $values = array($values);
         $count = count($values);
@@ -536,7 +501,7 @@ class Dialect
             }
         }
         $insert_values = implode(',', $insert_values);
-        if ( isset($this->state['values']) ) $this->state['values'] .= $this->tpl['values_']->render( array( $insert_values ) );
+        if ( isset($this->state['values']) ) $this->state['values'] = $this->tpl['values_']->render( array( $this->state['values'], $insert_values ) );
         else $this->state['values'] = $this->tpl['values']->render( array( $insert_values ) );
         return $this;
     }
@@ -550,6 +515,7 @@ class Dialect
     
     public function set( $fields_values )
     {
+        if ( empty($fields_values) ) return $this;
         $set_values = array();
         foreach ($fields_values as $field=>$value)
         {
@@ -582,7 +548,7 @@ class Dialect
             }
         }
         $set_values = implode(',', $set_values);
-        if ( isset($this->state['set']) ) $this->state['set'] .= $this->tpl['set_']->render( array( $set_values ) );
+        if ( isset($this->state['set']) ) $this->state['set'] = $this->tpl['set_']->render( array( $this->state['set'], $set_values ) );
         else $this->state['set'] = $this->tpl['set']->render( array( $set_values ) );
         return $this;
     }
@@ -596,36 +562,35 @@ class Dialect
     
     public function from( $tables )
     {
+        if ( empty($tables) ) return $this;
         $tables = implode(',',(array)$tables);
-        if ( isset($this->state['from']) ) $this->state['from'] .= $this->tpl['from_']->render( array( $tables ) );
+        if ( isset($this->state['from']) ) $this->state['from'] = $this->tpl['from_']->render( array( $this->state['from'], $tables ) );
         else $this->state['from'] = $this->tpl['from']->render( array( $tables ) );
         return $this;
     }
     
-    public function join( $table, $cond=null, $type=null )
+    public function join( $table, $on_cond=null, $join_type=null )
     {
-        $join_clause = empty($cond) ? $table : "$table ON $cond";
-        if ( empty($type) )
+        $join_clause = empty($on_cond) ? $table : "$table ON {$on_cond}";
+        if ( empty($join_type) )
         {
-            if ( isset($this->state['join']) ) $this->state['join'] .= $this->tpl['join_']->render( array( $join_clause ) );
+            if ( isset($this->state['join']) ) $this->state['join'] = $this->tpl['join_']->render( array( $this->state['join'], $join_clause ) );
             else $this->state['join'] = $this->tpl['join']->render( array( $join_clause ) );
         }
         else
         {
-            if ( isset($this->state['join']) ) $this->state['join'] .= $this->tpl['alt_join_']->render( array( $join_clause, strtoupper($type) ) );
-            else $this->state['join'] = $this->tpl['alt_join']->render( array( $join_clause, strtoupper($type) ) );
+            if ( isset($this->state['join']) ) $this->state['join'] = $this->tpl['alt_join_']->render( array( $this->state['join'], $join_clause, strtoupper($join_type) ) );
+            else $this->state['join'] = $this->tpl['alt_join']->render( array( $join_clause, strtoupper($join_type) ) );
         }
         return $this;
     }
     
     public function where( $conditions )
     {
-        if ( !empty($conditions) )
-        {
-            $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
-            if ( isset($this->state['where']) ) $this->state['where'] .= $this->tpl['where_']->render( array( $conditions ) );
-            else $this->state['where'] = $this->tpl['where']->render( array( $conditions ) );
-        }
+        if ( empty($conditions) ) return $this;
+        $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+        if ( isset($this->state['where']) ) $this->state['where'] = $this->tpl['where_']->render( array( $this->state['where'], $conditions ) );
+        else $this->state['where'] = $this->tpl['where']->render( array( $conditions ) );
         return $this;
     }
     
@@ -634,19 +599,17 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $grouped = "$field $dir";
-        if ( isset($this->state['group']) ) $this->state['group'] .= $this->tpl['group_']->render( array( $grouped ) );
+        if ( isset($this->state['group']) ) $this->state['group'] = $this->tpl['group_']->render( array( $this->state['group'], $grouped ) );
         else $this->state['group'] = $this->tpl['group']->render( array( $grouped ) );
         return $this;
     }
     
     public function having( $conditions )
     {
-        if ( !empty($conditions) )
-        {
-            $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
-            if ( isset($this->state['having']) ) $this->state['having'] .= $this->tpl['having_']->render( array( $conditions ) );
-            else $this->state['having'] = $this->tpl['having']->render( array( $conditions ) );
-        }
+        if ( empty($conditions) ) return $this;
+        $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+        if ( isset($this->state['having']) ) $this->state['having'] = $this->tpl['having_']->render( array( $this->state['having'], $conditions ) );
+        else $this->state['having'] = $this->tpl['having']->render( array( $conditions ) );
         return $this;
     }
     
@@ -655,7 +618,7 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $ordered = "$field $dir";
-        if ( isset($this->state['order']) ) $this->state['order'] .= $this->tpl['order_']->render( array( $ordered ) );
+        if ( isset($this->state['order']) ) $this->state['order'] = $this->tpl['order_']->render( array( $this->state['order'], $ordered ) );
         else $this->state['order'] = $this->tpl['order']->render( array( $ordered ) );
         return $this;
     }
@@ -708,7 +671,6 @@ class Dialect
                     $join_value = $join_key;
                     $where["{$join_alias}.{$join_value}"] = $cond;
                 }
-                
                 $this->join(
                     "{$join_table} AS {$join_alias}", 
                     "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
@@ -884,6 +846,39 @@ class Dialect
         return $condquery;
     }
     
+    public function defaults( $data, $defaults=array() )
+    {
+        foreach((array)$defaults as $k=>$v)
+        {
+            if ( !isset($data[$k]) )
+                $data[ $k ] = $v;
+        }
+        return $data;
+    }
+    
+    public function filter( $data, $filter, $positive=true )
+    {
+        if ( $positive )
+        {
+            $filtered = array( );
+            foreach((array)$filter as $field)
+            {
+                if ( isset($data[$field]) ) 
+                    $filtered[$field] = $data[$field];
+            }
+            return $filtered;
+        }
+        else
+        {
+            foreach((array)$filter as $field)
+            {
+                if ( isset($data[$field]) ) 
+                    unset($data[$field]);
+            }
+            return $data;
+        }
+    }
+    
     public function tbl( $table )
     {
         if ( is_array($table) ) return array_map(array($this, 'tbl'), (array)$table);
@@ -965,6 +960,42 @@ class Dialect
             $OR = '(' . implode(' AND ', $ANDs) . ')';
         }
         return implode(' OR ', $ORs);
+    }
+    
+    public function year( $field )
+    {
+        $this->tpl['year'] = self::Tpl( $this->tpl['year'] );
+        return $this->tpl['year']->render( array( $field ) );
+    }
+    
+    public function month( $field )
+    {
+        $this->tpl['month'] = self::Tpl( $this->tpl['month'] );
+        return $this->tpl['month']->render( array( $field ) );
+    }
+    
+    public function day( $field )
+    {
+        $this->tpl['day'] = self::Tpl( $this->tpl['day'] );
+        return $this->tpl['day']->render( array( $field ) );
+    }
+    
+    public function hour( $field )
+    {
+        $this->tpl['hour'] = self::Tpl( $this->tpl['hour'] );
+        return $this->tpl['hour']->render( array( $field ) );
+    }
+    
+    public function minute( $field )
+    {
+        $this->tpl['minute'] = self::Tpl( $this->tpl['minute'] );
+        return $this->tpl['minute']->render( array( $field ) );
+    }
+    
+    public function second( $field )
+    {
+        $this->tpl['second'] = self::Tpl( $this->tpl['second'] );
+        return $this->tpl['second']->render( array( $field ) );
     }
 }
 }
