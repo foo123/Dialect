@@ -11,10 +11,25 @@ echo_();
 $dialect = new Dialect();
 
 $conditions = array(
-    'main.name'=>array('like-prepared'=>'%l:name%'),
-    'main.year'=>array('eq'=>$dialect->year('date')),
+    'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
+    'main.year'=>array('eq'=>$dialect->year('date'),'type'=>'raw'),
     'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
 );
+
+$dialect
+    ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    ->from('t')
+    ->join('t2','t.id=t2.id','inner')
+    ->make_view('my_view')
+;
+
+$query_soft_view = $dialect
+        ->select()
+        ->from('my_view')
+        ->where(array('f1'=>'2'))
+        ->sql()
+    ;
+    
 
 $query = $dialect
         ->select()
@@ -38,6 +53,8 @@ $query = $dialect
     
 $prepared = $dialect->prepare($query, array('name'=>'na%me'));
 
+echo_( $query_soft_view );
+echo_( );
 echo_( $query );
 echo_( );
 echo_( $prepared );

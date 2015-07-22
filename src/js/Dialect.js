@@ -381,36 +381,34 @@ var dialect = {
     ,'delete'  : ['delete','from','where','order','limit']
     }
     ,'tpl'        : {
-     'select'   : 'SELECT $0'
-    ,'insert'   : 'INSERT INTO $0 ($1)'
-    ,'update'   : 'UPDATE $0'
+     'select'   : 'SELECT $(fields)'
+    ,'insert'   : 'INSERT INTO $(tables) ($(fields))'
+    ,'update'   : 'UPDATE $(tables)'
     ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $0'
-    ,'values_'  : '$0,$1'
-    ,'set'      : 'SET $0'
-    ,'set_'     : '$0,$1'
-    ,'from'     : 'FROM $0'
-    ,'from_'    : '$0,$1'
-    ,'join'     : 'JOIN $0'
-    ,'alt_join' : '$1 JOIN $0'
-    ,'join_'    : '$0' + "\n" + 'JOIN $1'
-    ,'alt_join_': '$0' + "\n" + '$2 JOIN $1'
-    ,'where'    : 'WHERE $0'
-    ,'where_'   : '$0 AND $1'
-    ,'group'    : 'GROUP BY $0'
-    ,'group_'   : '$0,$1'
-    ,'having'   : 'HAVING $0'
-    ,'having_'  : '$0 AND $0'
-    ,'order'    : 'ORDER BY $0'
-    ,'order_'   : '$0,$1'
-    ,'limit'    : 'LIMIT $0,$1'
+    ,'values'   : 'VALUES $(values_values)'
+    ,'values_'  : '$(values),$(values_values)'
+    ,'set'      : 'SET $(set_values)'
+    ,'set_'     : '$(set),$(set_values)'
+    ,'from'     : 'FROM $(tables)'
+    ,'from_'    : '$(from),$(tables)'
+    ,'join'     : '$(join_type)JOIN $(join_clause)'
+    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
+    ,'where'    : 'WHERE $(conditions)'
+    ,'where_'   : '$(where) AND $(conditions)'
+    ,'group'    : 'GROUP BY $(field) $(dir)'
+    ,'group_'   : '$(group),$(field) $(dir)'
+    ,'having'   : 'HAVING $(conditions)'
+    ,'having_'  : '$(having) AND $(conditions)'
+    ,'order'    : 'ORDER BY $(field) $(dir)'
+    ,'order_'   : '$(order),$(field) $(dir)'
+    ,'limit'    : 'LIMIT $(offset),$(count)'
     
-    ,'year'     : 'YEAR($0)'
-    ,'month'    : 'MONTH($0)'
-    ,'day'      : 'DAY($0)'
-    ,'hour'     : 'HOUR($0)'
-    ,'minute'   : 'MINUTE($0)'
-    ,'second'   : 'SECOND($0)'
+    ,'year'     : 'YEAR($(field))'
+    ,'month'    : 'MONTH($(field))'
+    ,'day'      : 'DAY($(field))'
+    ,'hour'     : 'HOUR($(field))'
+    ,'minute'   : 'MINUTE($(field))'
+    ,'second'   : 'SECOND($(field))'
     }
  }
 /*
@@ -424,34 +422,34 @@ var dialect = {
     ,'delete'  : ['delete','from','where','order','limit']
     }
     ,'tpl'        : {
-     'select'   : 'SELECT $0'
-    ,'insert'   : 'INSERT INTO $0 ($1)'
-    ,'update'   : 'UPDATE $0'
+     'select'   : 'SELECT $(fields)'
+    ,'insert'   : 'INSERT INTO $(tables) ($(fields))'
+    ,'update'   : 'UPDATE $(tables)'
     ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $0'
-    ,'values_'  : ',$0'
-    ,'set'      : 'SET $0'
-    ,'set_'     : ',$0'
-    ,'from'     : 'FROM $0'
-    ,'from_'    : ',$0'
-    ,'join'     : 'JOIN $0'
-    ,'alt_join' : '$1 JOIN $0'
-    ,'join_'    : "\n" + 'JOIN $0'
-    ,'alt_join_': "\n" + '$1 JOIN $0'
-    ,'where'    : 'WHERE $0'
-    ,'group'    : 'GROUP BY $0'
-    ,'group_'   : ',$0'
-    ,'having'   : 'HAVING $0'
-    ,'order'    : 'ORDER BY $0'
-    ,'order_'   : ',$0'
-    ,'limit'    : 'LIMIT $1 OFFSET $0'
+    ,'values'   : 'VALUES $(values_values)'
+    ,'values_'  : '$(values),$(values_values)'
+    ,'set'      : 'SET $(set_values)'
+    ,'set_'     : '$(set),$(set_values)'
+    ,'from'     : 'FROM $(tables)'
+    ,'from_'    : '$(from),$(tables)'
+    ,'join'     : '$(join_type)JOIN $(join_clause)'
+    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
+    ,'where'    : 'WHERE $(conditions)'
+    ,'where_'   : '$(where) AND $(conditions)'
+    ,'group'    : 'GROUP BY $(field) $(dir)'
+    ,'group_'   : '$(group),$(field) $(dir)'
+    ,'having'   : 'HAVING $(conditions)'
+    ,'having_'  : '$(having) AND $(conditions)'
+    ,'order'    : 'ORDER BY $(field) $(dir)'
+    ,'order_'   : '$(order),$(field) $(dir)'
+    ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
     
-    ,'year'     : 'EXTRACT (YEAR FROM $0)'
-    ,'month'    : 'EXTRACT (MONTH FROM $0)'
-    ,'day'      : 'EXTRACT (DAY FROM $0)'
-    ,'hour'     : 'EXTRACT (HOUR FROM $0)'
-    ,'minute'   : 'EXTRACT (MINUTE FROM $0)'
-    ,'second'   : 'EXTRACT (SECOND FROM $0)'
+    ,'year'     : 'EXTRACT (YEAR FROM $(field))'
+    ,'month'    : 'EXTRACT (MONTH FROM $(field))'
+    ,'day'      : 'EXTRACT (DAY FROM $(field))'
+    ,'hour'     : 'EXTRACT (HOUR FROM $(field))'
+    ,'minute'   : 'EXTRACT (MINUTE FROM $(field))'
+    ,'second'   : 'EXTRACT (SECOND FROM $(field))'
     }
 }
 */
@@ -471,8 +469,10 @@ Dialect = function Dialect( type ) {
     self.tpl = Dialect.dialect[ type ][ 'tpl' ];
     self.q = Dialect.dialect[ type ][ 'quote' ][ 0 ];
     self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
+    self._views = { };
 };
 Dialect.VERSION = "0.1";
+Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = function( tpl, reps, compiled ) {
     if ( tpl instanceof Tpl ) return tpl;
@@ -490,6 +490,7 @@ Dialect[PROTO] = {
     ,escdb: null
     ,q: null
     ,qn: null
+    ,_views: null
     
     ,dispose: function( ) {
         var self = this;
@@ -502,6 +503,7 @@ Dialect[PROTO] = {
         self.tpl = null;
         self.q = null;
         self.qn = null;
+        self._views = null;
         return self;
     }
     
@@ -537,24 +539,12 @@ Dialect[PROTO] = {
             clause = clauses[ i ];
             
             if ( self.tpl[HAS](clause) && !(self.tpl[ clause ] instanceof Tpl) )
-                self.tpl[ clause ] = new Tpl( self.tpl[ clause ] );
+                self.tpl[ clause ] = new Tpl( self.tpl[ clause ], Dialect.TPL_RE );
             
             // continuation clause if exists, ..
             c = clause + '_';
             if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
-                self.tpl[ c ] = new Tpl( self.tpl[ c ] );
-            
-            // alternative clause form if exists
-            c = 'alt_' + clause;
-            if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
-            {
-                self.tpl[ c ] = new Tpl( self.tpl[ c ] );
-                
-                // alternative clause form continuation if exists, ..
-                c = c + '_';
-                if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
-                    self.tpl[ c ] = new Tpl( self.tpl[ c ] );
-            }
+                self.tpl[ c ] = new Tpl( self.tpl[ c ], Dialect.TPL_RE );
         }
         return self;
     }
@@ -632,18 +622,46 @@ Dialect[PROTO] = {
         return query;
     }
     
+    ,make_view: function( view ) {
+        var self = this;
+        if ( view && self.clause )
+        {
+            self._views[ view ] = {clause:self.clause, state:self.state};
+            self.clear( );
+        }
+        return self;
+    }
+    
+    ,clear_view: function( view ) {
+        var self = this;
+        if ( view && self._views[HAS](view) )
+        {
+            delete self._views[ view ];
+        }
+        return self;
+    }
+    
     ,select: function( fields ) {
         var self = this;
         self.reset('select');
         if ( !fields || !fields.length ) fields = '*';
-        self.state.select = self.tpl.select.render( [ array(fields).join(',') ] );
+        self.state.select = self.tpl.select.render( { fields:array(fields).join(',') } );
         return self;
     }
     
-    ,insert: function( table, fields ) {
+    ,insert: function( tables, fields ) {
         var self = this;
-        selfreset('insert');
-        self.state.insert = self.tpl.insert.render( [ table, array(fields).join(',') ] );
+        self.reset('insert');
+        tables = array(tables).join(',');
+        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        {
+            // using custom 'soft' view
+            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+        }
+        else
+        {
+            self.state.insert = self.tpl.insert.render( { tables:tables, fields:array(fields).join(',') } );
+        }
         return self;
     }
     
@@ -687,15 +705,24 @@ Dialect[PROTO] = {
             }
         }
         insert_values = insert_values.join(',');
-        if ( self.state.values ) self.state.values = self.tpl.values_.render( [ self.state.values, insert_values ] );
-        else self.state.values = self.tpl.values.render( [ insert_values ] );
+        if ( self.state.values ) self.state.values = self.tpl.values_.render( { values:self.state.values, values_values:insert_values } );
+        else self.state.values = self.tpl.values.render( { values_values:insert_values } );
         return self;
     }
     
     ,update: function( tables ) {
         var self = this;
         self.reset('update');
-        self.state.update = self.tpl.update.render( [ array(tables).join(',') ] );
+        tables = array(tables).join(',');
+        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        {
+            // using custom 'soft' view
+            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+        }
+        else
+        {
+            self.state.update = self.tpl.update.render( { tables:tables } );
+        }
         return self;
     }
     
@@ -736,15 +763,15 @@ Dialect[PROTO] = {
             }
         }
         set_values = set_values.join(',');
-        if ( self.state.set ) self.state.set = self.tpl.set_.render( [ self.state.set, set_values ] );
-        else self.state.set = self.tpl.set.render( [ set_values ] );
+        if ( self.state.set ) self.state.set = self.tpl.set_.render( { set:self.state.set, set_values:set_values } );
+        else self.state.set = self.tpl.set.render( { set_values:set_values } );
         return self;
     }
     
     ,del: function( ) {
         var self = this;
         self.reset('delete');
-        self.state['delete'] = self.tpl['delete'].render( [] );
+        self.state['delete'] = self.tpl['delete'].render( {} );
         return self;
     }
     
@@ -752,24 +779,25 @@ Dialect[PROTO] = {
         var self = this;
         if ( empty(tables) ) return self;
         tables = array(tables).join(',');
-        if ( self.state.from ) self.state.from = self.tpl.from_.render( [ self.state.from, tables ] );
-        else self.state.from = self.tpl.from.render( [ tables ] );
+        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        {
+            // using custom 'soft' view
+            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+        }
+        else
+        {
+            if ( self.state.from ) self.state.from = self.tpl.from_.render( { from:self.state.from, tables:tables } );
+            else self.state.from = self.tpl.from.render( { tables:tables } );
+        }
         return self;
     }
     
     ,join: function( table, on_cond, join_type ) {
         var self = this;
         var join_clause = on_cond ? (table + " ON " + on_cond) : table;
-        if ( !join_type )
-        {
-            if ( self.state.join ) self.state.join = self.tpl.join_.render( [ self.state.join, join_clause ] );
-            else self.state.join = self.tpl.join.render( [ join_clause ] );
-        }
-        else
-        {
-            if ( self.state.join ) self.state.join = self.tpl.alt_join_.render( [ self.state.join, join_clause, join_type.toUpperCase() ] );
-            else self.state.join = self.tpl.alt_join.render( [ join_clause, join_type.toUpperCase() ] );
-        }
+        join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
+        if ( self.state.join ) self.state.join = self.tpl.join_.render( { join:self.state.join, join_clause:join_clause, join_type:join_type } );
+        else self.state.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
         return self;
     }
     
@@ -777,18 +805,17 @@ Dialect[PROTO] = {
         var self = this;
         if ( empty(conditions) ) return self;
         conditions = is_string(conditions) ? conditions : self.conditions( conditions );
-        if ( self.state.where ) self.state.where = self.tpl.where_.render( [ self.state.where, conditions ] );
-        else self.state.where = self.tpl.where.render( [ conditions ] );
+        if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, conditions:conditions } );
+        else self.state.where = self.tpl.where.render( { conditions:conditions } );
         return self;
     }
     
     ,group: function( field, dir ) {
-        var self = this, grouped;
+        var self = this;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        grouped = field + " " + dir;
-        if ( self.state.group ) self.state.group = self.tpl.group_.render( [ self.state.group, grouped ] );
-        else self.state.group = self.tpl.group.render( [ grouped ] );
+        if ( self.state.group ) self.state.group = self.tpl.group_.render( { group:self.state.group, field:field, dir:dir } );
+        else self.state.group = self.tpl.group.render( { field:field, dir:dir } );
         return self;
     }
     
@@ -796,25 +823,24 @@ Dialect[PROTO] = {
         var self = this;
         if ( empty(conditions) ) return self;
         conditions = is_string(conditions) ? conditions : self.conditions( conditions );
-        if ( self.state.having ) self.state.having = self.tpl.having_.render( [ self.state.having, conditions ] );
-        else self.state.having = self.tpl.having.render( [ conditions ] );
+        if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, conditions:conditions } );
+        else self.state.having = self.tpl.having.render( { conditions:conditions } );
         return self;
     }
     
     ,order: function( field, dir ) {
-        var self = this, ordered;
+        var self = this;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        ordered = field + " " + dir;
-        if ( self.state.order ) self.state.order = self.tpl.order_.render( [ self.state.order, ordered ] );
-        else self.state.order = self.tpl.order.render( [ ordered ] );
+        if ( self.state.order ) self.state.order = self.tpl.order_.render( { order:self.state.order, field:field, dir:dir } );
+        else self.state.order = self.tpl.order.render( { field:field, dir:dir } );
         return self;
     }
     
     ,limit: function( count, offset ) {
         var self = this;
         count = parseInt(count,10); offset = parseInt(offset||0,10);
-        self.state.limit = self.tpl.limit.render( [ offset, count ] );
+        self.state.limit = self.tpl.limit.render( { offset:offset, count:count } );
         return self;
     }
     
@@ -876,8 +902,8 @@ Dialect[PROTO] = {
     }
     
     ,conditions: function( conditions ) {
-        var self = this, condquery = '', conds, field, value, op, key;
-        if ( conditions )
+        var self = this, condquery = '', conds, field, value, op, type, v;
+        if ( !empty(conditions) )
         {
             conds = [];
             
@@ -888,149 +914,171 @@ Dialect[PROTO] = {
                 value = conditions[field];
                 if ( is_obj( value ) )
                 {
-                    if ( value[HAS]('multi-like') )
+                    type = value[HAS]('type') ? value.type : 'string';
+                    
+                    if ( value[HAS]('multi_like') )
                     {
-                        // Add the search tuple to the query.
-                        conds.push( self.multi_like(field, value['multi-like']) );
+                        conds.push( self.multi_like(field, value.multi_like) );
                     }
                     else if ( value[HAS]('like') )
                     {
-                        // Add the search tuple to the query.
-                        conds.push( field + " LIKE " + self.like(value['like']) );
+                        conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
                     }
-                    else if ( value[HAS]('like-prepared') )
+                    else if ( value[HAS]('not_like') )
                     {
-                        // prepared dynamically
-                        conds.push( field + " LIKE " + value['like-prepared'] );
+                        conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
                     }
                     else if ( value[HAS]('in') )
                     {
-                        if ( value[HAS]('type') )
+                        v = array( value['in'] );
+                        
+                        if ( 'raw' === type )
                         {
-                            if ( 'integer' == value['type'] )
-                            {
-                                value['in'] = '(' + self.intval( [].concat(value['in']) ).join(',') + ')';
-                            }
-                            else if ( 'string' == value['type'] )
-                            {
-                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
-                            }
-                            else if ( 'prepared' == value['type'] )
-                            {
-                                // prepared dynamically
-                            }
-                            else
-                            {
-                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
-                            }
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[0]) )
+                        {
+                            v = self.intval( v );
                         }
                         else
                         {
-                            value['in'] = [].concat($value['in']);
-                            if ( value['in'][0] && is_int(value['in'][0]) )
-                                value['in'] = '(' + self.intval( [].concat(value['in']) ).join(',') + ')';
-                            else
-                                value['in'] = '(' + self.quote( [].concat(value['in']) ).join(',') + ')';
+                            v = self.quote( v );
                         }
-                        // Add the search tuple to the query.
-                        conds.push( field + " IN " + value['in'] );
+                        conds.push( field + " IN (" + v.join(',') + ")" );
+                    }
+                    else if ( value[HAS]('not_in') )
+                    {
+                        v = array( value['not_in'] );
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[0]) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " NOT IN (" + v.join(',') + ")" );
                     }
                     else if ( value[HAS]('between') )
                     {
-                        if ( value[HAS]('type') )
-                        {
-                            if ( 'integer' == value['type'] )
-                            {
-                                value['between'] = self.intval( value['between'] );
-                            }
-                            else if ( 'string' == value['type'] )
-                            {
-                                value['between'] = self.quote( value['between'] );
-                            }
-                            else if ( 'prepared' == value['type'] )
-                            {
-                                // prepared dynamically
-                            }
-                            else
-                            {
-                                value['between'] = self.quote( value['between'] );
-                            }
-                        }
-                        else
-                        {
-                            if ( !is_int(value['between'][0]) || !is_int(value['between'][1]) )
-                            {
-                                value['between'] = self.quote( value['between'] );
-                            }
-                        }
-                        // Add the search tuple to the query.
-                        conds.push( field + " BETWEEN " + value['between'][0] + " AND " + value['between'][1] );
-                    }
-                    else if ( value[HAS]('equal') || 
-                        value[HAS]('eq') || 
-                        value[HAS]('gt') || 
-                        value[HAS]('lt') || 
-                        value[HAS]('gte') || 
-                        value[HAS]('lte') 
-                    )
-                    {
-                        if ( value[HAS]('eq') || value[HAS]('equal') )
-                        {
-                            op = '=';
-                            key = value[HAS]('equal') ? 'equal' : 'eq';
-                        }
-                        else if ( value[HAS]('gt') )
-                        {
-                            op = '>';
-                            key = 'gt';
-                        }
-                        else if ( value[HAS]('gte') )
-                        {
-                            op = '>=';
-                            key = 'gte';
-                        }
-                        else if ( value[HAS]('lte') )
-                        {
-                            op = '<=';
-                            key = 'lte';
-                        }
-                        else if ( value[HAS]('lt') )
-                        {
-                            op = '<';
-                            key = 'lt';
-                        }
+                        v = array( value.between );
                         
-                        if ( value[HAS]('type') )
+                        if ( 'raw' === type )
                         {
-                            if ( 'integer' == value['type'] )
-                            {
-                                value[$key] = self.intval( value[key] );
-                            }
-                            else if ( 'string' == value['type'] )
-                            {
-                                value[key] = self.quote( value[key] );
-                            }
-                            else if ( 'prepared' == value['type'] )
-                            {
-                                // prepared dynamically
-                            }
-                            else
-                            {
-                                value[key] = self.quote( value[key] );
-                            }
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                        {
+                            v = self.intval( v );
                         }
                         else
                         {
-                            if ( !is_int(value[key]) )
-                                value[key] = self.quote( value[key] );
+                            v = self.quote( v );
                         }
-                        // Add the search tuple to the query.
-                        conds.push( field + " " + op + " " + value[key] );
+                        conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
+                    }
+                    else if ( value[HAS]('not_between') )
+                    {
+                        v = array( value.not_between );
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
+                    }
+                    else if ( value[HAS]('gt') || value[HAS]('gte') )
+                    {
+                        op = value[HAS]('gt') ? "gt" : "gte";
+                        v = value[ op ];
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + ('gt'===op ? " > " : " >= ") + v );
+                    }
+                    else if ( value[HAS]('lt') || value[HAS]('lte') )
+                    {
+                        op = value[HAS]('lt') ? "lt" : "lte";
+                        v = value[ op ];
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + ('lt'===op ? " < " : " <= ") + v );
+                    }
+                    else if ( value[HAS]('not_equal') || value[HAS]('not_eq') )
+                    {
+                        op = value[HAS]('not_eq') ? "not_eq" : "not_equal";
+                        v = value[ op ];
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " <> " + v );
+                    }
+                    else if ( value[HAS]('equal') || value[HAS]('eq') )
+                    {
+                        op = value[HAS]('eq') ? "eq" : "equal";
+                        v = value[ op ];
+                        
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " = " + v );
                     }
                 }
                 else
                 {
-                    // Add the search tuple to the query.
                     conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
                 }
             }
@@ -1040,12 +1088,14 @@ Dialect[PROTO] = {
         return condquery;
     }
     
-    ,defaults: function( data, defaults ) {
+    ,defaults: function( data, defaults, overwrite ) {
         var k, v;
+        overwrite = true === overwrite;
         for (k in defaults)
         {
             if ( !defaults[HAS](k) ) continue;
-            if ( !data[HAS](k) )
+            v = defaults[ k ];
+            if ( overwrite || !data[HAS](k) )
                 data[ k ] = v;
         }
         return data;
@@ -1164,38 +1214,38 @@ Dialect[PROTO] = {
     
     ,year: function( field ) {
         var self = this;
-        self.tpl.year = Dialect.Tpl( self.tpl.year );
-        return self.tpl.year.render( [ field ] );
+        if ( !(self.tpl.year instanceof Tpl) ) self.tpl.year = new Tpl( self.tpl.year, Dialect.TPL_RE );
+        return self.tpl.year.render( { field:field } );
     }
     
     ,month: function( field ) {
         var self = this;
-        self.tpl.month = Dialect.Tpl( self.tpl.month );
-        return self.tpl.month.render( [ field ] );
+        if ( !(self.tpl.month instanceof Tpl) ) self.tpl.month = new Tpl( self.tpl.month, Dialect.TPL_RE );
+        return self.tpl.month.render( { field:field } );
     }
     
     ,day: function( field ) {
         var self = this;
-        self.tpl.day = Dialect.Tpl( self.tpl.day );
-        return self.tpl.day.render( [ field ] );
+        if ( !(self.tpl.day instanceof Tpl) ) self.tpl.day = new Tpl( self.tpl.day, Dialect.TPL_RE );
+        return self.tpl.day.render( { field:field } );
     }
     
     ,hour: function( field ) {
         var self = this;
-        self.tpl.hour = Dialect.Tpl( self.tpl.hour );
-        return self.tpl.hour.render( [ field ] );
+        if ( !(self.tpl.hour instanceof Tpl) ) self.tpl.hour = new Tpl( self.tpl.hour, Dialect.TPL_RE );
+        return self.tpl.hour.render( { field:field } );
     }
     
     ,minute: function( field ) {
         var self = this;
-        self.tpl.minute = Dialect.Tpl( self.tpl.minute );
-        return self.tpl.minute.render( [ field ] );
+        if ( !(self.tpl.minute instanceof Tpl) ) self.tpl.minute = new Tpl( self.tpl.minute, Dialect.TPL_RE );
+        return self.tpl.minute.render( { field:field } );
     }
     
     ,second: function( field ) {
         var self = this;
-        self.tpl.second = Dialect.Tpl( self.tpl.second );
-        return self.tpl.second.render( [ field ] );
+        if ( !(self.tpl.second instanceof Tpl) ) self.tpl.second = new Tpl( self.tpl.second, Dialect.TPL_RE );
+        return self.tpl.second.render( { field:field } );
     }
 };
 

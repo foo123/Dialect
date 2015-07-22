@@ -6,11 +6,25 @@ echo( );
 var dialect = new Dialect( );
 
 var conditions = {
-    'main.name':{'like-prepared':'%l:name%'},
-    'main.year':{'eq':dialect.year('date')},
+    'main.name':{'like':'%l:name%', type:'raw'},
+    'main.year':{'eq':dialect.year('date'), type:'raw'},
     'main.project': {'in':[1,2,3],'type':'integer'}
 };
 
+dialect
+    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .from('t')
+    .join('t2','t.id=t2.id','inner')
+    .make_view('my_view')
+;
+
+var query_soft_view = dialect
+        .select()
+        .from('my_view')
+        .where({f1:'2'})
+        .sql()
+    ;
+    
 var query = dialect
         .select()
         .order('main.field1')
@@ -33,6 +47,8 @@ var query = dialect
     
 var prepared = dialect.prepare(query, {'name':'na%me'});
 
+echo( query_soft_view );
+echo( );
 echo( query );
 echo( );
 echo( prepared );
