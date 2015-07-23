@@ -645,18 +645,21 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,select: function( fields ) {
+    ,select: function( fields, format ) {
         var self = this;
         self.reset('select');
+        format = false !== format;
         if ( !fields || !fields.length || '*' === fields ) fields = self.quote_name('*');
-        else fields = self.ref( array( fields ) ).join(',');
+        else if ( format ) fields = self.ref( array( fields ) ).join(',');
+        else fields = array( fields ).join(',');
         self.state.select = self.tpl.select.render( { fields:fields } );
         return self;
     }
     
-    ,insert: function( tables, fields ) {
+    ,insert: function( tables, fields, format ) {
         var self = this, maybe_view;
         self.reset('insert');
+        format = false !== format;
         maybe_view = is_array( tables ) ? tables[0] : tables;
         if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
@@ -665,8 +668,16 @@ Dialect[PROTO] = {
         }
         else
         {
-            tables = self.ref( array( tables ) ).join(',');
-            fields = self.ref( array( fields ) ).join(',');
+            if ( format )
+            {
+                tables = self.ref( array( tables ) ).join(',');
+                fields = self.ref( array( fields ) ).join(',');
+            }
+            else
+            {
+                tables = array( tables ).join(',');
+                fields = array( fields ).join(',');
+            }
             self.state.insert = self.tpl.insert.render( { tables:tables, fields:fields } );
         }
         return self;
@@ -717,9 +728,10 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,update: function( tables ) {
+    ,update: function( tables, format ) {
         var self = this, maybe_view;
         self.reset('update');
+        format = false !== format;
         maybe_view = is_array( tables ) ? tables[0] : tables;
         if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
@@ -728,7 +740,8 @@ Dialect[PROTO] = {
         }
         else
         {
-            tables = self.ref( array( tables ) ).join(',');
+            if ( format ) tables = self.ref( array( tables ) ).join(',');
+            else tables = array( tables ).join(',');
             self.state.update = self.tpl.update.render( { tables:tables } );
         }
         return self;
@@ -785,9 +798,10 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,from: function( tables ) {
+    ,from: function( tables, format ) {
         var self = this, maybe_view;
         if ( empty(tables) ) return self;
+        format = false !== format;
         maybe_view = is_array( tables ) ? tables[0] : tables;
         if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
@@ -796,7 +810,8 @@ Dialect[PROTO] = {
         }
         else
         {
-            tables = self.ref( array( tables ) ).join(',');
+            if ( format ) tables = self.ref( array( tables ) ).join(',');
+            else tables = array( tables ).join(',');
             if ( self.state.from ) self.state.from = self.tpl.from_.render( { from:self.state.from, tables:tables } );
             else self.state.from = self.tpl.from.render( { tables:tables } );
         }

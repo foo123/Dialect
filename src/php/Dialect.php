@@ -462,18 +462,21 @@ class Dialect
         return $this;
     }
     
-    public function select( $fields='*' )
+    public function select( $fields='*', $format=true )
     {
         $this->reset('select');
+        $format = false !== $format;
         if ( !$fields || empty($fields) || '*' === $fields ) $fields = $this->quote_name('*');
-        else $fields = implode(',', $this->ref((array)$fields));
+        else if ( $format ) $fields = implode( ',', $this->ref((array)$fields) );
+        else $fields = implode( ',', (array)$fields );
         $this->state['select'] = $this->tpl['select']->render( array( 'fields'=>$fields ) );
         return $this;
     }
     
-    public function insert( $tables, $fields )
+    public function insert( $tables, $fields, $format=true )
     {
         $this->reset('insert');
+        $format = false !== $format;
         $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
@@ -482,8 +485,16 @@ class Dialect
         }
         else
         {
-            $tables = implode(',', $this->ref((array)$tables));
-            $fields = implode(',', $this->ref((array)$fields));
+            if ( $format )
+            {
+                $tables = implode(',', $this->ref((array)$tables));
+                $fields = implode(',', $this->ref((array)$fields));
+            }
+            else
+            {
+                $tables = implode(',', (array)$tables);
+                $fields = implode(',', (array)$fields);
+            }
             $this->state['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'fields'=>$fields ) );
         }
         return $this;
@@ -532,9 +543,10 @@ class Dialect
         return $this;
     }
     
-    public function update( $tables )
+    public function update( $tables, $format=true )
     {
         $this->reset('update');
+        $format = false !== $format;
         $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
@@ -543,7 +555,8 @@ class Dialect
         }
         else
         {
-            $tables = implode(',', $this->ref((array)$tables));
+            if ( $format ) $tables = implode(',', $this->ref((array)$tables));
+            else $tables = implode(',', (array)$tables);
             $this->state['update'] = $this->tpl['update']->render( array( 'tables'=>$tables ) );
         }
         return $this;
@@ -597,9 +610,10 @@ class Dialect
         return $this;
     }
     
-    public function from( $tables )
+    public function from( $tables, $format=true )
     {
         if ( empty($tables) ) return $this;
+        $format = false !== $format;
         $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
@@ -608,7 +622,8 @@ class Dialect
         }
         else
         {
-            $tables = implode(',', $this->ref((array)$tables));
+            if ( $format ) $tables = implode(',', $this->ref((array)$tables));
+            else $tables = implode(',', (array)$tables);
             if ( isset($this->state['from']) ) $this->state['from'] = $this->tpl['from_']->render( array( 'from'=>$this->state['from'], 'tables'=>$tables ) );
             else $this->state['from'] = $this->tpl['from']->render( array( 'tables'=>$tables ) );
         }
