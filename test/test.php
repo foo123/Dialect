@@ -53,6 +53,8 @@ $query = $dialect
     
 $prepared = $dialect->prepare($query, array('name'=>'na%me'));
 
+/*echo_( $dialect->ref('t.a AS a,t.b,t2.c AS c2') );
+echo_( );*/
 echo_( $query_soft_view );
 echo_( );
 echo_( $query );

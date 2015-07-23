@@ -400,7 +400,7 @@ class Dialect
             $right = $right ? preg_quote($right, '/') : '%';
             
             // custom prepared parameter format
-            $pattern = '/' . $left . '(ad|as|l|r|d|s):([0-9a-zA-Z_]+)' . $right . '/';
+            $pattern = '/' . $left . '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' . $right . '/';
             $prepared = '';
             while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
             {
@@ -412,18 +412,22 @@ class Dialect
                     $type = $m[1][0];
                     switch($type)
                     {
+                        // array of references, e.g fields
+                        case 'af': $param = implode( ',', $this->ref( (array)$args[$param] ) ); break;
                         // array of integers param
-                        case 'ad': $param = '(' . implode(',', $this->intval((array)$args[$param])) . ')'; break;
+                        case 'ad': $param = '(' . implode( ',', $this->intval( (array)$args[$param] ) ) . ')'; break;
                         // array of strings param
-                        case 'as': $param = '(' . implode(',', $this->quote((array)$args[$param])) . ')'; break;
+                        case 'as': $param = '(' . implode( ',', $this->quote( (array)$args[$param] ) ) . ')'; break;
+                        // reference, e.g field
+                        case 'f': $param = $this->ref( $args[$param] ); break;
                         // like param
-                        case 'l': $param = $this->like($args[$param]); break;
+                        case 'l': $param = $this->like( $args[$param] ); break;
                         // raw param
                         case 'r': $param = $args[$param]; break;
                         // integer param
-                        case 'd': $param = $this->intval($args[$param]); break;
+                        case 'd': $param = $this->intval( $args[$param] ); break;
                         // string param
-                        case 's': default: $param = $this->quote($args[$param]); break;
+                        case 's': default: $param = $this->quote( $args[$param] ); break;
                     }
                     $prepared .= substr($query, 0, $pos) . $param;
                 }
@@ -461,23 +465,26 @@ class Dialect
     public function select( $fields='*' )
     {
         $this->reset('select');
-        if ( !$fields || empty($fields) ) $fields = '*';
-        $this->state['select'] = $this->tpl['select']->render( array( 'fields'=>implode(',',(array)$fields) ) );
+        if ( !$fields || empty($fields) || '*' === $fields ) $fields = $this->quote_name('*');
+        else $fields = implode(',', $this->ref((array)$fields));
+        $this->state['select'] = $this->tpl['select']->render( array( 'fields'=>$fields ) );
         return $this;
     }
     
     public function insert( $tables, $fields )
     {
         $this->reset('insert');
-        $tables = implode(',',(array)$tables);
-        if ( isset($this->_views[ $tables ]) && $this->clause === $this->_views[ $tables ]->clause )
+        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
             // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $tables ]->state, true );
+            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
         }
         else
         {
-            $this->state['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'fields'=>implode(',',(array)$fields) ) );
+            $tables = implode(',', $this->ref((array)$tables));
+            $fields = implode(',', $this->ref((array)$fields));
+            $this->state['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'fields'=>$fields ) );
         }
         return $this;
     }
@@ -528,14 +535,15 @@ class Dialect
     public function update( $tables )
     {
         $this->reset('update');
-        $tables = implode(',', (array)$tables);
-        if ( isset($this->_views[ $tables ]) && $this->clause === $this->_views[ $tables ]->clause )
+        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
             // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $tables ]->state, true );
+            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
         }
         else
         {
+            $tables = implode(',', $this->ref((array)$tables));
             $this->state['update'] = $this->tpl['update']->render( array( 'tables'=>$tables ) );
         }
         return $this;
@@ -547,6 +555,7 @@ class Dialect
         $set_values = array();
         foreach ($fields_values as $field=>$value)
         {
+            $field = $this->ref( $field );
             if ( is_array($value) )
             {
                 if ( isset($value['integer']) )
@@ -591,14 +600,15 @@ class Dialect
     public function from( $tables )
     {
         if ( empty($tables) ) return $this;
-        $tables = implode(',',(array)$tables);
-        if ( isset($this->_views[ $tables ]) && $this->clause === $this->_views[ $tables ]->clause )
+        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
         {
             // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $tables ]->state, true );
+            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
         }
         else
         {
+            $tables = implode(',', $this->ref((array)$tables));
             if ( isset($this->state['from']) ) $this->state['from'] = $this->tpl['from_']->render( array( 'from'=>$this->state['from'], 'tables'=>$tables ) );
             else $this->state['from'] = $this->tpl['from']->render( array( 'tables'=>$tables ) );
         }
@@ -607,7 +617,8 @@ class Dialect
     
     public function join( $table, $on_cond=null, $join_type=null )
     {
-        $join_clause = empty($on_cond) ? $table : "$table ON {$on_cond}";
+        $table = $this->ref( $table );
+        $join_clause = empty($on_cond) ? $table : "$table ON " . implode('=', $this->ref(explode('=', $on_cond)));
         $join_type = empty($join_type) ? "" : (strtoupper($join_type) . " ");
         if ( isset($this->state['join']) ) $this->state['join'] = $this->tpl['join_']->render( array( 'join'=>$this->state['join'], 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
         else $this->state['join'] = $this->tpl['join']->render( array( 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
@@ -627,6 +638,7 @@ class Dialect
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
+        $field = $this->ref( $field );
         if ( isset($this->state['group']) ) $this->state['group'] = $this->tpl['group_']->render( array( 'group'=>$this->state['group'], 'field'=>$field, 'dir'=>$dir ) );
         else $this->state['group'] = $this->tpl['group']->render( array( 'field'=>$field, 'dir'=>$dir ) );
         return $this;
@@ -645,6 +657,7 @@ class Dialect
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
+        $field = $this->ref( $field );
         if ( isset($this->state['order']) ) $this->state['order'] = $this->tpl['order_']->render( array( 'order'=>$this->state['order'], 'field'=>$field, 'dir'=>$dir ) );
         else $this->state['order'] = $this->tpl['order']->render( array( 'field'=>$field, 'dir'=>$dir ) );
         return $this;
@@ -719,6 +732,8 @@ class Dialect
             
             foreach ($conditions as $field=>$value)
             {
+                $field = $this->ref( $field );
+                
                 if ( is_array( $value ) )
                 {
                     $type = isset($value['type']) ? $value['type'] : 'string';
@@ -940,6 +955,22 @@ class Dialect
         if ( is_array($field) ) return array_map(array($this, 'fld'), (array)$field);
         $field = explode('.', $field);
         return end($field);
+    }
+    
+    public function ref( $refs )
+    {
+        if ( is_array($refs) ) return array_map(array($this, 'ref'), (array)$refs);
+        $refs = array_map( 'trim', explode( ',', $refs ) );
+        foreach ($refs as $i=>$ref)
+        {
+            $ref = array_map( 'trim', explode( 'AS', $ref ) );
+            foreach ($ref as $j=>$r)
+            {
+                $ref[$j] = implode( '.', $this->quote_name( explode( '.', $r ) ) );
+            }
+            $refs[$i] = implode( ' AS ', $ref );
+        }
+        return implode( ',', $refs );
     }
     
     public function intval( $v )

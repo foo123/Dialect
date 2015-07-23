@@ -583,7 +583,7 @@ Dialect[PROTO] = {
             right = right ? esc_re( right ) : '%';
             
             // custom prepared parameter format
-            pattern = RE(left + '(ad|as|l|r|d|s):([0-9a-zA-Z_]+)' + right);
+            pattern = RE(left + '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' + right);
             prepared = '';
             while ( query.length && (m = query.match( pattern )) )
             {
@@ -595,10 +595,14 @@ Dialect[PROTO] = {
                     type = m[1];
                     switch( type )
                     {
+                        // array of references, e.g fields
+                        case 'af': param = self.ref( array(args[param]) ).join(','); break;
                         // array of integers param
                         case 'ad': param = '(' + self.intval( array(args[param]) ).join(',') + ')'; break;
                         // array of strings param
                         case 'as': param = '(' + self.quote( array(args[param]) ).join(',') + ')'; break;
+                        // reference, e.g field
+                        case 'f': param = self.ref( args[param] ); break;
                         // like param
                         case 'l': param = self.like( args[param] ); break;
                         // raw param
@@ -644,23 +648,26 @@ Dialect[PROTO] = {
     ,select: function( fields ) {
         var self = this;
         self.reset('select');
-        if ( !fields || !fields.length ) fields = '*';
-        self.state.select = self.tpl.select.render( { fields:array(fields).join(',') } );
+        if ( !fields || !fields.length || '*' === fields ) fields = self.quote_name('*');
+        else fields = self.ref( array( fields ) ).join(',');
+        self.state.select = self.tpl.select.render( { fields:fields } );
         return self;
     }
     
     ,insert: function( tables, fields ) {
-        var self = this;
+        var self = this, maybe_view;
         self.reset('insert');
-        tables = array(tables).join(',');
-        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        maybe_view = is_array( tables ) ? tables[0] : tables;
+        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
             // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
         }
         else
         {
-            self.state.insert = self.tpl.insert.render( { tables:tables, fields:array(fields).join(',') } );
+            tables = self.ref( array( tables ) ).join(',');
+            fields = self.ref( array( fields ) ).join(',');
+            self.state.insert = self.tpl.insert.render( { tables:tables, fields:fields } );
         }
         return self;
     }
@@ -711,16 +718,17 @@ Dialect[PROTO] = {
     }
     
     ,update: function( tables ) {
-        var self = this;
+        var self = this, maybe_view;
         self.reset('update');
-        tables = array(tables).join(',');
-        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        maybe_view = is_array( tables ) ? tables[0] : tables;
+        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
             // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
         }
         else
         {
+            tables = self.ref( array( tables ) ).join(',');
             self.state.update = self.tpl.update.render( { tables:tables } );
         }
         return self;
@@ -734,6 +742,8 @@ Dialect[PROTO] = {
         {
             if ( !fields_values[HAS](field) ) continue;
             value = fields_values[field];
+            field = self.ref( field );
+            
             if ( is_obj(value) )
             {
                 if ( value[HAS]('integer') )
@@ -776,16 +786,17 @@ Dialect[PROTO] = {
     }
     
     ,from: function( tables ) {
-        var self = this;
+        var self = this, maybe_view;
         if ( empty(tables) ) return self;
-        tables = array(tables).join(',');
-        if ( self._views[HAS]( tables ) && self.clause === self._views[ tables ].clause )
+        maybe_view = is_array( tables ) ? tables[0] : tables;
+        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
         {
             // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ tables ].state, true );
+            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
         }
         else
         {
+            tables = self.ref( array( tables ) ).join(',');
             if ( self.state.from ) self.state.from = self.tpl.from_.render( { from:self.state.from, tables:tables } );
             else self.state.from = self.tpl.from.render( { tables:tables } );
         }
@@ -794,7 +805,8 @@ Dialect[PROTO] = {
     
     ,join: function( table, on_cond, join_type ) {
         var self = this;
-        var join_clause = on_cond ? (table + " ON " + on_cond) : table;
+        table = self.ref( table );
+        var join_clause = empty(on_cond) ? table : (table + " ON " + self.ref(on_cond.split('=')).join('='));
         join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
         if ( self.state.join ) self.state.join = self.tpl.join_.render( { join:self.state.join, join_clause:join_clause, join_type:join_type } );
         else self.state.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
@@ -814,6 +826,7 @@ Dialect[PROTO] = {
         var self = this;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
+        field = self.ref( field );
         if ( self.state.group ) self.state.group = self.tpl.group_.render( { group:self.state.group, field:field, dir:dir } );
         else self.state.group = self.tpl.group.render( { field:field, dir:dir } );
         return self;
@@ -832,6 +845,7 @@ Dialect[PROTO] = {
         var self = this;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
+        field = self.ref( field );
         if ( self.state.order ) self.state.order = self.tpl.order_.render( { order:self.state.order, field:field, dir:dir } );
         else self.state.order = self.tpl.order.render( { field:field, dir:dir } );
         return self;
@@ -912,6 +926,8 @@ Dialect[PROTO] = {
                 if ( !conditions[HAS](field) ) continue;
                 
                 value = conditions[field];
+                field = self.ref( field );
+                
                 if ( is_obj( value ) )
                 {
                     type = value[HAS]('type') ? value.type : 'string';
@@ -1139,6 +1155,22 @@ Dialect[PROTO] = {
         if ( is_array( field ) )
             return field.map(function( field ){return field.split('.').pop( );});
         return field.split('.').pop( );
+    }
+    
+    ,ref: function( refs ) {
+        var self = this, i, l, ref, j, m;
+        if ( is_array(refs) ) return refs.map(function( ref ){ return self.ref( ref ); });
+        refs = refs.split( ',' ).map( trim );
+        for (i=0,l=refs.length; i<l; i++)
+        {
+            ref = refs[ i ].split( 'AS' ).map( trim );
+            for (j=0,m=ref.length; j<m; j++)
+            {
+                ref[ j ] = self.quote_name( ref[ j ].split( '.' ) ).join( '.' );
+            }
+            refs[ i ] = ref.join( ' AS ' );
+        }
+        return refs.join( ',' );
     }
     
     ,intval: function( v ) {
