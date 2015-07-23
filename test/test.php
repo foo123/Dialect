@@ -19,7 +19,7 @@ $conditions = array(
 $dialect
     ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     ->from('t')
-    ->join('t2','t.id=t2.id','inner')
+    ->join('t2',array('t.id'=>'t2.id'),'inner')
     ->make_view('my_view')
 ;
 

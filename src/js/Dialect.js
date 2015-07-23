@@ -371,7 +371,7 @@ var dialect = {
     
      'quote'        : [ "'", '`' ]
     ,'clauses'      : {
-    // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html
+    // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
      'select'  : ['select','from','join','where','group','having','order','limit']
     // https://dev.mysql.com/doc/refman/5.0/en/insert.html
     ,'insert'  : ['insert','values']
@@ -804,9 +804,30 @@ Dialect[PROTO] = {
     }
     
     ,join: function( table, on_cond, join_type ) {
-        var self = this;
+        var self = this, join_clause, field, cond;
         table = self.ref( table );
-        var join_clause = empty(on_cond) ? table : (table + " ON " + self.ref(on_cond.split('=')).join('='));
+        if ( empty(on_cond) )
+        {
+            join_clause = table;
+        }
+        else
+        {
+            if ( is_string(on_cond) )
+            {
+                on_cond = '(' + self.ref( on_cond.split('=') ).join( '=' ) + ')';
+            }
+            else
+            {
+                for (field in on_cond)
+                {
+                    if ( !on_cond[HAS](field) ) continue;
+                    cond = on_cond[ field ];
+                    if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'field'};
+                }
+                on_cond = self.conditions( on_cond );
+            }
+            join_clause = table + " ON " + on_cond;
+        }
         join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
         if ( self.state.join ) self.state.join = self.tpl.join_.render( { join:self.state.join, join_clause:join_clause, join_type:join_type } );
         else self.state.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
@@ -816,7 +837,7 @@ Dialect[PROTO] = {
     ,where: function( conditions ) {
         var self = this;
         if ( empty(conditions) ) return self;
-        conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+        conditions = self.conditions( conditions );
         if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, conditions:conditions } );
         else self.state.where = self.tpl.where.render( { conditions:conditions } );
         return self;
@@ -835,7 +856,7 @@ Dialect[PROTO] = {
     ,having: function( conditions ) {
         var self = this;
         if ( empty(conditions) ) return self;
-        conditions = is_string(conditions) ? conditions : self.conditions( conditions );
+        conditions = self.conditions( conditions );
         if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, conditions:conditions } );
         else self.state.having = self.tpl.having.render( { conditions:conditions } );
         return self;
@@ -916,191 +937,208 @@ Dialect[PROTO] = {
     }
     
     ,conditions: function( conditions ) {
-        var self = this, condquery = '', conds, field, value, op, type, v;
-        if ( !empty(conditions) )
+        var self = this, condquery, conds, field, value, op, type, v;
+        if ( empty(conditions) ) return '';
+        if ( is_string(conditions) ) return conditions;
+        
+        condquery = '';
+        conds = [];
+        
+        for ( field in conditions)
         {
-            conds = [];
+            if ( !conditions[HAS](field) ) continue;
             
-            for ( field in conditions)
+            value = conditions[field];
+            field = self.ref( field );
+            
+            if ( is_obj( value ) )
             {
-                if ( !conditions[HAS](field) ) continue;
+                type = value[HAS]('type') ? value.type : 'string';
                 
-                value = conditions[field];
-                field = self.ref( field );
-                
-                if ( is_obj( value ) )
+                if ( value[HAS]('multi_like') )
                 {
-                    type = value[HAS]('type') ? value.type : 'string';
-                    
-                    if ( value[HAS]('multi_like') )
-                    {
-                        conds.push( self.multi_like(field, value.multi_like) );
-                    }
-                    else if ( value[HAS]('like') )
-                    {
-                        conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
-                    }
-                    else if ( value[HAS]('not_like') )
-                    {
-                        conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
-                    }
-                    else if ( value[HAS]('in') )
-                    {
-                        v = array( value['in'] );
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v[0]) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " IN (" + v.join(',') + ")" );
-                    }
-                    else if ( value[HAS]('not_in') )
-                    {
-                        v = array( value['not_in'] );
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v[0]) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " NOT IN (" + v.join(',') + ")" );
-                    }
-                    else if ( value[HAS]('between') )
-                    {
-                        v = array( value.between );
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
-                    }
-                    else if ( value[HAS]('not_between') )
-                    {
-                        v = array( value.not_between );
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
-                    }
-                    else if ( value[HAS]('gt') || value[HAS]('gte') )
-                    {
-                        op = value[HAS]('gt') ? "gt" : "gte";
-                        v = value[ op ];
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + ('gt'===op ? " > " : " >= ") + v );
-                    }
-                    else if ( value[HAS]('lt') || value[HAS]('lte') )
-                    {
-                        op = value[HAS]('lt') ? "lt" : "lte";
-                        v = value[ op ];
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + ('lt'===op ? " < " : " <= ") + v );
-                    }
-                    else if ( value[HAS]('not_equal') || value[HAS]('not_eq') )
-                    {
-                        op = value[HAS]('not_eq') ? "not_eq" : "not_equal";
-                        v = value[ op ];
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " <> " + v );
-                    }
-                    else if ( value[HAS]('equal') || value[HAS]('eq') )
-                    {
-                        op = value[HAS]('eq') ? "eq" : "equal";
-                        v = value[ op ];
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        else if ( 'integer' === type || is_int(v) )
-                        {
-                            v = self.intval( v );
-                        }
-                        else
-                        {
-                            v = self.quote( v );
-                        }
-                        conds.push( field + " = " + v );
-                    }
+                    conds.push( self.multi_like(field, value.multi_like) );
                 }
-                else
+                else if ( value[HAS]('like') )
                 {
-                    conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+                    conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
+                }
+                else if ( value[HAS]('not_like') )
+                {
+                    conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
+                }
+                else if ( value[HAS]('in') )
+                {
+                    v = array( value['in'] );
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v[0]) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " IN (" + v.join(',') + ")" );
+                }
+                else if ( value[HAS]('not_in') )
+                {
+                    v = array( value['not_in'] );
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v[0]) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " NOT IN (" + v.join(',') + ")" );
+                }
+                else if ( value[HAS]('between') )
+                {
+                    v = array( value.between );
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
+                }
+                else if ( value[HAS]('not_between') )
+                {
+                    v = array( value.not_between );
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
+                }
+                else if ( value[HAS]('gt') || value[HAS]('gte') )
+                {
+                    op = value[HAS]('gt') ? "gt" : "gte";
+                    v = value[ op ];
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else if ( 'field' === type )
+                    {
+                        v = self.ref( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + ('gt'===op ? " > " : " >= ") + v );
+                }
+                else if ( value[HAS]('lt') || value[HAS]('lte') )
+                {
+                    op = value[HAS]('lt') ? "lt" : "lte";
+                    v = value[ op ];
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else if ( 'field' === type )
+                    {
+                        v = self.ref( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + ('lt'===op ? " < " : " <= ") + v );
+                }
+                else if ( value[HAS]('not_equal') || value[HAS]('not_eq') )
+                {
+                    op = value[HAS]('not_eq') ? "not_eq" : "not_equal";
+                    v = value[ op ];
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else if ( 'field' === type )
+                    {
+                        v = self.ref( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " <> " + v );
+                }
+                else if ( value[HAS]('equal') || value[HAS]('eq') )
+                {
+                    op = value[HAS]('eq') ? "eq" : "equal";
+                    v = value[ op ];
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else if ( 'integer' === type || is_int(v) )
+                    {
+                        v = self.intval( v );
+                    }
+                    else if ( 'field' === type )
+                    {
+                        v = self.ref( v );
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push( field + " = " + v );
                 }
             }
-            
-            if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
+            else
+            {
+                conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+            }
         }
+        
+        if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
         return condquery;
     }
     

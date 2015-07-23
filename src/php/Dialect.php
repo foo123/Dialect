@@ -188,7 +188,7 @@ class Dialect
         
          'quote'        => array( "'", '`' )
         ,'clauses'      => array(
-        // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html
+        // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
          'select'  => array('select','from','join','where','group','having','order','limit')
         // https://dev.mysql.com/doc/refman/5.0/en/insert.html
         ,'insert'  => array('insert','values')
@@ -618,7 +618,26 @@ class Dialect
     public function join( $table, $on_cond=null, $join_type=null )
     {
         $table = $this->ref( $table );
-        $join_clause = empty($on_cond) ? $table : "$table ON " . implode('=', $this->ref(explode('=', $on_cond)));
+        if ( empty($on_cond) )
+        {
+            $join_clause = $table;
+        }
+        else
+        {
+            if ( is_string( $on_cond ) )
+            {
+                $on_cond = '(' . implode( '=', $this->ref( explode( '=', $on_cond ) ) ) . ')';
+            }
+            else
+            {
+                foreach ($on_cond as $field=>$cond)
+                {
+                    if ( !is_array($cond) ) $on_cond[$field] = array('eq'=>$cond,'type'=>'field');
+                }
+                $on_cond = $this->conditions( $on_cond );
+            }
+            $join_clause = "$table ON $on_cond";
+        }
         $join_type = empty($join_type) ? "" : (strtoupper($join_type) . " ");
         if ( isset($this->state['join']) ) $this->state['join'] = $this->tpl['join_']->render( array( 'join'=>$this->state['join'], 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
         else $this->state['join'] = $this->tpl['join']->render( array( 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
@@ -628,7 +647,7 @@ class Dialect
     public function where( $conditions )
     {
         if ( empty($conditions) ) return $this;
-        $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+        $conditions = $this->conditions( $conditions );
         if ( isset($this->state['where']) ) $this->state['where'] = $this->tpl['where_']->render( array( 'where'=>$this->state['where'], 'conditions'=>$conditions ) );
         else $this->state['where'] = $this->tpl['where']->render( array( 'conditions'=>$conditions ) );
         return $this;
@@ -647,7 +666,7 @@ class Dialect
     public function having( $conditions )
     {
         if ( empty($conditions) ) return $this;
-        $conditions = is_string($conditions) ? $conditions : $this->conditions( $conditions );
+        $conditions = $this->conditions( $conditions );
         if ( isset($this->state['having']) ) $this->state['having'] = $this->tpl['having_']->render( array( 'having'=>$this->state['having'], 'conditions'=>$conditions ) );
         else $this->state['having'] = $this->tpl['having']->render( array( 'conditions'=>$conditions ) );
         return $this;
@@ -725,188 +744,204 @@ class Dialect
     
     public function conditions( $conditions )
     {
+        if ( empty($conditions) ) return '';
+        if ( is_string($conditions) ) return $conditions;
+        
         $condquery = '';
-        if ( !empty($conditions) )
+        $conds = array();
+        
+        foreach ($conditions as $field=>$value)
         {
-            $conds = array();
+            $field = $this->ref( $field );
             
-            foreach ($conditions as $field=>$value)
+            if ( is_array( $value ) )
             {
-                $field = $this->ref( $field );
+                $type = isset($value['type']) ? $value['type'] : 'string';
                 
-                if ( is_array( $value ) )
+                if ( isset($value['multi_like']) )
                 {
-                    $type = isset($value['type']) ? $value['type'] : 'string';
-                    
-                    if ( isset($value['multi_like']) )
-                    {
-                        $conds[] = $this->multi_like($field, $value['multi_like']);
-                    }
-                    elseif ( isset($value['like']) )
-                    {
-                        $conds[] = "$field LIKE " . ('raw' === $type ? $value['like'] : $this->like($value['like']));
-                    }
-                    elseif ( isset($value['not_like']) )
-                    {
-                        $conds[] = "$field NOT LIKE " . ('raw' === $type ? $value['not_like'] : $this->like($value['not_like']));
-                    }
-                    elseif ( isset($value['in']) )
-                    {
-                        $v = (array) $value['in'];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v[0]) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field IN (" . implode(',', $v) . ")";
-                    }
-                    elseif ( isset($value['not_in']) )
-                    {
-                        $v = (array) $value['not_in'];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v[0]) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field NOT IN (" . implode(',', $v) . ")";
-                    }
-                    elseif ( isset($value['between']) )
-                    {
-                        $v = (array) $value['between'];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field BETWEEN {$v[0]} AND {$v[1]}";
-                    }
-                    elseif ( isset($value['not_between']) )
-                    {
-                        $v = (array) $value['not_between'];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field < {$v[0]} OR $field > {$v[1]}";
-                    }
-                    elseif ( isset($value['gt']) || isset($value['gte']) )
-                    {
-                        $op = isset($value['gt']) ? "gt" : "gte";
-                        $v = $value[ $op ];
-                        
-                        if ( 'raw' === type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = $field . ('gt'===$op ? " > " : " >= ") . $v;
-                    }
-                    elseif ( isset($value['lt']) || isset($value['lte']) )
-                    {
-                        $op = isset($value['lt']) ? "lt" : "lte";
-                        $v = $value[ $op ];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = $field . ('lt'===$op ? " < " : " <= ") . $v;
-                    }
-                    elseif ( isset($value['not_equal']) || isset($value['not_eq']) )
-                    {
-                        $op = isset($value['not_eq']) ? "not_eq" : "not_equal";
-                        $v = $value[ $op ];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field <> $v";
-                    }
-                    elseif ( isset($value['equal']) || isset($value['eq']) )
-                    {
-                        $op = isset($value['eq']) ? "eq" : "equal";
-                        $v = $value[ $op ];
-                        
-                        if ( 'raw' === $type )
-                        {
-                            // raw, do nothing
-                        }
-                        elseif ( 'integer' === $type || is_int($v) )
-                        {
-                            $v = $this->intval( $v );
-                        }
-                        else
-                        {
-                            $v = $this->quote( $v );
-                        }
-                        $conds[] = "$field = $v";
-                    }
+                    $conds[] = $this->multi_like($field, $value['multi_like']);
                 }
-                else
+                elseif ( isset($value['like']) )
                 {
-                    $conds[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+                    $conds[] = "$field LIKE " . ('raw' === $type ? $value['like'] : $this->like($value['like']));
+                }
+                elseif ( isset($value['not_like']) )
+                {
+                    $conds[] = "$field NOT LIKE " . ('raw' === $type ? $value['not_like'] : $this->like($value['not_like']));
+                }
+                elseif ( isset($value['in']) )
+                {
+                    $v = (array) $value['in'];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v[0]) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field IN (" . implode(',', $v) . ")";
+                }
+                elseif ( isset($value['not_in']) )
+                {
+                    $v = (array) $value['not_in'];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v[0]) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field NOT IN (" . implode(',', $v) . ")";
+                }
+                elseif ( isset($value['between']) )
+                {
+                    $v = (array) $value['between'];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field BETWEEN {$v[0]} AND {$v[1]}";
+                }
+                elseif ( isset($value['not_between']) )
+                {
+                    $v = (array) $value['not_between'];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field < {$v[0]} OR $field > {$v[1]}";
+                }
+                elseif ( isset($value['gt']) || isset($value['gte']) )
+                {
+                    $op = isset($value['gt']) ? "gt" : "gte";
+                    $v = $value[ $op ];
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    elseif ( 'field' === $type )
+                    {
+                        $v = $this->ref( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = $field . ('gt'===$op ? " > " : " >= ") . $v;
+                }
+                elseif ( isset($value['lt']) || isset($value['lte']) )
+                {
+                    $op = isset($value['lt']) ? "lt" : "lte";
+                    $v = $value[ $op ];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    elseif ( 'field' === $type )
+                    {
+                        $v = $this->ref( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = $field . ('lt'===$op ? " < " : " <= ") . $v;
+                }
+                elseif ( isset($value['not_equal']) || isset($value['not_eq']) )
+                {
+                    $op = isset($value['not_eq']) ? "not_eq" : "not_equal";
+                    $v = $value[ $op ];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    elseif ( 'field' === $type )
+                    {
+                        $v = $this->ref( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field <> $v";
+                }
+                elseif ( isset($value['equal']) || isset($value['eq']) )
+                {
+                    $op = isset($value['eq']) ? "eq" : "equal";
+                    $v = $value[ $op ];
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    elseif ( 'integer' === $type || is_int($v) )
+                    {
+                        $v = $this->intval( $v );
+                    }
+                    elseif ( 'field' === $type )
+                    {
+                        $v = $this->ref( $v );
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = "$field = $v";
                 }
             }
-            
-            if ( !empty($conds) ) $condquery = '(' . implode(') AND (', $conds) . ')';
+            else
+            {
+                $conds[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+            }
         }
+        
+        if ( !empty($conds) ) $condquery = '(' . implode(') AND (', $conds) . ')';
         return $condquery;
     }
     
