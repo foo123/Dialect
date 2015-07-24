@@ -40,11 +40,26 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toStri
     is_string = function( o ){ return "string" === typeof o; },
     is_array = function( o ){ return o instanceof Array || '[object Array]' === toString.call(o); },
     is_obj = function( o ){ return o instanceof Object || '[object Object]' === toString.call(o); },
+    is_string_or_array = function( o ){ 
+        var to_string = toString.call(o);
+        return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string); 
+    },
     empty = function( o ){ 
         if ( !o ) return true;
         var to_string = toString.call(o);
         return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length;
     },
+    /*clone = function( o ){ 
+        var cloned = { }, k, v;
+        for (k in o)
+        {
+            if ( !o[HAS](k) ) continue;
+            v = o[k];
+            if ( is_string_or_array( v ) ) cloned[k] = v.slice();
+            else cloned[k] = v;
+        }
+        return cloned;
+    },*/
     array = function( o ){ return is_array( o ) ? o : [o]; },
     SPACE_RE = /^\s+|\s+$/g,
     trim = String[PROTO].trim
@@ -394,11 +409,11 @@ var dialect = {
     ,'join'     : '$(join_type)JOIN $(join_clause)'
     ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
     ,'where'    : 'WHERE $(conditions)'
-    ,'where_'   : '$(where) AND $(conditions)'
+    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
     ,'group'    : 'GROUP BY $(field) $(dir)'
     ,'group_'   : '$(group),$(field) $(dir)'
     ,'having'   : 'HAVING $(conditions)'
-    ,'having_'  : '$(having) AND $(conditions)'
+    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
     ,'order'    : 'ORDER BY $(field) $(dir)'
     ,'order_'   : '$(order),$(field) $(dir)'
     ,'limit'    : 'LIMIT $(offset),$(count)'
@@ -435,11 +450,11 @@ var dialect = {
     ,'join'     : '$(join_type)JOIN $(join_clause)'
     ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
     ,'where'    : 'WHERE $(conditions)'
-    ,'where_'   : '$(where) AND $(conditions)'
+    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
     ,'group'    : 'GROUP BY $(field) $(dir)'
     ,'group_'   : '$(group),$(field) $(dir)'
     ,'having'   : 'HAVING $(conditions)'
-    ,'having_'  : '$(having) AND $(conditions)'
+    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
     ,'order'    : 'ORDER BY $(field) $(dir)'
     ,'order_'   : '$(order),$(field) $(dir)'
     ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
@@ -474,10 +489,7 @@ Dialect = function Dialect( type ) {
 Dialect.VERSION = "0.1";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
-Dialect.Tpl = function( tpl, reps, compiled ) {
-    if ( tpl instanceof Tpl ) return tpl;
-    return new Tpl( tpl, reps, compiled );
-};
+Dialect.Tpl = Tpl;
 Dialect[PROTO] = {
     constructor: Dialect
     
@@ -849,12 +861,14 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,where: function( conditions ) {
+    ,where: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
+        boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
+        if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions );
-        if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, conditions:conditions } );
-        else self.state.where = self.tpl.where.render( { conditions:conditions } );
+        if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, boolean_connective:boolean_connective, conditions:conditions } );
+        else self.state.where = self.tpl.where.render( { boolean_connective:boolean_connective, conditions:conditions } );
         return self;
     }
     
@@ -868,12 +882,14 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,having: function( conditions ) {
+    ,having: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
+        boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
+        if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions );
-        if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, conditions:conditions } );
-        else self.state.having = self.tpl.having.render( { conditions:conditions } );
+        if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, boolean_connective:boolean_connective, conditions:conditions } );
+        else self.state.having = self.tpl.having.render( { boolean_connective:boolean_connective, conditions:conditions } );
         return self;
     }
     
@@ -1186,13 +1202,14 @@ Dialect[PROTO] = {
         }
         else
         {
-            for (i=0,l=filter.length; i<l; i++)
+            filtered = { };
+            for (field in data)
             {
-                field = filter[i];
-                if ( data[HAS](field) ) 
-                    delete data[field];
+                if ( !data[HAS](field) ) continue;
+                if ( 0 > filter.indexOf( field ) ) 
+                    filtered[field] = data[field];
             }
-            return data;
+            return filtered;
         }
     }
     

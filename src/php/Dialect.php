@@ -211,11 +211,11 @@ class Dialect
         ,'join'     => '$(join_type)JOIN $(join_clause)'
         ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
         ,'where'    => 'WHERE $(conditions)'
-        ,'where_'   => '$(where) AND $(conditions)'
+        ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
         ,'group'    => 'GROUP BY $(field) $(dir)'
         ,'group_'   => '$(group),$(field) $(dir)'
         ,'having'   => 'HAVING $(conditions)'
-        ,'having_'  => '$(having) AND $(conditions)'
+        ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
         ,'order'    => 'ORDER BY $(field) $(dir)'
         ,'order_'   => '$(order),$(field) $(dir)'
         ,'limit'    => 'LIMIT $(offset),$(count)'
@@ -252,11 +252,11 @@ class Dialect
         ,'join'     => '$(join_type)JOIN $(join_clause)'
         ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
         ,'where'    => 'WHERE $(conditions)'
-        ,'where_'   => '$(where) AND $(conditions)'
+        ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
         ,'group'    => 'GROUP BY $(field) $(dir)'
         ,'group_'   => '$(group),$(field) $(dir)'
         ,'having'   => 'HAVING $(conditions)'
-        ,'having_'  => '$(having) AND $(conditions)'
+        ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
         ,'order'    => 'ORDER BY $(field) $(dir)'
         ,'order_'   => '$(order),$(field) $(dir)'
         ,'limit'    => 'LIMIT $(count) OFFSET $(offset)'
@@ -271,12 +271,6 @@ class Dialect
     )
     */
     );
-    
-    public static function Tpl( $tpl, $reps=null, $compiled=false )
-    {
-        if ( $tpl instanceof DialectTpl ) return $tpl;
-        return new DialectTpl( $tpl, $reps, $compiled );
-    }
     
     private $clause = null;
     private $state = null;
@@ -659,12 +653,14 @@ class Dialect
         return $this;
     }
     
-    public function where( $conditions )
+    public function where( $conditions, $boolean_connective="AND" )
     {
         if ( empty($conditions) ) return $this;
+        $boolean_connective = strtoupper($boolean_connective);
+        if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
         $conditions = $this->conditions( $conditions );
-        if ( isset($this->state['where']) ) $this->state['where'] = $this->tpl['where_']->render( array( 'where'=>$this->state['where'], 'conditions'=>$conditions ) );
-        else $this->state['where'] = $this->tpl['where']->render( array( 'conditions'=>$conditions ) );
+        if ( isset($this->state['where']) ) $this->state['where'] = $this->tpl['where_']->render( array( 'where'=>$this->state['where'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        else $this->state['where'] = $this->tpl['where']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
         return $this;
     }
     
@@ -678,12 +674,14 @@ class Dialect
         return $this;
     }
     
-    public function having( $conditions )
+    public function having( $conditions, $boolean_connective="AND" )
     {
         if ( empty($conditions) ) return $this;
+        $boolean_connective = strtoupper($boolean_connective);
+        if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
         $conditions = $this->conditions( $conditions );
-        if ( isset($this->state['having']) ) $this->state['having'] = $this->tpl['having_']->render( array( 'having'=>$this->state['having'], 'conditions'=>$conditions ) );
-        else $this->state['having'] = $this->tpl['having']->render( array( 'conditions'=>$conditions ) );
+        if ( isset($this->state['having']) ) $this->state['having'] = $this->tpl['having_']->render( array( 'having'=>$this->state['having'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        else $this->state['having'] = $this->tpl['having']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
         return $this;
     }
     
@@ -985,12 +983,13 @@ class Dialect
         }
         else
         {
-            foreach((array)$filter as $field)
+            $filtered = array( );
+            foreach($data as $field=>$v)
             {
-                if ( isset($data[$field]) ) 
-                    unset($data[$field]);
+                if ( !in_array($field, $filter) ) 
+                    $filtered[$field] = $v;
             }
-            return $data;
+            return $filtered;
         }
     }
     
