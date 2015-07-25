@@ -1254,7 +1254,7 @@ Dialect[PROTO] = {
         var self = this, qn = self.qn;
         if ( is_array( f ) )
             return f.map(function( f ){return qn + f + qn;});
-        return qn + f + qn;
+        return '*' !== f ? qn + f + qn : f;
     }
     
     ,quote: function( v ) {

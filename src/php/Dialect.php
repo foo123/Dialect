@@ -1033,7 +1033,7 @@ class Dialect
     {
         if ( is_array( $f ) )
             return array_map( array($this, 'quote_name'), $f );
-        return $this->qn . $f . $this->qn;
+        return '*' !== $f ? $this->qn . $f . $this->qn : $f;
     }
     
     public function quote( $v )
