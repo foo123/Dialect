@@ -9,7 +9,7 @@
 #   Support multiple DB vendors
 #   Intuitive and Flexible API
 ##
-import re, math
+import re, math, copy
 
 NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
 SQUOTE = re.compile(r"'")
@@ -115,6 +115,36 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
     
     # return the compiled function object
     return fct
+
+def is_int( v ):
+    return isinstance(v, int)
+
+def is_string( v ):
+    return isinstance(v, str)
+
+def is_obj( v ):
+    return isinstance(v, dict)
+
+def is_array( v ):
+    return isinstance(v, (list,tuple))
+    
+def array( v ):
+    return v if isinstance(v, list) else [v]
+
+def empty( v ):
+    return v == None or (isinstance(v, (list,str,dict)) and 0 == len(v))
+
+def addslashes( s ):
+    esc = ["\\",'"',"'","\0"]
+    s2 = ''
+    for ch in s: s2 += '\\'+ch if ch in esc else ch
+    return s2
+
+def addslashes_like( s ):
+    esc = ["_","%","\\"]
+    s2 = ''
+    for ch in s: s2 += '\\'+ch if ch in esc else ch
+    return s2
 
 
 class Tpl:
@@ -270,7 +300,7 @@ class Dialect:
     
     VERSION = '0.1'
     
-    TPL_RE = re.compile(r'/\$\(([^\)]+)\)')
+    TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
 
     dialect = {
@@ -346,8 +376,8 @@ class Dialect:
         self.qn = None
         self._views = None
         return self
-    
-	def __str__( self ):
+
+    def __str__( self ):
         sql = self.sql( )
         return sql if sql else ''
     
@@ -374,7 +404,7 @@ class Dialect:
             # continuation clause if exists, ..
             c = clause + '_';
             if (c in self.tpl) and not isinstance(self.tpl[ c ], Tpl):
-                self.tpl[ c ] = new Tpl( self.tpl[ c ], Dialect.TPL_RE )
+                self.tpl[ c ] = Tpl( self.tpl[ c ], Dialect.TPL_RE )
         return self
     
     def clear( self ):
@@ -397,41 +427,44 @@ class Dialect:
     def prepare( self, query, args, left='%', right='%' ):
         if query and args:
             # custom delimiters
-            left = re.escape( left )
-            right = re.escape( right )
+            left = re.escape( left ) if left else '%'
+            right = re.escape( right ) if right else '%'
             
             # custom prepared parameter format
-            pattern = RE(left + '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' + right)
+            pattern = re.compile(left + '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' + right)
             prepared = ''
-            while query.length && (m = query.match( pattern )):
-                pos = m.index;
-                len = m[0].length;
-                param = m[2];
-                if args[HAS](param):
-                    type = m[1];
-                    switch( type )
-                    {
-                        # array of references, e.g fields
-                        case 'af': param = self.ref( array(args[param]) ).join(','); break;
-                        # array of integers param
-                        case 'ad': param = '(' + self.intval( array(args[param]) ).join(',') + ')'; break;
-                        # array of strings param
-                        case 'as': param = '(' + self.quote( array(args[param]) ).join(',') + ')'; break;
-                        # reference, e.g field
-                        case 'f': param = self.ref( args[param] ); break;
-                        # like param
-                        case 'l': param = self.like( args[param] ); break;
-                        # raw param
-                        case 'r': param = args[param]; break;
-                        # integer param
-                        case 'd': param = self.intval( args[param] ); break;
-                        # string param
-                        case 's': default: param = self.quote( args[param] ); break;
-                    }
-                    prepared += query.slice(0, pos) + param;
+            m = pattern.search( query )
+            while m:
+                pos = m.start(0)
+                le = len(m.group(0))
+                param = m.group(2)
+                if param in args:
+                    type = m.group(1)
+                    
+                    # array of references, e.g fields
+                    if 'af'==type: param = ','.join(self.ref( array(args[param]) ))
+                    # array of integers param
+                    elif 'ad'==type: param = '(' + ','.join(self.intval2str( array(args[param]) )) + ')'
+                    # array of strings param
+                    elif 'as'==type: param = '(' + ','.join(self.quote( array(args[param]) )) + ')'
+                    # reference, e.g field
+                    elif 'f'==type: param = self.ref( args[param] )
+                    # like param
+                    elif 'l'==type: param = self.like( args[param] )
+                    # raw param
+                    elif 'r'==type: param = args[param]
+                    # integer param
+                    elif 'd'==type: param = self.intval2str( args[param] )
+                    # string param
+                    #elif 's'==type: 
+                    else: param = self.quote( args[param] )
+                    
+                    prepared += query[0:pos] + param
                 else:
-                    prepared += query.slice(0, pos) + self.quote('');
-                query = query.slice( pos+len );
+                    prepared += query[0:pos] + self.quote('')
+                query = query[pos+le:]
+                m = pattern.search( query )
+            
             if len(query): prepared += query
             return prepared
 
@@ -450,648 +483,467 @@ class Dialect:
     
     def select( self, fields='*', format=True ):
         self.reset('select')
-        format = False is not format
+        format = format is not False
         if not fields or not len(fields) or '*' == fields: fields = self.quote_name('*')
-        elif format: fields = ','.join( self.ref( list( fields ) ) )
-        else: fields = ','.join( list( fields ) )
+        elif format: fields = ','.join( self.ref( array( fields ) ) )
+        else: fields = ','.join( array( fields ) )
         self.state['select'] = self.tpl['select'].render( { 'fields':fields } )
         return self
     
     def insert( self, tables, fields, format=True ):
         self.reset('insert');
-        format = False is not format
-        maybe_view = is_array( tables ) ? tables[0] : tables
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
-        {
+        format = format is not False
+        maybe_view = tables[0] if is_array( tables ) else tables
+        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
             # using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
-        }
-        else
-        {
-            if ( format )
-            {
-                tables = self.ref( array( tables ) ).join(',');
-                fields = self.ref( array( fields ) ).join(',');
-            }
-            else
-            {
-                tables = array( tables ).join(',');
-                fields = array( fields ).join(',');
-            }
-            self.state.insert = self.tpl.insert.render( { tables:tables, fields:fields } );
-        }
+            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+        else:
+            if format:
+                tables = ','.join( self.ref( array( tables ) ) )
+                fields = ','.join( self.ref( array( fields ) ) )
+            else:
+                tables = ','.join( array( tables ) )
+                fields = ','.join( array( fields ) )
+            self.state['insert'] = self.tpl['insert'].render( { 'tables':tables, 'fields':fields } )
         return self
     
     def values( self, values ):
-        var self = this, count, insert_values, vals, i, val, j, l, vs;
-        if ( empty(values) ) return self;
+        if empty(values): return self
         # array of arrays
-        if ( undef === values[0] || !is_array(values[0]) ) values = [values];
-        count = values.length;
-        insert_values = [];
-        for (i=0; i<count; i++)
-        {
-            vs = array( values[i] );
-            if ( vs.length )
-            {
-                vals = [];
-                for (j=0,l=vs.length; j<l; j++)
-                {
-                    val = vs[j];
-                    if ( is_obj(val) )
-                    {
-                        if ( val[HAS]('integer') )
-                        {
-                            vals.push( self.intval( val['integer'] ) );
-                        }
-                        else if ( val[HAS]('string') )
-                        {
-                            vals.push( self.quote( val['string'] ) );
-                        }
-                        else if ( val[HAS]('prepared') )
-                        {
-                            vals.push( val['prepared'] );
-                        }
-                    }
-                    else
-                    {
-                        vals.push( is_int(val) ? val : self.quote( val ) );
-                    }
-                }
-                insert_values.push( '(' + vals.join(',') + ')' );
-            }
-        }
-        insert_values = insert_values.join(',');
-        if ( self.state.values ) self.state.values = self.tpl.values_.render( { values:self.state.values, values_values:insert_values } );
-        else self.state.values = self.tpl.values.render( { values_values:insert_values } );
+        if not is_array(values) or not is_array(values[0]): values = [values]
+        insert_values = []
+        for vs in values:
+            vs = array( vs )
+            if len(vs):
+                vals = []
+                for val in vs:
+                    if is_obj( val ):
+                        if 'integer' in val:
+                            vals.append( self.intval2str( val['integer'] ) )
+                        elif 'raw' in val:
+                            vals.append( val['raw'] )
+                        elif 'string' in val:
+                            vals.append( self.quote( val['string'] ) )
+                    else:
+                        vals.append( str(val) if is_int(val) else self.quote( val ) )
+                insert_values.append( '(' + ','.join(vals) + ')' )
+        insert_values = ','.join(insert_values)
+        if 'values' in self.state: self.state['values'] = self.tpl['values_'].render( { 'values':self.state['values'], 'values_values':insert_values } )
+        else: self.state['values'] = self.tpl['values'].render( { 'values_values':insert_values } )
         return self
     
     def update( self, tables, format=True ):
-        var self = this, maybe_view;
         self.reset('update')
-        format = false !== format;
-        maybe_view = is_array( tables ) ? tables[0] : tables;
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
-        {
+        format = format is not False
+        maybe_view = tables[0] if is_array( tables ) else tables
+        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
             # using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
-        }
-        else
-        {
-            if ( format ) tables = self.ref( array( tables ) ).join(',');
-            else tables = array( tables ).join(',');
-            self.state.update = self.tpl.update.render( { tables:tables } );
-        }
+            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+        else:
+            if format: tables = ','.join(self.ref( array( tables ) ))
+            else: tables = array( tables ).join(',');
+            self.state['update'] = self.tpl['update'].render( { 'tables':tables } )
         return self
     
     def set( self, fields_values ):
-        var self = this, set_values, field, value;
-        if ( empty(fields_values) ) return self;
-        set_values = [];
-        for (field in fields_values)
-        {
-            if ( !fields_values[HAS](field) ) continue;
-            value = fields_values[field];
-            field = self.ref( field );
+        if empty(fields_values): return self
+        set_values = []
+        for field in fields_values:
+            value = fields_values[field]
+            field = self.ref( field )
             
-            if ( is_obj(value) )
-            {
-                if ( value[HAS]('integer') )
-                {
-                    set_values.push( field + " = " + self.intval(value['integer']) );
-                }
-                else if ( value[HAS]('string') )
-                {
-                    set_values.push( field + " = " + self.quote(value['string']) );
-                }
-                else if ( value[HAS]('prepared') )
-                {
-                    set_values.push( field + " = " + value['prepared'] );
-                }
-                else if ( value[HAS]('increment') )
-                {
-                    set_values.push( field + " = " + field + " + " + self.intval(value['increment']) );
-                }
-                else if ( value[HAS]('decrement') )
-                {
-                    set_values.push( field + " = " + field + " - " + self.intval(value['increment']) );
-                }
-            }
-            else
-            {
-                set_values.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
-            }
-        }
-        set_values = set_values.join(',');
-        if ( self.state.set ) self.state.set = self.tpl.set_.render( { set:self.state.set, set_values:set_values } );
-        else self.state.set = self.tpl.set.render( { set_values:set_values } );
+            if is_obj(value):
+                if 'integer' in value:
+                    set_values.append( field + " = " + self.intval2str(value['integer']) )
+                elif 'raw' in value:
+                    set_values.append( field + " = " + value['raw'] )
+                elif 'string' in value:
+                    set_values.append( field + " = " + self.quote(value['string']) )
+                elif 'increment' in value:
+                    set_values.append( field + " = " + field + " + " + self.intval2str(value['increment']) )
+                elif 'decrement' in value:
+                    set_values.append( field + " = " + field + " - " + self.intval2str(value['increment']) )
+            else:
+                set_values.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
+        set_values = ','.join(set_values)
+        if 'set' in self.state: self.state['set'] = self.tpl['set_'].render( { 'set':self.state['set'], 'set_values':set_values } )
+        else: self.state['set'] = self.tpl['set'].render( { 'set_values':set_values } )
         return self
     
     def delete( self ):
-        self.reset('delete');
+        self.reset('delete')
         self.state['delete'] = self.tpl['delete'].render( {} )
         return self
     
-    def from( self, tables, format ):
-        if ( empty(tables) ) return self;
-        format = false !== format;
-        maybe_view = is_array( tables ) ? tables[0] : tables;
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
-        {
-            // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
-        }
-        else
-        {
-            if ( format ) tables = self.ref( array( tables ) ).join(',');
-            else tables = array( tables ).join(',');
-            if ( self.state.from ) self.state.from = self.tpl.from_.render( { from:self.state.from, tables:tables } );
-            else self.state.from = self.tpl.from.render( { tables:tables } );
-        }
+    def fromTbl( self, tables, format=True ):
+        if empty(tables): return self
+        format = format is not False
+        maybe_view = tables[0] if is_array( tables ) else tables
+        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
+            # using custom 'soft' view
+            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+        else:
+            if format: tables = ','.join(self.ref( array( tables ) ))
+            else: tables = ','.join(array( tables ))
+            if 'from' in self.state: self.state['from'] = self.tpl['from_'].render( { 'from':self.state['from'], 'tables':tables } )
+            else: self.state['from'] = self.tpl['from'].render( { 'tables':tables } )
         return self
     
     def join( self, table, on_cond=None, join_type='' ):
-        var self = this, join_clause, field, cond;
-        table = self.ref( table );
-        if ( empty(on_cond) )
-        {
-            join_clause = table;
-        }
-        else
-        {
-            if ( is_string(on_cond) )
-            {
-                on_cond = '(' + self.ref( on_cond.split('=') ).join( '=' ) + ')';
-            }
-            else
-            {
-                for (field in on_cond)
-                {
-                    if ( !on_cond[HAS](field) ) continue;
-                    cond = on_cond[ field ];
-                    if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'field'};
-                }
-                on_cond = self.conditions( on_cond );
-            }
-            join_clause = table + " ON " + on_cond;
-        }
-        join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
-        if ( self.state.join ) self.state.join = self.tpl.join_.render( { join:self.state.join, join_clause:join_clause, join_type:join_type } );
-        else self.state.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
+        table = self.ref( table )
+        if empty(on_cond):
+            join_clause = table
+        else:
+            if is_string(on_cond):
+                on_cond = '(' + '='.join(self.ref( on_cond.split('=') )) + ')'
+            else:
+                for field in on_cond:
+                    cond = on_cond[ field ]
+                    if not is_obj(cond): on_cond[field] = {'eq':cond,'type':'field'}
+                on_cond = self.conditions( on_cond )
+            join_clause = table + " ON " + on_cond
+        join_type = "" if empty(join_type) else (join_type.upper() + " ")
+        if 'join' in self.state: self.state['join'] = self.tpl['join_'].render( { 'join':self.state['join'], 'join_clause':join_clause, 'join_type':join_type } )
+        else: self.state['join'] = self.tpl['join'].render( { 'join_clause':join_clause, 'join_type':join_type } )
         return self
     
     def where( self, conditions, boolean_connective="and" ):
-        var self = this;
-        if ( empty(conditions) ) return self;
-        boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
-        if ( "OR" !== boolean_connective ) boolean_connective = "AND";
-        conditions = self.conditions( conditions );
-        if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.state.where = self.tpl.where.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        if empty(conditions): return self
+        boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
+        if "OR" != boolean_connective: boolean_connective = "AND"
+        conditions = self.conditions( conditions )
+        if 'where' in self.state: self.state['where'] = self.tpl['where_'].render( { 'where':self.state['where'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        else: self.state['where'] = self.tpl['where'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
         return self
     
     def group( self, field, dir="asc" ):
-        dir = dir ? dir.toUpperCase() : "ASC";
-        if ( "DESC" !== dir ) dir = "ASC";
-        field = self.ref( field );
-        if ( self.state.group ) self.state.group = self.tpl.group_.render( { group:self.state.group, field:field, dir:dir } );
-        else self.state.group = self.tpl.group.render( { field:field, dir:dir } );
+        dir = dir.upper() if dir else "ASC"
+        if "DESC" != dir: dir = "ASC"
+        field = self.ref( field )
+        if 'group' in self.state: self.state['group'] = self.tpl['group_'].render( { 'group':self.state['group'], 'field':field, 'dir':dir } )
+        else: self.state['group'] = self.tpl['group'].render( { 'field':field, 'dir':dir } )
         return self
     
     def having( self, conditions, boolean_connective="and" ):
-        if ( empty(conditions) ) return self;
-        boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
-        if ( "OR" !== boolean_connective ) boolean_connective = "AND";
-        conditions = self.conditions( conditions );
-        if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.state.having = self.tpl.having.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        if empty(conditions): return self
+        boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
+        if "OR" != boolean_connective: boolean_connective = "AND"
+        conditions = self.conditions( conditions )
+        if 'having' in self.state: self.state['having'] = self.tpl['having_'].render( { 'having':self.state['having'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        else: self.state['having'] = self.tpl['having'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
         return self
     
     def order( self, field, dir="asc" ):
-        dir = dir ? dir.toUpperCase() : "ASC";
-        if ( "DESC" !== dir ) dir = "ASC";
-        field = self.ref( field );
-        if ( self.state.order ) self.state.order = self.tpl.order_.render( { order:self.state.order, field:field, dir:dir } );
-        else self.state.order = self.tpl.order.render( { field:field, dir:dir } );
+        dir = dir.upper() if dir else "ASC"
+        if "DESC" != dir: dir = "ASC"
+        field = self.ref( field )
+        if 'order' in self.state: self.state['order'] = self.tpl['order_'].render( { 'order':self.state['order'], 'field':field, 'dir':dir } )
+        else: self.state['order'] = self.tpl['order'].render( { 'field':field, 'dir':dir } )
         return self
     
     def limit( self, count, offset=0 ):
-        var self = this;
-        count = parseInt(count,10); offset = parseInt(offset||0,10);
-        self.state.limit = self.tpl.limit.render( { offset:offset, count:count } );
+        count = int(count,10) if is_string(count) else count
+        offset = int(offset,10) if is_string(offset) else offset
+        self.state['limit'] = self.tpl['limit'].render( { 'offset':offset, 'count':count } )
         return self
     
     def page( self, page, perpage ):
-        var self = this;
-        page = parseInt(page,10); perpage = parseInt(perpage,10);
+        page = int(page,10) if is_string(page) else page
+        perpage = int(perpage,10) if is_string(perpage) else perpage
         return self.limit( perpage, page*perpage )
     
     def join_conditions( self, join, conditions ):
-        var self = this, j = 0, field, cond, field_raw, where,
-            main_table, main_id, join_table, join_id, join_alias,
-            join_key, join_value;
-        for ( field in conditions )
-        {
-            if ( !conditions[HAS](field) ) continue;
+        j = 0
+        conditions_copied = copy.copy(conditions)
+        for field in conditions_copied:
             
-            field_raw = self.fld( field );
-            if ( join[HAS](field_raw) )
-            {
-                cond = conditions[ field ];
-                main_table = join[field_raw].table;
-                main_id = join[field_raw].id;
-                join_table = join[field_raw].join;
-                join_id = join[field_raw].join_id;
+            field_raw = self.fld( field )
+            if field_raw in join:
+                cond = conditions[ field ]
+                main_table = join[field_raw]['table']
+                main_id = join[field_raw]['id']
+                join_table = join[field_raw]['join']
+                join_id = join[field_raw]['join_id']
                 
-                j++; join_alias = join_table+j;
+                j += 1
+                join_alias = join_table+str(j)
                 
-                where = { };
-                if ( join[field_raw][HAS]('key') && field_raw !== join[field_raw].key )
-                {
-                    join_key = join[field_raw].key;
-                    where[join_alias+'.'+join_key] = field_raw;
-                }
-                else
-                {
-                    join_key = field_raw;
-                }
-                if ( join[field_raw][HAS]('value') )
-                {
-                    join_value = join[field_raw].value;
-                    where[join_alias+'.'+join_value] = cond;
-                }
-                else
-                {
-                    join_value = join_key;
-                    where[join_alias+'.'+join_value] = cond;
-                }
+                where = { }
+                if ('key' in join[field_raw]) and field_raw != join[field_raw]['key']:
+                    join_key = join[field_raw]['key']
+                    where[join_alias+'.'+join_key] = field_raw
+                else:
+                    join_key = field_raw
+                if 'value' in join[field_raw]:
+                    join_value = join[field_raw]['value']
+                    where[join_alias+'.'+join_value] = cond
+                else:
+                    join_value = join_key
+                    where[join_alias+'.'+join_value] = cond
                 self.join(
                     join_table+" AS "+join_alias, 
                     main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
                     "inner"
-                ).where( where );
+                ).where( where )
                 
-                delete conditions[field];
-           }
-        }
+                del conditions[field]
         return self
     
     def conditions( self, conditions ):
-        var self = this, condquery, conds, field, value, op, type, v;
-        if ( empty(conditions) ) return '';
-        if ( is_string(conditions) ) return conditions;
+        if empty(conditions): return ''
+        if is_string(conditions): return conditions
         
-        condquery = '';
-        conds = [];
+        condquery = ''
+        conds = []
         
-        for ( field in conditions)
-        {
-            if ( !conditions[HAS](field) ) continue;
+        for field in conditions:
             
-            value = conditions[field];
-            field = self.ref( field );
+            value = conditions[field]
+            field = self.ref( field )
             
-            if ( is_obj( value ) )
-            {
-                type = value[HAS]('type') ? value.type : 'string';
+            if is_obj( value ):
+                type = value['type'] if 'type' in value else 'string'
                 
-                if ( value[HAS]('multi_like') )
-                {
-                    conds.push( self.multi_like(field, value.multi_like) );
-                }
-                else if ( value[HAS]('like') )
-                {
-                    conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
-                }
-                else if ( value[HAS]('not_like') )
-                {
-                    conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
-                }
-                else if ( value[HAS]('in') )
-                {
-                    v = array( value['in'] );
+                if 'multi_like' in value:
+                    conds.append( self.multi_like(field, value['multi_like']) )
+                elif 'like' in value:
+                    conds.append( field + " LIKE " + (str(value['like']) if 'raw' == type else self.like(value['like'])) )
+                elif 'not_like' in value:
+                    conds.append( field + " NOT LIKE " + (str(value['not_like']) if 'raw' == type else self.like(value['not_like'])) )
+                elif 'in' in value:
+                    v = array( value['in'] )
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v[0]) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " IN (" + v.join(',') + ")" );
-                }
-                else if ( value[HAS]('not_in') )
-                {
-                    v = array( value['not_in'] );
+                        pass
+                    elif 'integer' == type or is_int(v[0]):
+                        v = self.intval2str( v );
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " IN (" + ','.join(v) + ")" )
+                elif 'not_in' in value:
+                    v = array( value['not_in'] )
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v[0]) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " NOT IN (" + v.join(',') + ")" );
-                }
-                else if ( value[HAS]('between') )
-                {
-                    v = array( value.between );
+                        pass
+                    elif 'integer' == type or is_int(v[0]):
+                        v = self.intval2str( v );
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " NOT IN (" + ','.join(v) + ")" )
+                elif 'between' in value:
+                    v = array( value['between'] )
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
-                }
-                else if ( value[HAS]('not_between') )
-                {
-                    v = array( value.not_between );
+                        pass
+                    elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
+                        v = self.intval( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]) )
+                elif 'not_between' in value:
+                    v = array( value['not_between'] )
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
-                }
-                else if ( value[HAS]('gt') || value[HAS]('gte') )
-                {
-                    op = value[HAS]('gt') ? "gt" : "gte";
-                    v = value[ op ];
+                        pass
+                    elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
+                        v = self.intval( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " < " + str(v[0]) + " OR " + field + " > " + str(v[1]) )
+                elif ('gt' in value) or ('gte' in value):
+                    op = 'gt' if 'gt' in value else "gte"
+                    v = value[ op ]
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else if ( 'field' === type )
-                    {
-                        v = self.ref( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + ('gt'===op ? " > " : " >= ") + v );
-                }
-                else if ( value[HAS]('lt') || value[HAS]('lte') )
-                {
-                    op = value[HAS]('lt') ? "lt" : "lte";
-                    v = value[ op ];
+                        pass
+                    elif 'integer' == type or is_int(v):
+                        v = self.intval( v )
+                    elif 'field' == type:
+                        v = self.ref( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + (" > " if 'gt'==op else " >= ") + str(v) )
+                elif ('lt' in value) or ('lte' in value):
+                    op = 'lt' if 'lt' in value else "lte"
+                    v = value[ op ]
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else if ( 'field' === type )
-                    {
-                        v = self.ref( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + ('lt'===op ? " < " : " <= ") + v );
-                }
-                else if ( value[HAS]('not_equal') || value[HAS]('not_eq') )
-                {
-                    op = value[HAS]('not_eq') ? "not_eq" : "not_equal";
-                    v = value[ op ];
+                        pass
+                    elif 'integer' == type or is_int(v):
+                        v = self.intval( v )
+                    elif 'field' == type:
+                        v = self.ref( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + (" < " if 'lt'==op else " <= ") + str(v) )
+                elif ('not_equal' in value) or ('not_eq' in value):
+                    op = 'not_equal' if 'not_equal' in value else "not_eq"
+                    v = value[ op ]
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else if ( 'field' === type )
-                    {
-                        v = self.ref( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " <> " + v );
-                }
-                else if ( value[HAS]('equal') || value[HAS]('eq') )
-                {
-                    op = value[HAS]('eq') ? "eq" : "equal";
-                    v = value[ op ];
+                        pass
+                    elif 'integer' == type or is_int(v):
+                        v = self.intval( v )
+                    elif 'field' == type:
+                        v = self.ref( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " <> " + str(v) )
+                elif ('equal' in value) or ('eq' in value):
+                    op = 'equal' if 'equal' in value else "eq"
+                    v = value[ op ]
                     
-                    if ( 'raw' === type )
-                    {
+                    if 'raw' == type:
                         # raw, do nothing
-                    }
-                    else if ( 'integer' === type || is_int(v) )
-                    {
-                        v = self.intval( v );
-                    }
-                    else if ( 'field' === type )
-                    {
-                        v = self.ref( v );
-                    }
-                    else
-                    {
-                        v = self.quote( v );
-                    }
-                    conds.push( field + " = " + v );
-                }
-            }
-            else
-            {
-                conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
-            }
-        }
+                        pass
+                    elif 'integer' == type or is_int(v):
+                        v = self.intval( v )
+                    elif 'field' == type:
+                        v = self.ref( v )
+                    else:
+                        v = self.quote( v )
+                    conds.append( field + " = " + str(v) )
+            else:
+                conds.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
         
-        if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
+        if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
     
     def defaults( self, data, defaults, overwrite=False ):
-        overwrite = True is overwrite
-        for (k in defaults)
-        {
-            if ( !defaults[HAS](k) ) continue;
-            v = defaults[ k ];
-            if ( overwrite || !data[HAS](k) )
-                data[ k ] = v;
-        }
+        overwrite = overwrite is True
+        for k in defaults:
+            v = defaults[ k ]
+            if overwrite or not(k in data):
+                data[ k ] = v
         return data
     
     def filter( self, data, filter, positive=True ):
-        var filtered, i, l, field;
-        positive = False is not positive
-        if ( positive )
-        {
-            filtered = { };
-            for (i=0,l=filter.length; i<l; i++)
-            {
-                field = filter[i];
-                if ( data[HAS](field) ) 
-                    filtered[field] = data[field];
-            }
-            return filtered;
-        }
-        else
-        {
-            filtered = { };
-            for (field in data)
-            {
-                if ( !data[HAS](field) ) continue;
-                if ( 0 > filter.indexOf( field ) ) 
-                    filtered[field] = data[field];
-            }
-            return filtered;
-        }
+        positive = positive is not False
+        if positive:
+            filtered = { }
+            for field in filter:
+                if field in data:
+                    filtered[field] = data[field]
+            return filtered
+        else:
+            filtered = { }
+            for field in data:
+                if field not in filter:
+                    filtered[field] = data[field]
+            return filtered
     
     def tbl( self, table ):
-        var self = this, prefix = self.prefix;
-        if ( is_array( table ) )
-            return table.map(function( table ){return prefix+table;});
+        prefix = self.prefix
+        if is_array( table ):
+            return list(map(lambda table: prefix+table, table))
         return prefix+table
     
     def fld( self, field ):
-        var self = this;
-        if ( is_array( field ) )
-            return field.map(function( field ){return field.split('.').pop( );});
+        if is_array( field ):
+            return list(map(lambda field: field.split('.').pop( ), field))
         return field.split('.').pop( )
     
     def ref( self, refs ):
-        var self = this, i, l, ref, j, m;
-        if ( is_array(refs) ) return refs.map(function( ref ){ return self.ref( ref ); });
-        refs = refs.split( ',' ).map( trim );
-        for (i=0,l=refs.length; i<l; i++)
-        {
-            ref = refs[ i ].split( 'AS' ).map( trim );
-            for (j=0,m=ref.length; j<m; j++)
-            {
-                ref[ j ] = self.quote_name( ref[ j ].split( '.' ) ).join( '.' );
-            }
-            refs[ i ] = ref.join( ' AS ' );
-        }
-        return refs.join( ',' );
+        if is_array(refs): return list(map(lambda ref: self.ref( ref ), refs))
+        refs = list(map(lambda s: s.strip(), refs.split( ',' )))
+        for i in range(len(refs)):
+            ref = list(map(lambda s: s.strip(), refs[i].split( ' AS ' )))
+            for j in range(len(ref)):
+                ref[ j ] = '.'.join(self.quote_name( ref[ j ].split( '.' ) ))
+            refs[ i ] = ' AS '.join(ref)
+        return ','.join(refs)
     
     def intval( self, v ):
-        var self = this;
-        if ( is_array( v ) )
-            return v.map(function( v ){return parseInt( v, 10 );});
-        return parseInt( v, 10 )
+        if is_int( v ): return v
+        elif is_array( v ): return list(map(lambda v: self.intval( v ), v))
+        return int( v, 10 )
+    
+    def intval2str( self, v ):
+        v = self.intval( v )
+        if is_int( v ): return str(v)
+        elif is_array( v ): return list(map(lambda v: str( v ), v))
+        return v
     
     def quote_name( self, f ):
-        var self = this, qn = self.qn;
-        if ( is_array( f ) )
-            return f.map(function( f ){return qn + f + qn;});
-        return '*' !== f ? qn + f + qn : f
+        qn = self.qn
+        if is_array( f ):
+            return list(map(lambda f: f if '*' == f else qn + f + qn, f))
+        return f if '*' == f else qn + f + qn
     
     def quote( self, v ):
-        var self = this, q = self.q;
-        if ( is_array( v ) )
-            return v.map(function( v ){return q + self.esc( v ) + q;});
+        q = self.q
+        if is_array( v ):
+            return list(map(lambda v: q + self.esc( v ) + q, v))
         return q + self.esc( v ) + q
     
     def esc( self, v ):
-        var self = this;
-        if ( is_array( v ) )
-        {
-            if ( self.escdb ) 
-                return v.map( self.escdb );
-            else
-                return v.map(function( v ){return addslashes( v );});
-        }
-        if ( self.escdb ) 
-            return self.escdb( v );
-        else
+        if is_array( v ):
+            if self.escdb:
+                return list(map(self.escdb, v))
+            else:
+                return list(map(lambda v: addslashes( str(v) ), v))
+        if self.escdb:
+            escdb = self.escdb
+            return escdb( v )
+        else:
             # simple ecsaping using addslashes
             # '"\ and NUL (the NULL byte).
-            return addslashes( v );
+            return addslashes( str(v) )
     
     def esc_like( self, v ):
-        var self = this;
-        if ( is_array( v ) )
-            return v.map(function( v ){return addcslashes( v, '_%\\' );});
-        return addcslashes( v, '_%\\' )
+        if is_array( v ):
+            return list(map(lambda v: addslashes_like( str(v) ), v))
+        return addslashes_like( str(v) )
     
     def like( self, v ):
-        var self = this, q = self.q;
-        if ( is_array( v ) )
-            return v.map(function( v ){return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q;});
+        q = self.q
+        if is_array( v ):
+            return list(map(lambda v: q + '%' + self.esc( self.esc_like( v ) ) + '%' + q, v))
         return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q
     
     def multi_like( self, f, v, doTrim=True ):
-        var self = this, like, ORs, ANDs, i, l, j, m;
-        doTrim = false !== doTrim;
-        like = f + " LIKE ";
-        ORs = v.split(',');
-        if ( doTrim ) ORs = ORs.map( trim ).filter( Boolean );
-        for (i=0,l=ORs.length; i<l; i++)
-        {
-            ANDs = ORs[i].split('+');
-            if ( doTrim ) ANDs = ANDs.map( trim ).filter( Boolean );
-            for (j=0,m=ASNDs.length; j<m; j++)
-            {
-                ANDs[j] = like + self.like( ANDs[j] );
-            }
-            ORs[i] = '(' + ANDs.join(' AND ') + ')';
-        }
-        return ORs.join(' OR ')
+        doTrim = doTrim is not False
+        like = f + " LIKE "
+        ORs = v.split(',')
+        if doTrim: ORs = filter(len, list(map(lambda x: x.strip(), ORs)))
+        for i in range(len(ORs)):
+            ANDs = ORs[i].split('+')
+            if doTrim: ANDs = filter(len, list(map(lambda x: x.strip(), ANDs)))
+            for j in range(len(ANDs)):
+                ANDs[j] = like + self.like( ANDs[j] )
+            ORs[i] = '(' + ' AND '.join(ANDs) + ')'
+        return ' OR '.join(ORs)
     
     def year( self, field ):
-        if ( !(self.tpl.year instanceof Tpl) ) self.tpl.year = new Tpl( self.tpl.year, Dialect.TPL_RE );
-        return self.tpl.year.render( { field:field } )
+        if not isinstance(self.tpl['year'], Tpl): self.tpl['year'] = Tpl( self.tpl['year'], Dialect.TPL_RE )
+        return self.tpl['year'].render( { 'field':field } )
     
     def month( self, field ):
-        if ( !(self.tpl.month instanceof Tpl) ) self.tpl.month = new Tpl( self.tpl.month, Dialect.TPL_RE );
-        return self.tpl.month.render( { field:field } )
+        if not isinstance(self.tpl['month'], Tpl): self.tpl['month'] = Tpl( self.tpl['month'], Dialect.TPL_RE )
+        return self.tpl['month'].render( { 'field':field } )
     
     def day( self, field ):
-        if ( !(self.tpl.day instanceof Tpl) ) self.tpl.day = new Tpl( self.tpl.day, Dialect.TPL_RE );
-        return self.tpl.day.render( { field:field } )
+        if not isinstance(self.tpl['day'], Tpl): self.tpl['day'] = Tpl( self.tpl['day'], Dialect.TPL_RE )
+        return self.tpl['day'].render( { 'field':field } )
     
     def hour( self, field ):
-        if ( !(self.tpl.hour instanceof Tpl) ) self.tpl.hour = new Tpl( self.tpl.hour, Dialect.TPL_RE );
-        return self.tpl.hour.render( { field:field } )
+        if not isinstance(self.tpl['hour'], Tpl): self.tpl['hour'] = Tpl( self.tpl['hour'], Dialect.TPL_RE )
+        return self.tpl['hour'].render( { 'field':field } )
     
     def minute( self, field ):
-        if ( !(self.tpl.minute instanceof Tpl) ) self.tpl.minute = new Tpl( self.tpl.minute, Dialect.TPL_RE );
-        return self.tpl.minute.render( { field:field } )
+        if not isinstance(self.tpl['minute'], Tpl): self.tpl['minute'] = Tpl( self.tpl['minute'], Dialect.TPL_RE )
+        return self.tpl['minute'].render( { 'field':field } )
     
     def second( self, field ):
-        if ( !(self.tpl.second instanceof Tpl) ) self.tpl.second = new Tpl( self.tpl.second, Dialect.TPL_RE );
-        return self.tpl.second.render( { field:field } )
+        if not isinstance(self.tpl['second'], Tpl): self.tpl['second'] = Tpl( self.tpl['second'], Dialect.TPL_RE )
+        return self.tpl['second'].render( { 'field':field } )
         
 
 __all__ = ['Dialect']

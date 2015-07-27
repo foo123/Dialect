@@ -33,7 +33,7 @@ else if ( !(name in root) )
     /* module factory */        function( exports, undef ) {
 "use strict";
 
-var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toString,
+var PROTO = 'prototype', HAS = 'hasOwnProperty', Keys = Object.keys, toString = Object[PROTO].toString,
     F = function( a, c ){ return new Function(a, c); },
     RE = function( r, f ){ return new RegExp(r, f||''); },
     is_callable = function( o ){ return "function" === typeof o; },
@@ -47,7 +47,12 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toStri
     empty = function( o ){ 
         if ( !o ) return true;
         var to_string = toString.call(o);
-        return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length;
+        if ( (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length ) return true;
+        if ( (o instanceof Object || '[object Array]' === to_string) && !Keys(o).length ) return true;
+        return false;
+    },
+    is_int = function( mixed_var ) {
+        return mixed_var === +mixed_var && isFinite(mixed_var) && !(mixed_var % 1);
     },
     /*clone = function( o ){ 
         var cloned = { }, k, v;
@@ -67,169 +72,16 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toStri
         : function( s ){ return s.replace(SPACE_RE, ''); },
     ESCAPED_RE = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g,
     esc_re = function( s ) { return s.replace(ESCAPED_RE, "\\$&"); },
+    addslashes_re = /[\\"']/g, addslashes_null_re = /\u0000/g, addslashes_like_re = /[_%\\]/g,
+    addslashes = function( str ) {
+        return (str + '').replace(addslashes_re, '\\$&').replace(addslashes_null_re, '\\0');
+    },
+    addslashes_like = function( str ) {
+        return (str + '').replace(addslashes_like_re, '\\$&');
+    },
     Tpl, Dialect
 ;
 
-// adapted from phpjs
-function addcslashes( str, charlist )
-{
-    var target = '', chrs = [], i = 0, j = 0, c = '',  next = '',  rangeBegin = '',
-    rangeEnd = '',  chr = '',  begin = 0,  end = 0,  octalLength = 0,  postOctalPos = 0,
-    cca = 0, escHexGrp = [],  encoded = '', percentHex = /%([\dA-Fa-f]+)/g;
-    
-    var _pad = function (n, c) {
-        if ((n = n + '').length < c) {
-            return new Array(++c - n.length).join('0') + n;
-        }
-        return n;
-    };
-
-    for (i = 0; i < charlist.length; i++) 
-    {
-        c = charlist.charAt(i);
-        next = charlist.charAt(i + 1);
-        if (c === '\\' && next && (/\d/).test(next)) 
-        { 
-            // Octal
-            rangeBegin = charlist.slice(i + 1).match(/^\d+/)[0];
-            octalLength = rangeBegin.length;
-            postOctalPos = i + octalLength + 1;
-            if (charlist.charAt(postOctalPos) + charlist.charAt(postOctalPos + 1) === '..') 
-            { 
-                // Octal begins range
-                begin = rangeBegin.charCodeAt(0);
-                if ((/\\\d/).test(charlist.charAt(postOctalPos + 2) + charlist.charAt(postOctalPos + 3))) 
-                { 
-                    // Range ends with octal
-                    rangeEnd = charlist.slice(postOctalPos + 3).match(/^\d+/)[0];
-                    i += 1; // Skip range end backslash
-                } 
-                else if (charlist.charAt(postOctalPos + 2)) 
-                { 
-                    // Range ends with character
-                    rangeEnd = charlist.charAt(postOctalPos + 2);
-                } 
-                else 
-                {
-                    throw 'Range with no end point';
-                }
-                end = rangeEnd.charCodeAt(0);
-                if (end > begin) 
-                { 
-                    // Treat as a range
-                    for (j = begin; j <= end; j++) 
-                        chrs.push(String.fromCharCode(j));
-                } 
-                else 
-                { 
-                    // Supposed to treat period, begin and end as individual characters only, not a range
-                    chrs.push('.', rangeBegin, rangeEnd);
-                }
-                i += rangeEnd.length + 2; // Skip dots and range end (already skipped range end backslash if present)
-            } 
-            else 
-            { 
-                // Octal is by itself
-                chr = String.fromCharCode(parseInt(rangeBegin, 8));
-                chrs.push(chr);
-            }
-            i += octalLength; // Skip range begin
-        } 
-        else if (next + charlist.charAt(i + 2) === '..') 
-        { 
-            // Character begins range
-            rangeBegin = c;
-            begin = rangeBegin.charCodeAt(0);
-            if ((/\\\d/).test(charlist.charAt(i + 3) + charlist.charAt(i + 4))) 
-            { 
-                // Range ends with octal
-                rangeEnd = charlist.slice(i + 4).match(/^\d+/)[0];
-                i += 1; // Skip range end backslash
-            } 
-            else if (charlist.charAt(i + 3)) 
-            { 
-                // Range ends with character
-                rangeEnd = charlist.charAt(i + 3);
-            } 
-            else 
-            {
-                throw 'Range with no end point';
-            }
-            end = rangeEnd.charCodeAt(0);
-            if (end > begin) 
-            { 
-                // Treat as a range
-                for (j = begin; j <= end; j++)
-                    chrs.push(String.fromCharCode(j));
-            } 
-            else 
-            { 
-                // Supposed to treat period, begin and end as individual characters only, not a range
-                chrs.push('.', rangeBegin, rangeEnd);
-            }
-            i += rangeEnd.length + 2; // Skip dots and range end (already skipped range end backslash if present)
-        } 
-        else 
-        { 
-            // Character is by itself
-            chrs.push(c);
-        }
-    }
-
-    for (i = 0; i < str.length; i++) 
-    {
-        c = str.charAt(i);
-        if (chrs.indexOf(c) !== -1) 
-        {
-            target += '\\';
-            cca = c.charCodeAt(0);
-            if (cca < 32 || cca > 126) 
-            { 
-                // Needs special escaping
-                switch (c) 
-                {
-                    case '\n': target += 'n'; break;
-                    case '\t': target += 't';  break;
-                    case '\u000D': target += 'r';  break;
-                    case '\u0007': target += 'a'; break;
-                    case '\v': target += 'v'; break;
-                    case '\b': target += 'b';  break;
-                    case '\f': target += 'f'; break;
-                    default:
-                        //target += _pad(cca.toString(8), 3);break; // Sufficient for UTF-16
-                        encoded = encodeURIComponent(c);
-                        // 3-length-padded UTF-8 octets
-                        if ((escHexGrp = percentHex.exec(encoded)) !== null) 
-                            target += _pad(parseInt(escHexGrp[1], 16).toString(8), 3); // already added a slash above
-                        while ((escHexGrp = percentHex.exec(encoded)) !== null) 
-                            target += '\\' + _pad(parseInt(escHexGrp[1], 16).toString(8), 3);
-                        break;
-                }
-            } 
-            else 
-            { 
-                // Perform regular backslashed escaping
-                target += c;
-            }
-        } 
-        else 
-        { 
-            // Just add the character unescaped
-            target += c;
-        }
-    }
-    return target;
-}
-
-function addslashes( str ) 
-{
-    return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
-}
-
-function is_int( mixed_var ) 
-{
-    return mixed_var === +mixed_var && isFinite(mixed_var) && !(mixed_var % 1);
-}
 
 Tpl = function Tpl( tpl, replacements, compiled ) {
     var self = this;
@@ -717,13 +569,13 @@ Dialect[PROTO] = {
                         {
                             vals.push( self.intval( val['integer'] ) );
                         }
+                        else if ( val[HAS]('raw') )
+                        {
+                            vals.push( val['raw'] );
+                        }
                         else if ( val[HAS]('string') )
                         {
                             vals.push( self.quote( val['string'] ) );
-                        }
-                        else if ( val[HAS]('prepared') )
-                        {
-                            vals.push( val['prepared'] );
                         }
                     }
                     else
@@ -775,13 +627,13 @@ Dialect[PROTO] = {
                 {
                     set_values.push( field + " = " + self.intval(value['integer']) );
                 }
+                else if ( value[HAS]('raw') )
+                {
+                    set_values.push( field + " = " + value['raw'] );
+                }
                 else if ( value[HAS]('string') )
                 {
                     set_values.push( field + " = " + self.quote(value['string']) );
-                }
-                else if ( value[HAS]('prepared') )
-                {
-                    set_values.push( field + " = " + value['prepared'] );
                 }
                 else if ( value[HAS]('increment') )
                 {
@@ -1233,7 +1085,7 @@ Dialect[PROTO] = {
         refs = refs.split( ',' ).map( trim );
         for (i=0,l=refs.length; i<l; i++)
         {
-            ref = refs[ i ].split( 'AS' ).map( trim );
+            ref = refs[ i ].split( ' AS ' ).map( trim );
             for (j=0,m=ref.length; j<m; j++)
             {
                 ref[ j ] = self.quote_name( ref[ j ].split( '.' ) ).join( '.' );
@@ -1253,8 +1105,8 @@ Dialect[PROTO] = {
     ,quote_name: function( f ) {
         var self = this, qn = self.qn;
         if ( is_array( f ) )
-            return f.map(function( f ){return qn + f + qn;});
-        return '*' !== f ? qn + f + qn : f;
+            return f.map(function( f ){return '*' === f ? f : qn + f + qn;});
+        return '*' === f ? f : qn + f + qn;
     }
     
     ,quote: function( v ) {
@@ -1284,8 +1136,8 @@ Dialect[PROTO] = {
     ,esc_like: function( v ) {
         var self = this;
         if ( is_array( v ) )
-            return v.map(function( v ){return addcslashes( v, '_%\\' );});
-        return addcslashes( v, '_%\\' );
+            return v.map(function( v ){return addslashes_like( v );});
+        return addslashes_like( v );
     }
     
     ,like: function( v ) {
@@ -1305,7 +1157,7 @@ Dialect[PROTO] = {
         {
             ANDs = ORs[i].split('+');
             if ( doTrim ) ANDs = ANDs.map( trim ).filter( Boolean );
-            for (j=0,m=ASNDs.length; j<m; j++)
+            for (j=0,m=ANDs.length; j<m; j++)
             {
                 ANDs[j] = like + self.like( ANDs[j] );
             }

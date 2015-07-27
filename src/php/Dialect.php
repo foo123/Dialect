@@ -514,13 +514,13 @@ class Dialect
                         {
                             $vals[] = $this->intval( $val['integer'] );
                         }
+                        elseif ( isset($val['raw']) )
+                        {
+                            $vals[] = $val['raw'];
+                        }
                         elseif ( isset($val['string']) )
                         {
                             $vals[] = $this->quote( $val['string'] );
-                        }
-                        elseif ( isset($val['prepared']) )
-                        {
-                            $vals[] = $val['prepared'];
                         }
                     }
                     else
@@ -569,13 +569,13 @@ class Dialect
                 {
                     $set_values[] = "$field = " . $this->intval($value['integer']);
                 }
+                elseif ( isset($value['raw']) )
+                {
+                    $set_values[] = "$field = {$value['raw']}";
+                }
                 elseif ( isset($value['string']) )
                 {
                     $set_values[] = "$field = " . $this->quote($value['string']);
-                }
-                elseif ( isset($value['prepared']) )
-                {
-                    $set_values[] = "$field = {$value['prepared']}";
                 }
                 elseif ( isset($value['increment']) )
                 {
@@ -1012,7 +1012,7 @@ class Dialect
         $refs = array_map( 'trim', explode( ',', $refs ) );
         foreach ($refs as $i=>$ref)
         {
-            $ref = array_map( 'trim', explode( 'AS', $ref ) );
+            $ref = array_map( 'trim', explode( ' AS ', $ref ) );
             foreach ($ref as $j=>$r)
             {
                 $ref[$j] = implode( '.', $this->quote_name( explode( '.', $r ) ) );
@@ -1033,7 +1033,7 @@ class Dialect
     {
         if ( is_array( $f ) )
             return array_map( array($this, 'quote_name'), $f );
-        return '*' !== $f ? $this->qn . $f . $this->qn : $f;
+        return '*' === $f ? $f : $this->qn . $f . $this->qn;
     }
     
     public function quote( $v )
