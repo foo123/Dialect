@@ -3,7 +3,7 @@ var Dialect = require("../src/js/Dialect.js"), echo = console.log;
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( );
 
-var dialect = new Dialect( );
+var dialect = new Dialect( 'mysql' );
 
 var conditions = {
     'main.name':{'like':'%l:name%', type:'raw'},

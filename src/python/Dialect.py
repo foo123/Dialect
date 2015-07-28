@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 # 
-#   @version: 0.1
+#   @version: 0.2
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -14,6 +14,7 @@ import re, math, copy
 NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
 SQUOTE = re.compile(r"'")
 T_REGEXP = type(NEWLINE)
+NULL_CHAR = chr(0)
 
 # static
 CNT = 0
@@ -134,16 +135,12 @@ def array( v ):
 def empty( v ):
     return v == None or (isinstance(v, (list,str,dict)) and 0 == len(v))
 
-def addslashes( s ):
-    esc = ["\\",'"',"'","\0"]
+def addslashes( s, chars=None, esc='\\' ):
+    global NULL_CHAR
     s2 = ''
-    for ch in s: s2 += '\\'+ch if ch in esc else ch
-    return s2
-
-def addslashes_like( s ):
-    esc = ["_","%","\\"]
-    s2 = ''
-    for ch in s: s2 += '\\'+ch if ch in esc else ch
+    if chars is None: chars = '\\"\'' + NULL_CHAR
+    for c in s:
+        s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
     return s2
 
 
@@ -292,111 +289,231 @@ class Tpl:
         
         return out
 
+class Ref:
+
+    def parse( r, d ):
+        r = r.strip( ).split(' AS ')
+        col = r[ 0 ].split( '.' )
+        tbl = None if len(col) < 2 else col[ 0 ].strip( )
+        col = col[ 1 ].strip( ) if tbl else col[ 0 ].strip( )
+        col_q = d.quote_name( col )
+        if tbl:
+            tbl_q = d.quote_name( tbl )
+            tbl_col = tbl + '.' + col
+            tbl_col_q = tbl_q + '.' + col_q
+        else:
+            tbl_q = None
+            tbl_col = col
+            tbl_col_q = col_q
+        if len(r) < 2:
+            alias = tbl_col
+            alias_q = tbl_col_q
+            tbl_col_alias = tbl_col
+            tbl_col_alias_q = tbl_col_q
+        else:
+            alias = r[1].strip( )
+            alias_q = d.quote_name( alias )
+            tbl_col_alias = tbl_col + ' AS ' + alias
+            tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q
+        return Ref( col, col_q, tbl, tbl_q, alias, alias_q, 
+                    tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q )
+
+    def __init__( self, col, col_q, tbl, tbl_q, alias, alias_q, tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ):
+        self.col = col
+        self.col_q = col_q
+        self.tbl = tbl
+        self.tbl_q = tbl_q
+        self.alias = alias
+        self.alias_q = alias_q
+        self.tbl_col = tbl_col
+        self.tbl_col_q = tbl_col_q
+        self.tbl_col_alias = tbl_col_alias
+        self.tbl_col_alias_q = tbl_col_alias_q
+
+    def __del__( self ):
+        self.dispose( )
+        
+    def dispose( self ):
+        self.col = None
+        self.col_q = None
+        self.tbl = None
+        self.tbl_q = None
+        self.alias = None
+        self.alias_q = None
+        self.tbl_col = None
+        self.tbl_col_q = None
+        self.tbl_col_alias = None
+        self.tbl_col_alias_q = None
+        return self
+
+
 class Dialect:
     """
     Dialect for Python,
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.1'
+    VERSION = '0.2'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
+    Ref = Ref
 
     dialect = {
-        'mysql'            : {
-            'quote'        : [ "'", '`' ]
-            ,'clauses'      : {
-            # https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-            'select'  : ['select','from','join','where','group','having','order','limit']
-            # https://dev.mysql.com/doc/refman/5.0/en/insert.html
-            ,'insert'  : ['insert','values']
-            # https://dev.mysql.com/doc/refman/5.0/en/update.html
-            ,'update'  : ['update','set','where','order','limit']
-            # https://dev.mysql.com/doc/refman/5.0/en/delete.html
-            ,'delete'  : ['delete','from','where','order','limit']
-            }
-            ,'tpl'        : {
-            'select'   : 'SELECT $(fields)'
-            ,'insert'   : 'INSERT INTO $(tables) ($(fields))'
-            ,'update'   : 'UPDATE $(tables)'
-            ,'delete'   : 'DELETE '
-            ,'values'   : 'VALUES $(values_values)'
-            ,'values_'  : '$(values),$(values_values)'
-            ,'set'      : 'SET $(set_values)'
-            ,'set_'     : '$(set),$(set_values)'
-            ,'from'     : 'FROM $(tables)'
-            ,'from_'    : '$(from),$(tables)'
-            ,'join'     : '$(join_type)JOIN $(join_clause)'
-            ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
-            ,'where'    : 'WHERE $(conditions)'
-            ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
-            ,'group'    : 'GROUP BY $(field) $(dir)'
-            ,'group_'   : '$(group),$(field) $(dir)'
-            ,'having'   : 'HAVING $(conditions)'
-            ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
-            ,'order'    : 'ORDER BY $(field) $(dir)'
-            ,'order_'   : '$(order),$(field) $(dir)'
-            ,'limit'    : 'LIMIT $(offset),$(count)'
-
-            ,'year'     : 'YEAR($(field))'
-            ,'month'    : 'MONTH($(field))'
-            ,'day'      : 'DAY($(field))'
-            ,'hour'     : 'HOUR($(field))'
-            ,'minute'   : 'MINUTE($(field))'
-            ,'second'   : 'SECOND($(field))'
-            }
+     'mysql'            : {
+         'quote'        : [ "'", '`', '' ]
+        ,'clauses'      : {
+         # https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+         'select'  : ['select','from','join','where','group','having','order','limit']
+         # https://dev.mysql.com/doc/refman/5.0/en/insert.html
+        ,'insert'  : ['insert','values']
+         # https://dev.mysql.com/doc/refman/5.0/en/update.html
+        ,'update'  : ['update','set','where','order','limit']
+         # https://dev.mysql.com/doc/refman/5.0/en/delete.html
+        ,'delete'  : ['delete','from','where','order','limit']
         }
+        ,'tpl'        : {
+         'select'   : 'SELECT $(columns)'
+        ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
+        ,'update'   : 'UPDATE $(tables)'
+        ,'delete'   : 'DELETE '
+        ,'values'   : 'VALUES $(values_values)'
+        ,'values_'  : '$(values),$(values_values)'
+        ,'set'      : 'SET $(set_values)'
+        ,'set_'     : '$(set),$(set_values)'
+        ,'from'     : 'FROM $(tables)'
+        ,'from_'    : '$(from),$(tables)'
+        ,'join'     : '$(join_type)JOIN $(join_clause)'
+        ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
+        ,'where'    : 'WHERE $(conditions)'
+        ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
+        ,'group'    : 'GROUP BY $(column) $(dir)'
+        ,'group_'   : '$(group),$(column) $(dir)'
+        ,'having'   : 'HAVING $(conditions)'
+        ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
+        ,'order'    : 'ORDER BY $(column) $(dir)'
+        ,'order_'   : '$(order),$(column) $(dir)'
+        ,'limit'    : 'LIMIT $(offset),$(count)'
+
+        ,'year'     : 'YEAR($(column))'
+        ,'month'    : 'MONTH($(column))'
+        ,'day'      : 'DAY($(column))'
+        ,'hour'     : 'HOUR($(column))'
+        ,'minute'   : 'MINUTE($(column))'
+        ,'second'   : 'SECOND($(column))'
+        }
+    }
+    ,'postgre'          : {
+         'quote'        : [ '`', '"', 'E' ]
+        ,'clauses'      : {
+         # http://www.postgresql.org/docs/
+         'select'  : ['select','from','join','where','group','having','order','limit']
+        ,'insert'  : ['insert','values']
+        ,'update'  : ['update','set','where','order','limit']
+        ,'delete'  : ['delete','from','where','order','limit']
+        }
+        ,'tpl'        : {
+         'select'   : 'SELECT $(columns)'
+        ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
+        ,'update'   : 'UPDATE $(tables)'
+        ,'delete'   : 'DELETE '
+        ,'values'   : 'VALUES $(values_values)'
+        ,'values_'  : '$(values),$(values_values)'
+        ,'set'      : 'SET $(set_values)'
+        ,'set_'     : '$(set),$(set_values)'
+        ,'from'     : 'FROM $(tables)'
+        ,'from_'    : '$(from),$(tables)'
+        ,'join'     : '$(join_type)JOIN $(join_clause)'
+        ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
+        ,'where'    : 'WHERE $(conditions)'
+        ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
+        ,'group'    : 'GROUP BY $(column) $(dir)'
+        ,'group_'   : '$(group),$(column) $(dir)'
+        ,'having'   : 'HAVING $(conditions)'
+        ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
+        ,'order'    : 'ORDER BY $(column) $(dir)'
+        ,'order_'   : '$(order),$(column) $(dir)'
+        ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
+
+        ,'year'     : 'EXTRACT (YEAR FROM $(column))'
+        ,'month'    : 'EXTRACT (MONTH FROM $(column))'
+        ,'day'      : 'EXTRACT (DAY FROM $(column))'
+        ,'hour'     : 'EXTRACT (HOUR FROM $(column))'
+        ,'minute'   : 'EXTRACT (MINUTE FROM $(column))'
+        ,'second'   : 'EXTRACT (SECOND FROM $(column))'
+        }
+    }
     }
     
     def __init__( self, type='mysql' ):
+        self.clau = None
+        self.clus = None
+        self.tbls = None
+        self.cols = None
+        self.vews = { }
+        
         self.db = None
-        self.prefix = '';
         self.escdb = None
-        self.clause = None
-        self.state = None
+        self.p = '';
+        
         self.clauses = Dialect.dialect[ type ][ 'clauses' ]
         self.tpl = Dialect.dialect[ type ][ 'tpl' ]
         self.q = Dialect.dialect[ type ][ 'quote' ][ 0 ]
         self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ]
-        self._views = { }
+        self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] if 1 < len(Dialect.dialect[ type ][ 'quote' ]) else ''
     
     def __del__( self ):
         self.dispose()
         
     def dispose( self ):
+        self.clau = None
+        self.clus = None
+        self.tbls = None
+        self.cols = None
+        self.vews = None
+        
         self.db = None
-        self.prefix = None
         self.escdb = None
-        self.clause = None
-        self.state = None
+        self.p = None
+        
         self.clauses = None
         self.tpl = None
         self.q = None
         self.qn = None
-        self._views = None
+        self.e = None
         return self
 
     def __str__( self ):
         sql = self.sql( )
         return sql if sql else ''
     
-    def driver( self, db ):
-        self.db = db if db else None
-        return self
+    def driver( self, *args ):
+        if len(args):
+            db = args[0]
+            self.db = db if db else None
+            return self
+        return self.db
     
-    def table_prefix( self, prefix ):
-        self.prefix = prefix if prefix else ''
-        return self
+    def escape( self, *args ):
+        if len(args):
+            escdb = args[0]
+            self.escdb = escdb if escdb and callable(escdb) else None
+            return self
+        return self.escdb
     
-    def escape( self, escdb ):
-        self.escdb = escdb if escdb and callable(escdb) else None
-        return self
+    def prefix( self, *args ):
+        if len(args):
+            prefix = args[0]
+            self.p = prefix if prefix else ''
+            return self
+        return self.p
     
     def reset( self, clause ):
-        self.clause = clause
-        self.state = { }
-        clauses = self.clauses[ self.clause ]
+        self.clau = clause
+        self.clus = { }
+        self.tbls = { }
+        self.cols = { }
+        clauses = self.clauses[ self.clau ]
         for clause in clauses:
             if (clause in self.tpl) and not isinstance(self.tpl[ clause ], Tpl):
                 self.tpl[ clause ] = Tpl( self.tpl[ clause ], Dialect.TPL_RE )
@@ -408,18 +525,20 @@ class Dialect:
         return self
     
     def clear( self ):
-        self.clause = None
-        self.state = None
+        self.clau = None
+        self.clus = None
+        self.tbls = None
+        self.cols = None
         return self
     
     def sql( self ):
         query = None
-        if self.clause and self.state and (self.clause in self.clauses):
+        if self.clau and self.clus and (self.clau in self.clauses):
             query = [ ]
-            clauses = self.clauses[ self.clause ]
+            clauses = self.clauses[ self.clau ]
             for clause in clauses:
-                if clause in self.state:
-                    query.append( self.state[ clause ] )
+                if clause in self.clus:
+                    query.append( self.clus[ clause ] )
             query = "\n".join(query)
         self.clear( )
         return query
@@ -442,13 +561,16 @@ class Dialect:
                     type = m.group(1)
                     
                     # array of references, e.g fields
-                    if 'af'==type: param = ','.join(self.ref( array(args[param]) ))
+                    if 'af'==type: 
+                        tmp = array( args[param] )
+                        param = Ref.parse( tmp[0], self ).tbl_col_alias_q
+                        for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
                     # array of integers param
                     elif 'ad'==type: param = '(' + ','.join(self.intval2str( array(args[param]) )) + ')'
                     # array of strings param
                     elif 'as'==type: param = '(' + ','.join(self.quote( array(args[param]) )) + ')'
                     # reference, e.g field
-                    elif 'f'==type: param = self.ref( args[param] )
+                    elif 'f'==type: param = Ref.parse( args[param], self ).tbl_col_alias_q
                     # like param
                     elif 'l'==type: param = self.like( args[param] )
                     # raw param
@@ -471,40 +593,56 @@ class Dialect:
         return query
     
     def make_view( self, view ):
-        if view and self.clause:
-            self._views[ view ] = {'clause':self.clause, 'state':self.state}
+        if view and self.clau:
+            self.vews[ view ] = {
+                'clau':self.clau, 
+                'clus':self.clus,
+                'tbls':self.tbls,
+                'cols':self.cols
+            }
             self.clear( )
         return self
     
     def clear_view( self, view ):
-        if view and (view in self._views):
-            del self._views[ view ]
+        if view and (view in self.vews):
+            del self.vews[ view ]
         return self
     
-    def select( self, fields='*', format=True ):
+    def select( self, cols='*', format=True ):
         self.reset('select')
-        format = format is not False
-        if not fields or not len(fields) or '*' == fields: fields = self.quote_name('*')
-        elif format: fields = ','.join( self.ref( array( fields ) ) )
-        else: fields = ','.join( array( fields ) )
-        self.state['select'] = self.tpl['select'].render( { 'fields':fields } )
+        if not cols or not len(cols) or '*' == cols: 
+            columns = '*';
+        else:
+            if format is not False:
+                cols = self.refs( cols, self.cols )
+                columns = cols[ 0 ].tbl_col_alias_q
+                for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_alias_q
+            else:
+                columns = ','.join(array( cols ))
+        self.clus['select'] = self.tpl['select'].render( { 'columns':columns } )
         return self
     
-    def insert( self, tables, fields, format=True ):
+    def insert( self, tbls, cols, format=True ):
         self.reset('insert');
-        format = format is not False
-        maybe_view = tables[0] if is_array( tables ) else tables
-        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
+        view = tbls[0] if is_array( tbls ) else tbls
+        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+            view = self.vews[ view ]
+            self.clus = self.defaults( self.clus, view['clus'], True )
+            self.tbls = self.defaults( {}, view['tbls'], True )
+            self.cols = self.defaults( {}, view['cols'], True )
         else:
-            if format:
-                tables = ','.join( self.ref( array( tables ) ) )
-                fields = ','.join( self.ref( array( fields ) ) )
+            if format is not False:
+                tbls = self.refs( tbls, self.tbls )
+                cols = self.refs( cols, self.cols )
+                tables = tbls[ 0 ].tbl_col_alias_q 
+                columns = cols[ 0 ].tbl_col_q
+                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+                for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_q
             else:
-                tables = ','.join( array( tables ) )
-                fields = ','.join( array( fields ) )
-            self.state['insert'] = self.tpl['insert'].render( { 'tables':tables, 'fields':fields } )
+                tables = ','.join(array( tbls ))
+                columns = ','.join(array( cols ))
+            self.clus['insert'] = self.tpl['insert'].render( { 'tables':tables, 'columns':columns } )
         return self
     
     def values( self, values ):
@@ -528,29 +666,36 @@ class Dialect:
                         vals.append( str(val) if is_int(val) else self.quote( val ) )
                 insert_values.append( '(' + ','.join(vals) + ')' )
         insert_values = ','.join(insert_values)
-        if 'values' in self.state: self.state['values'] = self.tpl['values_'].render( { 'values':self.state['values'], 'values_values':insert_values } )
-        else: self.state['values'] = self.tpl['values'].render( { 'values_values':insert_values } )
+        if 'values' in self.clus: self.clus['values'] = self.tpl['values_'].render( { 'values':self.clus['values'], 'values_values':insert_values } )
+        else: self.clus['values'] = self.tpl['values'].render( { 'values_values':insert_values } )
         return self
     
-    def update( self, tables, format=True ):
+    def update( self, tbls, format=True ):
         self.reset('update')
-        format = format is not False
-        maybe_view = tables[0] if is_array( tables ) else tables
-        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
+        view = tbls[0] if is_array( tbls ) else tbls
+        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+            view = self.vews[ view ]
+            self.clus = self.defaults( self.clus, view['clus'], True )
+            self.tbls = self.defaults( {}, view['tbls'], True )
+            self.cols = self.defaults( {}, view['cols'], True )
         else:
-            if format: tables = ','.join(self.ref( array( tables ) ))
-            else: tables = array( tables ).join(',');
-            self.state['update'] = self.tpl['update'].render( { 'tables':tables } )
+            if format is not False:
+                tbls = self.refs( tbls, self.tbls )
+                tables = tbls[ 0 ].tbl_col_alias_q 
+                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+            else:
+                tables = ','.join(array( tbls ))
+            self.clus['update'] = self.tpl['update'].render( { 'tables':tables } )
         return self
     
     def set( self, fields_values ):
         if empty(fields_values): return self
         set_values = []
-        for field in fields_values:
-            value = fields_values[field]
-            field = self.ref( field )
+        COLS = self.cols
+        for f in fields_values:
+            field = self.refs( f, COLS )[0].tbl_col_q
+            value = fields_values[f]
             
             if is_obj(value):
                 if 'integer' in value:
@@ -566,85 +711,92 @@ class Dialect:
             else:
                 set_values.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
         set_values = ','.join(set_values)
-        if 'set' in self.state: self.state['set'] = self.tpl['set_'].render( { 'set':self.state['set'], 'set_values':set_values } )
-        else: self.state['set'] = self.tpl['set'].render( { 'set_values':set_values } )
+        if 'set' in self.clus: self.clus['set'] = self.tpl['set_'].render( { 'set':self.clus['set'], 'set_values':set_values } )
+        else: self.clus['set'] = self.tpl['set'].render( { 'set_values':set_values } )
         return self
     
-    def delete( self ):
+    def del_( self ):
         self.reset('delete')
-        self.state['delete'] = self.tpl['delete'].render( {} )
+        self.clus['delete'] = self.tpl['delete'].render( {} )
         return self
     
-    def fromTbl( self, tables, format=True ):
-        if empty(tables): return self
-        format = format is not False
-        maybe_view = tables[0] if is_array( tables ) else tables
-        if (maybe_view in self._views) and self.clause == self._views[ maybe_view ]['clause']:
+    def from_( self, tbls, format=True ):
+        if empty(tbls): return self
+        view = tbls[0] if is_array( tbls ) else tbls
+        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ]['state'], True )
+            view = self.vews[ view ]
+            self.clus = self.defaults( self.clus, view['clus'], True )
+            self.tbls = self.defaults( {}, view['tbls'], True )
+            self.cols = self.defaults( {}, view['cols'], True )
         else:
-            if format: tables = ','.join(self.ref( array( tables ) ))
-            else: tables = ','.join(array( tables ))
-            if 'from' in self.state: self.state['from'] = self.tpl['from_'].render( { 'from':self.state['from'], 'tables':tables } )
-            else: self.state['from'] = self.tpl['from'].render( { 'tables':tables } )
+            if format is not False:
+                tbls = self.refs( tbls, self.tbls )
+                tables = tbls[ 0 ].tbl_col_alias_q 
+                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+            else:
+                tables = ','.join(array( tbls ))
+            if 'from' in self.clus: self.clus['from'] = self.tpl['from_'].render( { 'from':self.clus['from'], 'tables':tables } )
+            else: self.clus['from'] = self.tpl['from'].render( { 'tables':tables } )
         return self
     
     def join( self, table, on_cond=None, join_type='' ):
-        table = self.ref( table )
+        table = self.refs( table, self.tbls )[0].tbl_col_alias_q
         if empty(on_cond):
             join_clause = table
         else:
             if is_string(on_cond):
-                on_cond = '(' + '='.join(self.ref( on_cond.split('=') )) + ')'
+                on_cond = self.refs( on_cond.split('='), self.cols )
+                on_cond = '(' + on_cond[0].tbl_col_q + '=' + on_cond[1].tbl_col_q + ')'
             else:
                 for field in on_cond:
                     cond = on_cond[ field ]
-                    if not is_obj(cond): on_cond[field] = {'eq':cond,'type':'field'}
-                on_cond = self.conditions( on_cond )
+                    if not is_obj(cond): on_cond[field] = {'eq':cond,'type':'identifier'}
+                on_cond = self.conditions( on_cond, False )
             join_clause = table + " ON " + on_cond
         join_type = "" if empty(join_type) else (join_type.upper() + " ")
-        if 'join' in self.state: self.state['join'] = self.tpl['join_'].render( { 'join':self.state['join'], 'join_clause':join_clause, 'join_type':join_type } )
-        else: self.state['join'] = self.tpl['join'].render( { 'join_clause':join_clause, 'join_type':join_type } )
+        if 'join' in self.clus: self.clus['join'] = self.tpl['join_'].render( { 'join':self.clus['join'], 'join_clause':join_clause, 'join_type':join_type } )
+        else: self.clus['join'] = self.tpl['join'].render( { 'join_clause':join_clause, 'join_type':join_type } )
         return self
     
     def where( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
-        conditions = self.conditions( conditions )
-        if 'where' in self.state: self.state['where'] = self.tpl['where_'].render( { 'where':self.state['where'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
-        else: self.state['where'] = self.tpl['where'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        conditions = self.conditions( conditions, False )
+        if 'where' in self.clus: self.clus['where'] = self.tpl['where_'].render( { 'where':self.clus['where'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        else: self.clus['where'] = self.tpl['where'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
         return self
     
-    def group( self, field, dir="asc" ):
+    def group( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
-        field = self.ref( field )
-        if 'group' in self.state: self.state['group'] = self.tpl['group_'].render( { 'group':self.state['group'], 'field':field, 'dir':dir } )
-        else: self.state['group'] = self.tpl['group'].render( { 'field':field, 'dir':dir } )
+        column = self.refs( col, self.cols )[0].alias_q
+        if 'group' in self.clus: self.clus['group'] = self.tpl['group_'].render( { 'group':self.clus['group'], 'column':column, 'dir':dir } )
+        else: self.clus['group'] = self.tpl['group'].render( { 'column':column, 'dir':dir } )
         return self
     
     def having( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
-        conditions = self.conditions( conditions )
-        if 'having' in self.state: self.state['having'] = self.tpl['having_'].render( { 'having':self.state['having'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
-        else: self.state['having'] = self.tpl['having'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        conditions = self.conditions( conditions, True )
+        if 'having' in self.clus: self.clus['having'] = self.tpl['having_'].render( { 'having':self.clus['having'], 'boolean_connective':boolean_connective, 'conditions':conditions } )
+        else: self.clus['having'] = self.tpl['having'].render( { 'boolean_connective':boolean_connective, 'conditions':conditions } )
         return self
     
-    def order( self, field, dir="asc" ):
+    def order( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
-        field = self.ref( field )
-        if 'order' in self.state: self.state['order'] = self.tpl['order_'].render( { 'order':self.state['order'], 'field':field, 'dir':dir } )
-        else: self.state['order'] = self.tpl['order'].render( { 'field':field, 'dir':dir } )
+        column = self.refs( col, self.cols )[0].alias_q
+        if 'order' in self.clus: self.clus['order'] = self.tpl['order_'].render( { 'order':self.clus['order'], 'column':column, 'dir':dir } )
+        else: self.clus['order'] = self.tpl['order'].render( { 'column':column, 'dir':dir } )
         return self
     
     def limit( self, count, offset=0 ):
         count = int(count,10) if is_string(count) else count
         offset = int(offset,10) if is_string(offset) else offset
-        self.state['limit'] = self.tpl['limit'].render( { 'offset':offset, 'count':count } )
+        self.clus['limit'] = self.tpl['limit'].render( { 'offset':offset, 'count':count } )
         return self
     
     def page( self, page, perpage ):
@@ -655,51 +807,69 @@ class Dialect:
     def join_conditions( self, join, conditions ):
         j = 0
         conditions_copied = copy.copy(conditions)
-        for field in conditions_copied:
+        for f in conditions_copied:
             
-            field_raw = self.fld( field )
-            if field_raw in join:
-                cond = conditions[ field ]
-                main_table = join[field_raw]['table']
-                main_id = join[field_raw]['id']
-                join_table = join[field_raw]['join']
-                join_id = join[field_raw]['join_id']
-                
-                j += 1
-                join_alias = join_table+str(j)
-                
-                where = { }
-                if ('key' in join[field_raw]) and field_raw != join[field_raw]['key']:
-                    join_key = join[field_raw]['key']
-                    where[join_alias+'.'+join_key] = field_raw
-                else:
-                    join_key = field_raw
-                if 'value' in join[field_raw]:
-                    join_value = join[field_raw]['value']
-                    where[join_alias+'.'+join_value] = cond
-                else:
-                    join_value = join_key
-                    where[join_alias+'.'+join_value] = cond
-                self.join(
-                    join_table+" AS "+join_alias, 
-                    main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
-                    "inner"
-                ).where( where )
-                
-                del conditions[field]
+            ref = Ref.parse( f, self )
+            field = ref.col
+            if field not in join: continue
+            cond = conditions[ f ]
+            main_table = join[field]['table']
+            main_id = join[field]['id']
+            join_table = join[field]['join']
+            join_id = join[field]['join_id']
+            
+            j += 1
+            join_alias = join_table+str(j)
+            
+            where = { }
+            if ('key' in join[field]) and field != join[field]['key']:
+                join_key = join[field]['key']
+                where[join_alias+'.'+join_key] = field
+            else:
+                join_key = field
+            if 'value' in join[field]:
+                join_value = join[field]['value']
+                where[join_alias+'.'+join_value] = cond
+            else:
+                join_value = join_key
+                where[join_alias+'.'+join_value] = cond
+            self.join(
+                join_table+" AS "+join_alias, 
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                "inner"
+            ).where( where )
+            
+            del conditions[f]
         return self
     
-    def conditions( self, conditions ):
+    def refs( self, refs, lookup ):
+        rs = array( refs )
+        refs = [ ]
+        for i in range(len(rs)):
+            r = rs[ i ].split(',')
+            for j in range(len(r)):
+                ref = Ref.parse( r[ j ], self )
+                if ref.tbl_col not in lookup:
+                    lookup[ ref.tbl_col ] = ref
+                    if ref.tbl_col != ref.alias: lookup[ ref.alias ] = ref
+                else:
+                    ref = lookup[ ref.tbl_col ]
+                refs.append( ref )
+        return refs
+    
+    def conditions( self, conditions, can_use_alias=False ):
         if empty(conditions): return ''
         if is_string(conditions): return conditions
         
         condquery = ''
         conds = []
+        COLS = self.cols
+        fmt = 'alias_q' if can_use_alias is True else 'tbl_col_q'
         
-        for field in conditions:
+        for f in conditions:
             
-            value = conditions[field]
-            field = self.ref( field )
+            field = getattr(self.refs( f, COLS )[0], fmt)
+            value = conditions[f]
             
             if is_obj( value ):
                 type = value['type'] if 'type' in value else 'string'
@@ -763,8 +933,8 @@ class Dialect:
                         pass
                     elif 'integer' == type or is_int(v):
                         v = self.intval( v )
-                    elif 'field' == type:
-                        v = self.ref( v )
+                    elif 'identifier' == type or 'field' == type:
+                        v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
                     conds.append( field + (" > " if 'gt'==op else " >= ") + str(v) )
@@ -777,8 +947,8 @@ class Dialect:
                         pass
                     elif 'integer' == type or is_int(v):
                         v = self.intval( v )
-                    elif 'field' == type:
-                        v = self.ref( v )
+                    elif 'identifier' == type or 'field' == type:
+                        v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
                     conds.append( field + (" < " if 'lt'==op else " <= ") + str(v) )
@@ -791,8 +961,8 @@ class Dialect:
                         pass
                     elif 'integer' == type or is_int(v):
                         v = self.intval( v )
-                    elif 'field' == type:
-                        v = self.ref( v )
+                    elif 'identifier' == type or 'field' == type:
+                        v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
                     conds.append( field + " <> " + str(v) )
@@ -805,8 +975,8 @@ class Dialect:
                         pass
                     elif 'integer' == type or is_int(v):
                         v = self.intval( v )
-                    elif 'field' == type:
-                        v = self.ref( v )
+                    elif 'identifier' == type or 'field' == type:
+                        v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
                     conds.append( field + " = " + str(v) )
@@ -840,25 +1010,10 @@ class Dialect:
             return filtered
     
     def tbl( self, table ):
-        prefix = self.prefix
+        prefix = self.p
         if is_array( table ):
             return list(map(lambda table: prefix+table, table))
         return prefix+table
-    
-    def fld( self, field ):
-        if is_array( field ):
-            return list(map(lambda field: field.split('.').pop( ), field))
-        return field.split('.').pop( )
-    
-    def ref( self, refs ):
-        if is_array(refs): return list(map(lambda ref: self.ref( ref ), refs))
-        refs = list(map(lambda s: s.strip(), refs.split( ',' )))
-        for i in range(len(refs)):
-            ref = list(map(lambda s: s.strip(), refs[i].split( ' AS ' )))
-            for j in range(len(ref)):
-                ref[ j ] = '.'.join(self.quote_name( ref[ j ].split( '.' ) ))
-            refs[ i ] = ' AS '.join(ref)
-        return ','.join(refs)
     
     def intval( self, v ):
         if is_int( v ): return v
@@ -879,34 +1034,43 @@ class Dialect:
     
     def quote( self, v ):
         q = self.q
+        e = '' if self.escdb else self.e
         if is_array( v ):
-            return list(map(lambda v: q + self.esc( v ) + q, v))
-        return q + self.esc( v ) + q
+            return list(map(lambda v: e + q + self.esc( v ) + q, v))
+        return e + q + self.esc( v ) + q
     
     def esc( self, v ):
+        global NULL_CHAR
         if is_array( v ):
             if self.escdb:
                 return list(map(self.escdb, v))
             else:
-                return list(map(lambda v: addslashes( str(v) ), v))
+                chars = self.q + '"\'\\' + NULL_CHAR
+                esc = '\\'
+                return list(map(lambda v: addslashes( str(v), chars, esc ), v))
         if self.escdb:
             escdb = self.escdb
             return escdb( v )
         else:
             # simple ecsaping using addslashes
             # '"\ and NUL (the NULL byte).
-            return addslashes( str(v) )
+            chars = self.q + '"\'\\' + NULL_CHAR
+            esc = '\\'
+            return addslashes( str(v), chars, esc )
     
     def esc_like( self, v ):
+        chars = '_%'
+        esc = '\\'
         if is_array( v ):
-            return list(map(lambda v: addslashes_like( str(v) ), v))
-        return addslashes_like( str(v) )
+            return list(map(lambda v: addslashes( str(v), chars, esc ), v))
+        return addslashes( str(v), chars, esc )
     
     def like( self, v ):
         q = self.q
+        e = '' if self.escdb else self.e
         if is_array( v ):
-            return list(map(lambda v: q + '%' + self.esc( self.esc_like( v ) ) + '%' + q, v))
-        return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q
+            return list(map(lambda v: e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q, v))
+        return e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q
     
     def multi_like( self, f, v, doTrim=True ):
         doTrim = doTrim is not False
@@ -921,29 +1085,29 @@ class Dialect:
             ORs[i] = '(' + ' AND '.join(ANDs) + ')'
         return ' OR '.join(ORs)
     
-    def year( self, field ):
+    def year( self, column ):
         if not isinstance(self.tpl['year'], Tpl): self.tpl['year'] = Tpl( self.tpl['year'], Dialect.TPL_RE )
-        return self.tpl['year'].render( { 'field':field } )
+        return self.tpl['year'].render( { 'column':column } )
     
-    def month( self, field ):
+    def month( self, column ):
         if not isinstance(self.tpl['month'], Tpl): self.tpl['month'] = Tpl( self.tpl['month'], Dialect.TPL_RE )
-        return self.tpl['month'].render( { 'field':field } )
+        return self.tpl['month'].render( { 'column':column } )
     
-    def day( self, field ):
+    def day( self, column ):
         if not isinstance(self.tpl['day'], Tpl): self.tpl['day'] = Tpl( self.tpl['day'], Dialect.TPL_RE )
-        return self.tpl['day'].render( { 'field':field } )
+        return self.tpl['day'].render( { 'column':column } )
     
-    def hour( self, field ):
+    def hour( self, column ):
         if not isinstance(self.tpl['hour'], Tpl): self.tpl['hour'] = Tpl( self.tpl['hour'], Dialect.TPL_RE )
-        return self.tpl['hour'].render( { 'field':field } )
+        return self.tpl['hour'].render( { 'column':column } )
     
-    def minute( self, field ):
+    def minute( self, column ):
         if not isinstance(self.tpl['minute'], Tpl): self.tpl['minute'] = Tpl( self.tpl['minute'], Dialect.TPL_RE )
-        return self.tpl['minute'].render( { 'field':field } )
+        return self.tpl['minute'].render( { 'column':column } )
     
-    def second( self, field ):
+    def second( self, column ):
         if not isinstance(self.tpl['second'], Tpl): self.tpl['second'] = Tpl( self.tpl['second'], Dialect.TPL_RE )
-        return self.tpl['second'].render( { 'field':field } )
+        return self.tpl['second'].render( { 'column':column } )
         
 
 __all__ = ['Dialect']

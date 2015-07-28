@@ -30,7 +30,7 @@ def echo( s='' ):
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( )
+dialect = Dialect( 'mysql' )
 
 conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},
@@ -38,11 +38,11 @@ conditions = {
     'main.project': {'in':[1,2,3],'type':'integer'}
 }
 
-dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').fromTbl('t').join('t2',{'t.id':'t2.id'},'inner').make_view('my_view')
+dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').join('t2',{'t.id':'t2.id'},'inner').make_view('my_view')
 
-query_soft_view = dialect.select().fromTbl('my_view').where({'f1':'2'}).sql()
+query_soft_view = dialect.select().from_('my_view').where({'f1':'2'}).sql()
     
-query = dialect.select().order('main.field1').fromTbl('table AS main').join_conditions({
+query = dialect.select().order('main.field1').from_('table AS main').join_conditions({
     'project' : {
             'table' : 'main',
             'id' : 'ID',

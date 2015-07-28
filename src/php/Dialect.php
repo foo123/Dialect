@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.1
+*   @version: 0.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -176,30 +176,114 @@ class DialectTpl
         return $out;
     }
 }    
+
+class DialectRef
+{
+    public static function parse( $r, $d ) 
+    {
+        $r = explode( ' AS ', trim( $r ) );
+        $col = explode( '.', $r[ 0 ] );
+        $tbl = count($col) < 2 ? null : trim($col[ 0 ]);
+        $col = $tbl ? trim($col[ 1 ]) : trim($col[ 0 ]);
+        $col_q = $d->quote_name( $col );
+        if ( $tbl )
+        {
+            $tbl_q = $d->quote_name( $tbl );
+            $tbl_col = $tbl . '.' . $col;
+            $tbl_col_q = $tbl_q . '.' . $col_q;
+        }
+        else
+        {
+            $tbl_q = null;
+            $tbl_col = $col;
+            $tbl_col_q = $col_q;
+        }
+        if ( count($r) < 2 )
+        {
+            $alias = $tbl_col;
+            $alias_q = $tbl_col_q;
+            $tbl_col_alias = $tbl_col;
+            $tbl_col_alias_q = $tbl_col_q;
+        }
+        else
+        {
+            $alias = trim( $r[1] );
+            $alias_q = $d->quote_name( $alias );
+            $tbl_col_alias = $tbl_col . ' AS ' . $alias;
+            $tbl_col_alias_q = $tbl_col_q . ' AS ' . $alias_q;
+        }
+        return new self( $col, $col_q, $tbl, $tbl_q, $alias, $alias_q, 
+                    $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q );
+    }
+    
+    public $col = null;
+    public $col_q = null;
+    public $tbl = null;
+    public $tbl_q = null;
+    public $alias = null;
+    public $alias_q = null;
+    public $tbl_col = null;
+    public $tbl_col_q = null;
+    public $tbl_col_alias = null;
+    public $tbl_col_alias_q = null;
+    
+    public function __construct( $col, $col_q, $tbl, $tbl_q, $alias, $alias_q, 
+                                $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q ) 
+    {
+        $this->col = $col;
+        $this->col_q = $col_q;
+        $this->tbl = $tbl;
+        $this->tbl_q = $tbl_q;
+        $this->alias = $alias;
+        $this->alias_q = $alias_q;
+        $this->tbl_col = $tbl_col;
+        $this->tbl_col_q = $tbl_col_q;
+        $this->tbl_col_alias = $tbl_col_alias;
+        $this->tbl_col_alias_q = $tbl_col_alias_q;
+    }
+    
+    public function __destruct()
+    {
+        $this->dispose( );
+    }
+    
+    public function dispose( ) 
+    {
+        $this->col = null;
+        $this->col_q = null;
+        $this->tbl = null;
+        $this->tbl_q = null;
+        $this->alias = null;
+        $this->alias_q = null;
+        $this->tbl_col = null;
+        $this->tbl_col_q = null;
+        $this->tbl_col_alias = null;
+        $this->tbl_col_alias_q = null;
+        return $this;
+    }
+}
  
 class Dialect
 {
-    const VERSION = "0.1";
+    const VERSION = "0.2";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
-     
-     'mysql'            => array(
-        
-         'quote'        => array( "'", '`' )
+    'mysql'            => array(
+         'quote'        => array( "'", '`', '' )
         ,'clauses'      => array(
-        // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+         // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
          'select'  => array('select','from','join','where','group','having','order','limit')
-        // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+         // https://dev.mysql.com/doc/refman/5.0/en/insert.html
         ,'insert'  => array('insert','values')
-        // https://dev.mysql.com/doc/refman/5.0/en/update.html
+         // https://dev.mysql.com/doc/refman/5.0/en/update.html
         ,'update'  => array('update','set','where','order','limit')
-        // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+         // https://dev.mysql.com/doc/refman/5.0/en/delete.html
         ,'delete'  => array('delete','from','where','order','limit')
         )
         ,'tpl'        => array(
-         'select'   => 'SELECT $(fields)'
-        ,'insert'   => 'INSERT INTO $(tables) ($(fields))'
+         'select'   => 'SELECT $(columns)'
+        ,'insert'   => 'INSERT INTO $(tables) ($(columns))'
         ,'update'   => 'UPDATE $(tables)'
         ,'delete'   => 'DELETE '
         ,'values'   => 'VALUES $(values_values)'
@@ -212,35 +296,34 @@ class Dialect
         ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
         ,'where'    => 'WHERE $(conditions)'
         ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
-        ,'group'    => 'GROUP BY $(field) $(dir)'
-        ,'group_'   => '$(group),$(field) $(dir)'
+        ,'group'    => 'GROUP BY $(column) $(dir)'
+        ,'group_'   => '$(group),$(column) $(dir)'
         ,'having'   => 'HAVING $(conditions)'
         ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
-        ,'order'    => 'ORDER BY $(field) $(dir)'
-        ,'order_'   => '$(order),$(field) $(dir)'
+        ,'order'    => 'ORDER BY $(column) $(dir)'
+        ,'order_'   => '$(order),$(column) $(dir)'
         ,'limit'    => 'LIMIT $(offset),$(count)'
-        
-        ,'year'     => 'YEAR($(field))'
-        ,'month'    => 'MONTH($(field))'
-        ,'day'      => 'DAY($(field))'
-        ,'hour'     => 'HOUR($(field))'
-        ,'minute'   => 'MINUTE($(field))'
-        ,'second'   => 'SECOND($(field))'
+
+        ,'year'     => 'YEAR($(column))'
+        ,'month'    => 'MONTH($(column))'
+        ,'day'      => 'DAY($(column))'
+        ,'hour'     => 'HOUR($(column))'
+        ,'minute'   => 'MINUTE($(column))'
+        ,'second'   => 'SECOND($(column))'
         )
     )
-    /*
     ,'postgre'          => array(
-         'quote'        => array( "'", '`' )
+         'quote'        => array( '`', '"', 'E' )
         ,'clauses'      => array(
-        // http://www.postgresql.org/docs/
+         // http://www.postgresql.org/docs/
          'select'  => array('select','from','join','where','group','having','order','limit')
         ,'insert'  => array('insert','values')
         ,'update'  => array('update','set','where','order','limit')
         ,'delete'  => array('delete','from','where','order','limit')
         )
         ,'tpl'        => array(
-         'select'   => 'SELECT $(fields)'
-        ,'insert'   => 'INSERT INTO $(tables) ($(fields))'
+         'select'   => 'SELECT $(columns)'
+        ,'insert'   => 'INSERT INTO $(tables) ($(columns))'
         ,'update'   => 'UPDATE $(tables)'
         ,'delete'   => 'DELETE '
         ,'values'   => 'VALUES $(values_values)'
@@ -253,64 +336,76 @@ class Dialect
         ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
         ,'where'    => 'WHERE $(conditions)'
         ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
-        ,'group'    => 'GROUP BY $(field) $(dir)'
-        ,'group_'   => '$(group),$(field) $(dir)'
+        ,'group'    => 'GROUP BY $(column) $(dir)'
+        ,'group_'   => '$(group),$(column) $(dir)'
         ,'having'   => 'HAVING $(conditions)'
         ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
-        ,'order'    => 'ORDER BY $(field) $(dir)'
-        ,'order_'   => '$(order),$(field) $(dir)'
+        ,'order'    => 'ORDER BY $(column) $(dir)'
+        ,'order_'   => '$(order),$(column) $(dir)'
         ,'limit'    => 'LIMIT $(count) OFFSET $(offset)'
-        
-        ,'year'     => 'EXTRACT (YEAR FROM $(field))'
-        ,'month'    => 'EXTRACT (MONTH FROM $(field))'
-        ,'day'      => 'EXTRACT (DAY FROM $(field))'
-        ,'hour'     => 'EXTRACT (HOUR FROM $(field))'
-        ,'minute'   => 'EXTRACT (MINUTE FROM $(field))'
-        ,'second'   => 'EXTRACT (SECOND FROM $(field))'
+
+        ,'year'     => 'EXTRACT (YEAR FROM $(column))'
+        ,'month'    => 'EXTRACT (MONTH FROM $(column))'
+        ,'day'      => 'EXTRACT (DAY FROM $(column))'
+        ,'hour'     => 'EXTRACT (HOUR FROM $(column))'
+        ,'minute'   => 'EXTRACT (MINUTE FROM $(column))'
+        ,'second'   => 'EXTRACT (SECOND FROM $(column))'
         )
     )
-    */
     );
     
-    private $clause = null;
-    private $state = null;
-    private $_views = null;
+    private $clau = null;
+    private $clus = null;
+    private $vews = null;
+    private $tbls = null;
+    private $cols = null;
+   
+    public $db = null;
+    public $escdb = null;
+    public $p = null;
+    
     public $clauses = null;
     public $tpl = null;
-    public $db = null;
-    public $prefix = null;
-    public $escdb = null;
     public $q = null;
     public $qn = null;
+    public $e = null;
     
     public function __construct( $type='mysql' )
     {
+        $this->clau = null;
+        $this->clus = null;
+        $this->tbls = null;
+        $this->cols = null;
+        $this->vews = array( );
+        
         $this->db = null;
-        $this->prefix = '';
         $this->escdb = null;
-        $this->clause = null;
-        $this->state = null;
+        $this->p = '';
         
         $this->clauses =& self::$dialect[ $type ][ 'clauses' ];
         $this->tpl =& self::$dialect[ $type ][ 'tpl' ];
         $this->q = self::$dialect[ $type ][ 'quote' ][ 0 ];
         $this->qn = self::$dialect[ $type ][ 'quote' ][ 1 ];
-        
-        $this->_views = array( );
+        $this->e = isset(self::$dialect[ $type ][ 'quote' ][ 2 ]) ? self::$dialect[ $type ][ 'quote' ][ 2 ] : '';
     }
     
     public function dispose( )
     {
+        $this->clau = null;
+        $this->clus = null;
+        $this->tbls = null;
+        $this->cols = null;
+        $this->vews = null;
+        
         $this->db = null;
-        $this->prefix = null;
         $this->escdb = null;
-        $this->clause = null;
-        $this->state = null;
+        $this->p = null;
+        
         $this->clauses = null;
         $this->tpl = null;
         $this->q = null;
         $this->qn = null;
-        $this->_views = null;
+        $this->e = null;
         return $this;
     }
     
@@ -327,28 +422,42 @@ class Dialect
     
     public function driver( $db=null )
     {
-        $this->db = $db ? $db : null;
-        return $this;
-    }
-    
-    public function table_prefix( $prefix='' )
-    {
-        $this->prefix = $prefix ? $prefix : '';
-        return $this;
+        if ( func_num_args() > 0 )
+        {
+            $this->db = $db ? $db : null;
+            return $this;
+        }
+        return $this->db;
     }
     
     public function escape( $escdb=null )
     {
-        $this->escdb = $escdb && is_callable($escdb) ? $escdb : null;
-        return $this;
+        if ( func_num_args() > 0 )
+        {
+            $this->escdb = $escdb && is_callable($escdb) ? $escdb : null;
+            return $this;
+        }
+        return $this->escdb;
+    }
+    
+    public function prefix( $prefix='' )
+    {
+        if ( func_num_args() > 0 )
+        {
+            $this->p = $prefix ? $prefix : '';
+            return $this;
+        }
+        return $this->p;
     }
     
     public function reset( $clause )
     {
-        $this->clause = $clause;
-        $this->state = array( );
+        $this->clau = $clause;
+        $this->clus = array( );
+        $this->tbls = array( );
+        $this->cols = array( );
         
-        foreach($this->clauses[ $this->clause ] as $clause)
+        foreach($this->clauses[ $this->clau ] as $clause)
         {
             if ( isset($this->tpl[ $clause ]) && !($this->tpl[ $clause ] instanceof DialectTpl) )
                 $this->tpl[ $clause ] = new DialectTpl( $this->tpl[ $clause ], self::TPL_RE );
@@ -363,21 +472,23 @@ class Dialect
     
     public function clear( )
     {
-        $this->clause = null;
-        $this->state = null;
+        $this->clau = null;
+        $this->clus = null;
+        $this->tbls = null;
+        $this->cols = null;
         return $this;
     }
     
     public function sql( )
     {
         $query = null;
-        if ( $this->clause && !empty($this->state) && isset($this->clauses[ $this->clause ]) )
+        if ( $this->clau && !empty($this->clus) && isset($this->clauses[ $this->clau ]) )
         {
             $query = array( );
-            foreach($this->clauses[ $this->clause ] as $clause)
+            foreach($this->clauses[ $this->clau ] as $clause)
             {
-                if ( isset($this->state[ $clause ]) )
-                    $query[] = $this->state[ $clause ];
+                if ( isset($this->clus[ $clause ]) )
+                    $query[] = $this->clus[ $clause ];
             }
             $query = implode("\n", $query);
         }
@@ -407,13 +518,17 @@ class Dialect
                     switch($type)
                     {
                         // array of references, e.g fields
-                        case 'af': $param = implode( ',', $this->ref( (array)$args[$param] ) ); break;
+                        case 'af': 
+                            $tmp = (array)$args[$param];
+                            $param = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
+                            for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                            break;
                         // array of integers param
                         case 'ad': $param = '(' . implode( ',', $this->intval( (array)$args[$param] ) ) . ')'; break;
                         // array of strings param
                         case 'as': $param = '(' . implode( ',', $this->quote( (array)$args[$param] ) ) . ')'; break;
                         // reference, e.g field
-                        case 'f': $param = $this->ref( $args[$param] ); break;
+                        case 'f': $param = $param = DialectRef::parse( $args[$param], $this )->tbl_col_alias_q; break;
                         // like param
                         case 'l': $param = $this->like( $args[$param] ); break;
                         // raw param
@@ -439,9 +554,14 @@ class Dialect
     
     public function make_view( $view ) 
     {
-        if ( !empty($view) && $this->clause )
+        if ( !empty($view) && $this->clau )
         {
-            $this->_views[ $view ] = (object)array('clause'=>$this->clause, 'state'=>$this->state);
+            $this->vews[ $view ] = (object)array(
+                'clau'=>$this->clau, 
+                'clus'=>$this->clus,
+                'tbls'=>$this->tbls,
+                'cols'=>$this->cols
+            );
             $this->clear( );
         }
         return $this;
@@ -449,47 +569,66 @@ class Dialect
     
     public function clear_view( $view ) 
     {
-        if ( !empty($view) && isset($this->_views[$view]) )
+        if ( !empty($view) && isset($this->vews[$view]) )
         {
-           unset( $this->_views[ $view ] );
+           unset( $this->vews[ $view ] );
         }
         return $this;
     }
     
-    public function select( $fields='*', $format=true )
+    public function select( $cols='*', $format=true )
     {
         $this->reset('select');
-        $format = false !== $format;
-        if ( !$fields || empty($fields) || '*' === $fields ) $fields = $this->quote_name('*');
-        else if ( $format ) $fields = implode( ',', $this->ref((array)$fields) );
-        else $fields = implode( ',', (array)$fields );
-        $this->state['select'] = $this->tpl['select']->render( array( 'fields'=>$fields ) );
-        return $this;
-    }
-    
-    public function insert( $tables, $fields, $format=true )
-    {
-        $this->reset('insert');
-        $format = false !== $format;
-        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
-        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
+        if ( !$cols || empty($cols) || '*' === $cols ) 
         {
-            // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
+            $columns = '*';
         }
         else
         {
-            if ( $format )
+            if ( false !== $format )
             {
-                $tables = implode(',', $this->ref((array)$tables));
-                $fields = implode(',', $this->ref((array)$fields));
+                $cols = $this->refs( $cols, $this->cols );
+                $columns = $cols[ 0 ]->tbl_col_alias_q;
+                for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_alias_q;
             }
             else
             {
-                $tables = implode(',', (array)$tables);
-                $fields = implode(',', (array)$fields);
+                $columns = implode( ',', (array)$cols );
             }
-            $this->state['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'fields'=>$fields ) );
+        }
+        $this->clus['select'] = $this->tpl['select']->render( array( 'columns'=>$columns ) );
+        return $this;
+    }
+    
+    public function insert( $tbls, $cols, $format=true )
+    {
+        $this->reset('insert');
+        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
+        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
+        {
+            // using custom 'soft' view
+            $view = $this->vews[ $view ];
+            $this->clus = $this->defaults( $this->clus, $view->clus, true );
+            $this->tbls = $this->defaults( array(), $view->tbls, true );
+            $this->cols = $this->defaults( array(), $view->cols, true );
+        }
+        else
+        {
+            if ( false !== $format )
+            {
+                $tbls = $this->refs( $tbls, $this->tbls );
+                $cols = $this->refs( $cols, $this->cols );
+                $tables = $tbls[ 0 ]->tbl_col_alias_q;
+                $columns = $cols[ 0 ]->tbl_col_q;
+                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+                for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_q;
+            }
+            else
+            {
+                $tables = implode( ',', (array)$tbls );
+                $columns = implode( ',', (array)$cols );
+            }
+            $this->clus['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'columns'=>$columns ) );
         }
         return $this;
     }
@@ -532,26 +671,36 @@ class Dialect
             }
         }
         $insert_values = implode(',', $insert_values);
-        if ( isset($this->state['values']) ) $this->state['values'] = $this->tpl['values_']->render( array( 'values'=>$this->state['values'], 'values_values'=>$insert_values ) );
-        else $this->state['values'] = $this->tpl['values']->render( array( 'values_values'=>$insert_values ) );
+        if ( isset($this->clus['values']) ) $this->clus['values'] = $this->tpl['values_']->render( array( 'values'=>$this->clus['values'], 'values_values'=>$insert_values ) );
+        else $this->clus['values'] = $this->tpl['values']->render( array( 'values_values'=>$insert_values ) );
         return $this;
     }
     
-    public function update( $tables, $format=true )
+    public function update( $tbls, $format=true )
     {
         $this->reset('update');
-        $format = false !== $format;
-        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
-        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
+        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
+        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
             // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
+            $view = $this->vews[ $view ];
+            $this->clus = $this->defaults( $this->clus, $view->clus, true );
+            $this->tbls = $this->defaults( array(), $view->tbls, true );
+            $this->cols = $this->defaults( array(), $view->cols, true );
         }
         else
         {
-            if ( $format ) $tables = implode(',', $this->ref((array)$tables));
-            else $tables = implode(',', (array)$tables);
-            $this->state['update'] = $this->tpl['update']->render( array( 'tables'=>$tables ) );
+            if ( false !== $format )
+            {
+                $tbls = $this->refs( $tbls, $this->tbls );
+                $tables = $tbls[ 0 ]->tbl_col_alias_q;
+                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+            }
+            else
+            {
+                $tables = implode( ',', (array)$tbls );
+            }
+            $this->clus['update'] = $this->tpl['update']->render( array( 'tables'=>$tables ) );
         }
         return $this;
     }
@@ -560,9 +709,10 @@ class Dialect
     {
         if ( empty($fields_values) ) return $this;
         $set_values = array();
-        foreach ($fields_values as $field=>$value)
+        foreach ($fields_values as $f=>$value)
         {
-            $field = $this->ref( $field );
+            $field = $this->refs( $f, $this->cols );
+            $field = $field[0]->tbl_col_q;
             if ( is_array($value) )
             {
                 if ( isset($value['integer']) )
@@ -592,41 +742,52 @@ class Dialect
             }
         }
         $set_values = implode(',', $set_values);
-        if ( isset($this->state['set']) ) $this->state['set'] = $this->tpl['set_']->render( array( 'set'=>$this->state['set'], 'set_values'=>$set_values ) );
-        else $this->state['set'] = $this->tpl['set']->render( array( 'set_values'=>$set_values ) );
+        if ( isset($this->clus['set']) ) $this->clus['set'] = $this->tpl['set_']->render( array( 'set'=>$this->clus['set'], 'set_values'=>$set_values ) );
+        else $this->clus['set'] = $this->tpl['set']->render( array( 'set_values'=>$set_values ) );
         return $this;
     }
     
     public function del( )
     {
         $this->reset('delete');
-        $this->state['delete'] = $this->tpl['delete']->render( array() );
+        $this->clus['delete'] = $this->tpl['delete']->render( array() );
         return $this;
     }
     
-    public function from( $tables, $format=true )
+    public function from( $tbls, $format=true )
     {
-        if ( empty($tables) ) return $this;
-        $format = false !== $format;
-        $maybe_view = is_array( $tables ) ? $tables[0] : $tables;
-        if ( isset($this->_views[ $maybe_view ]) && $this->clause === $this->_views[ $maybe_view ]->clause )
+        if ( empty($tbls) ) return $this;
+        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
+        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
             // using custom 'soft' view
-            $this->state = $this->defaults( $this->state, $this->_views[ $maybe_view ]->state, true );
+            $view = $this->vews[ $view ];
+            $this->clus = $this->defaults( $this->clus, $view->clus, true );
+            $this->tbls = $this->defaults( array(), $view->tbls, true );
+            $this->cols = $this->defaults( array(), $view->cols, true );
         }
         else
         {
-            if ( $format ) $tables = implode(',', $this->ref((array)$tables));
-            else $tables = implode(',', (array)$tables);
-            if ( isset($this->state['from']) ) $this->state['from'] = $this->tpl['from_']->render( array( 'from'=>$this->state['from'], 'tables'=>$tables ) );
-            else $this->state['from'] = $this->tpl['from']->render( array( 'tables'=>$tables ) );
+            if ( false !== $format )
+            {
+                $tbls = $this->refs( $tbls, $this->tbls );
+                $tables = $tbls[ 0 ]->tbl_col_alias_q;
+                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+            }
+            else
+            {
+                $tables = implode( ',', (array)$tbls );
+            }
+            if ( isset($this->clus['from']) ) $this->clus['from'] = $this->tpl['from_']->render( array( 'from'=>$this->clus['from'], 'tables'=>$tables ) );
+            else $this->clus['from'] = $this->tpl['from']->render( array( 'tables'=>$tables ) );
         }
         return $this;
     }
     
     public function join( $table, $on_cond=null, $join_type=null )
     {
-        $table = $this->ref( $table );
+        $table = $this->refs( $table, $this->tbls );
+        $table = $table[0]->tbl_col_alias_q;
         if ( empty($on_cond) )
         {
             $join_clause = $table;
@@ -635,21 +796,23 @@ class Dialect
         {
             if ( is_string( $on_cond ) )
             {
-                $on_cond = '(' . implode( '=', $this->ref( explode( '=', $on_cond ) ) ) . ')';
+                $on_cond = $this->refs( explode('=',$on_cond), $this->cols );
+                $on_cond = '(' . $on_cond[0]->tbl_col_q . '=' . $on_cond[1]->tbl_col_q . ')';
             }
             else
             {
                 foreach ($on_cond as $field=>$cond)
                 {
-                    if ( !is_array($cond) ) $on_cond[$field] = array('eq'=>$cond,'type'=>'field');
+                    if ( !is_array($cond) ) 
+                        $on_cond[$field] = array('eq'=>$cond,'type'=>'identifier');
                 }
                 $on_cond = $this->conditions( $on_cond );
             }
             $join_clause = "$table ON $on_cond";
         }
         $join_type = empty($join_type) ? "" : (strtoupper($join_type) . " ");
-        if ( isset($this->state['join']) ) $this->state['join'] = $this->tpl['join_']->render( array( 'join'=>$this->state['join'], 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
-        else $this->state['join'] = $this->tpl['join']->render( array( 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
+        if ( isset($this->clus['join']) ) $this->clus['join'] = $this->tpl['join_']->render( array( 'join'=>$this->clus['join'], 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
+        else $this->clus['join'] = $this->tpl['join']->render( array( 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
         return $this;
     }
     
@@ -658,19 +821,20 @@ class Dialect
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
         if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
-        $conditions = $this->conditions( $conditions );
-        if ( isset($this->state['where']) ) $this->state['where'] = $this->tpl['where_']->render( array( 'where'=>$this->state['where'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
-        else $this->state['where'] = $this->tpl['where']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        $conditions = $this->conditions( $conditions, false );
+        if ( isset($this->clus['where']) ) $this->clus['where'] = $this->tpl['where_']->render( array( 'where'=>$this->clus['where'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        else $this->clus['where'] = $this->tpl['where']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
         return $this;
     }
     
-    public function group( $field, $dir="asc" )
+    public function group( $col, $dir="asc" )
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
-        $field = $this->ref( $field );
-        if ( isset($this->state['group']) ) $this->state['group'] = $this->tpl['group_']->render( array( 'group'=>$this->state['group'], 'field'=>$field, 'dir'=>$dir ) );
-        else $this->state['group'] = $this->tpl['group']->render( array( 'field'=>$field, 'dir'=>$dir ) );
+        $column = $this->refs( $col, $this->cols );
+        $column = $column[0]->alias_q;
+        if ( isset($this->clus['group']) ) $this->clus['group'] = $this->tpl['group_']->render( array( 'group'=>$this->clus['group'], 'column'=>$column, 'dir'=>$dir ) );
+        else $this->clus['group'] = $this->tpl['group']->render( array( 'column'=>$column, 'dir'=>$dir ) );
         return $this;
     }
     
@@ -679,26 +843,27 @@ class Dialect
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
         if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
-        $conditions = $this->conditions( $conditions );
-        if ( isset($this->state['having']) ) $this->state['having'] = $this->tpl['having_']->render( array( 'having'=>$this->state['having'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
-        else $this->state['having'] = $this->tpl['having']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        $conditions = $this->conditions( $conditions, true );
+        if ( isset($this->clus['having']) ) $this->clus['having'] = $this->tpl['having_']->render( array( 'having'=>$this->clus['having'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        else $this->clus['having'] = $this->tpl['having']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
         return $this;
     }
     
-    public function order( $field, $dir="asc" )
+    public function order( $col, $dir="asc" )
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
-        $field = $this->ref( $field );
-        if ( isset($this->state['order']) ) $this->state['order'] = $this->tpl['order_']->render( array( 'order'=>$this->state['order'], 'field'=>$field, 'dir'=>$dir ) );
-        else $this->state['order'] = $this->tpl['order']->render( array( 'field'=>$field, 'dir'=>$dir ) );
+        $column = $this->refs( $col, $this->cols );
+        $column = $column[0]->alias_q;
+        if ( isset($this->clus['order']) ) $this->clus['order'] = $this->tpl['order_']->render( array( 'order'=>$this->clus['order'], 'column'=>$column, 'dir'=>$dir ) );
+        else $this->clus['order'] = $this->tpl['order']->render( array( 'column'=>$column, 'dir'=>$dir ) );
         return $this;
     }
     
     public function limit( $count, $offset=0 )
     {
         $count = intval($count,10); $offset = intval($offset,10);
-        $this->state['limit'] = $this->tpl['limit']->render( array( 'offset'=>$offset, 'count'=>$count ) );
+        $this->clus['limit'] = $this->tpl['limit']->render( array( 'offset'=>$offset, 'count'=>$count ) );
         return $this;
     }
     
@@ -711,61 +876,87 @@ class Dialect
     public function join_conditions( $join, &$conditions )
     {
         $j = 0;
-        foreach ($conditions as $field=>$cond)
+        foreach ($conditions as $f=>$cond)
         {
-            $field_raw = $this->fld( $field );
-            if ( isset($join[$field_raw]) )
+            $ref = DialectRef::parse( $f, $this );
+            $field = $ref->col;
+            if ( !isset($join[$field]) ) continue;
+            $main_table = $join[$field]['table'];
+            $main_id = $join[$field]['id'];
+            $join_table = $join[$field]['join'];
+            $join_id = $join[$field]['join_id'];
+            
+            $j++; $join_alias = "{$join_table}{$j}";
+            
+            $where = array( );
+            if ( isset($join[$field]['key']) && $field !== $join[$field]['key'] )
             {
-                $main_table = $join[$field_raw]['table'];
-                $main_id = $join[$field_raw]['id'];
-                $join_table = $join[$field_raw]['join'];
-                $join_id = $join[$field_raw]['join_id'];
-                
-                $j++; $join_alias = "{$join_table}{$j}";
-                
-                $where = array( );
-                if ( isset($join[$field_raw]['key']) && $field_raw !== $join[$field_raw]['key'] )
-                {
-                    $join_key = $join[$field_raw]['key'];
-                    $where["{$join_alias}.{$join_key}"] = $field_raw;
-                }
-                else
-                {
-                    $join_key = $field_raw;
-                }
-                if ( isset($join[$field_raw]['value']) )
-                {
-                    $join_value = $join[$field_raw]['value'];
-                    $where["{$join_alias}.{$join_value}"] = $cond;
-                }
-                else
-                {
-                    $join_value = $join_key;
-                    $where["{$join_alias}.{$join_value}"] = $cond;
-                }
-                $this->join(
-                    "{$join_table} AS {$join_alias}", 
-                    "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
-                    "inner"
-                )->where( $where );
-                
-                unset( $conditions[$field] );
-           }
+                $join_key = $join[$field]['key'];
+                $where["{$join_alias}.{$join_key}"] = $field;
+            }
+            else
+            {
+                $join_key = $field;
+            }
+            if ( isset($join[$field]['value']) )
+            {
+                $join_value = $join[$field]['value'];
+                $where["{$join_alias}.{$join_value}"] = $cond;
+            }
+            else
+            {
+                $join_value = $join_key;
+                $where["{$join_alias}.{$join_value}"] = $cond;
+            }
+            $this->join(
+                "{$join_table} AS {$join_alias}", 
+                "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
+                "inner"
+            )->where( $where );
+            
+            unset( $conditions[$f] );
         }
         return $this;
     }
     
-    public function conditions( $conditions )
+    public function refs( $refs, &$lookup ) 
+    {
+        $rs = (array)$refs;
+        $refs = array( );
+        foreach ($rs as $r)
+        {
+            $r = explode( ',', $r );
+            foreach ($r as $ref)
+            {
+                $ref = DialectRef::parse( $ref, $this );
+                if ( !isset($lookup[$ref->tbl_col]) ) 
+                {
+                    $lookup[$ref->tbl_col] = $ref;
+                    if ( $ref->tbl_col !== $ref->alias ) $lookup[ $ref->alias ] = $ref;
+                }
+                else
+                {                    
+                    $ref = $lookup[ $ref->tbl_col ];
+                }
+                $refs[] = $ref;
+            }
+        }
+        return $refs;
+    }
+    
+    public function conditions( $conditions, $can_use_alias=false )
     {
         if ( empty($conditions) ) return '';
         if ( is_string($conditions) ) return $conditions;
         
         $condquery = '';
         $conds = array();
+        $fmt = true === $can_use_alias ? 'alias_q' : 'tbl_col_q';
         
-        foreach ($conditions as $field=>$value)
+        foreach ($conditions as $f=>$value)
         {
-            $field = $this->ref( $field );
+            $field = $this->refs( $f, $this->cols );
+            $field = $field[0]->{$fmt};
             
             if ( is_array( $value ) )
             {
@@ -868,9 +1059,10 @@ class Dialect
                     {
                         $v = $this->intval( $v );
                     }
-                    elseif ( 'field' === $type )
+                    elseif ( 'identifier' === $type || 'field' === $type )
                     {
-                        $v = $this->ref( $v );
+                        $v = $this->refs( $v, $this->cols );
+                        $v = $v[0]->{$fmt};
                     }
                     else
                     {
@@ -891,9 +1083,10 @@ class Dialect
                     {
                         $v = $this->intval( $v );
                     }
-                    elseif ( 'field' === $type )
+                    elseif ( 'identifier' === $type || 'field' === $type )
                     {
-                        $v = $this->ref( $v );
+                        $v = $this->refs( $v, $this->cols );
+                        $v = $v[0]->{$fmt};
                     }
                     else
                     {
@@ -914,9 +1107,10 @@ class Dialect
                     {
                         $v = $this->intval( $v );
                     }
-                    elseif ( 'field' === $type )
+                    elseif ( 'identifier' === $type || 'field' === $type )
                     {
-                        $v = $this->ref( $v );
+                        $v = $this->refs( $v, $this->cols );
+                        $v = $v[0]->{$fmt};
                     }
                     else
                     {
@@ -937,9 +1131,10 @@ class Dialect
                     {
                         $v = $this->intval( $v );
                     }
-                    elseif ( 'field' === $type )
+                    elseif ( 'identifier' === $type || 'field' === $type )
                     {
-                        $v = $this->ref( $v );
+                        $v = $this->refs( $v, $this->cols );
+                        $v = $v[0]->{$fmt};
                     }
                     else
                     {
@@ -996,30 +1191,7 @@ class Dialect
     public function tbl( $table )
     {
         if ( is_array($table) ) return array_map(array($this, 'tbl'), (array)$table);
-        return $this->prefix.$table;
-    }
-    
-    public function fld( $field )
-    {
-        if ( is_array($field) ) return array_map(array($this, 'fld'), (array)$field);
-        $field = explode('.', $field);
-        return end($field);
-    }
-    
-    public function ref( $refs )
-    {
-        if ( is_array($refs) ) return array_map(array($this, 'ref'), (array)$refs);
-        $refs = array_map( 'trim', explode( ',', $refs ) );
-        foreach ($refs as $i=>$ref)
-        {
-            $ref = array_map( 'trim', explode( ' AS ', $ref ) );
-            foreach ($ref as $j=>$r)
-            {
-                $ref[$j] = implode( '.', $this->quote_name( explode( '.', $r ) ) );
-            }
-            $refs[$i] = implode( ' AS ', $ref );
-        }
-        return implode( ',', $refs );
+        return $this->p.$table;
     }
     
     public function intval( $v )
@@ -1040,7 +1212,9 @@ class Dialect
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'quote'), $v );
-        return $this->q . $this->esc($v) . $this->q;
+        $q = $this->q;
+        $e = $this->escdb ? '' : $this->e;
+        return $e . $q . $this->esc($v) . $q;
     }
     
     public function esc( $v )
@@ -1053,25 +1227,34 @@ class Dialect
                 return array_map( array($this, 'esc'), $v );
         }
         if ( $this->escdb ) 
+        {
             return call_user_func( $this->escdb, $v );
+        }
         else
+        {
             // simple ecsaping using addslashes
             // '"\ and NUL (the NULL byte).
-            return addslashes( $v );
+            $chars = $this->q . '"\'\\' . chr(0); 
+            $esc = '\\';
+            return self::addslashes( $v, $chars, $esc );
+        }
     }
     
     public function esc_like( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'esc_like'), $v );
-        return addcslashes( $v, '_%\\' );
+        $chars = '_%'; $esc = '\\';
+        return self::addslashes( $v, $chars, $esc );
     }
     
     public function like( $v )
     {
         if ( is_array( $v ) )
             return array_map( array($this, 'like'), $v );
-        return $this->q . '%' . $this->esc( $this->esc_like( $v ) ) . '%' . $this->q;
+        $q = $this->q;
+        $e = $this->escdb ? '' : $this->e;
+        return $e . $q . '%' . $this->esc_like( $this->esc( $v ) ) . '%' . $q;
     }
     
     public function multi_like( $f, $v, $doTrim=true )
@@ -1092,40 +1275,52 @@ class Dialect
         return implode(' OR ', $ORs);
     }
     
-    public function year( $field )
+    public function year( $column )
     {
         if ( !($this->tpl['year'] instanceof DialectTpl) ) $this->tpl['year'] = new DialectTpl( $this->tpl['year'], self::TPL_RE );
-        return $this->tpl['year']->render( array( 'field'=>$field ) );
+        return $this->tpl['year']->render( array( 'column'=>$column ) );
     }
     
-    public function month( $field )
+    public function month( $column )
     {
         if ( !($this->tpl['month'] instanceof DialectTpl) ) $this->tpl['month'] = new DialectTpl( $this->tpl['month'], self::TPL_RE );
-        return $this->tpl['month']->render( array( 'field'=>$field ) );
+        return $this->tpl['month']->render( array( 'column'=>$column ) );
     }
     
-    public function day( $field )
+    public function day( $column )
     {
         if ( !($this->tpl['day'] instanceof DialectTpl) ) $this->tpl['day'] = new DialectTpl( $this->tpl['day'], self::TPL_RE );
-        return $this->tpl['day']->render( array( 'field'=>$field ) );
+        return $this->tpl['day']->render( array( 'column'=>$column ) );
     }
     
-    public function hour( $field )
+    public function hour( $column )
     {
         if ( !($this->tpl['hour'] instanceof DialectTpl) ) $this->tpl['hour'] = new DialectTpl( $this->tpl['hour'], self::TPL_RE );
-        return $this->tpl['hour']->render( array( 'field'=>$field ) );
+        return $this->tpl['hour']->render( array( 'column'=>$column ) );
     }
     
-    public function minute( $field )
+    public function minute( $column )
     {
         if ( !($this->tpl['minute'] instanceof DialectTpl) ) $this->tpl['minute'] = new DialectTpl( $this->tpl['minute'], self::TPL_RE );
-        return $this->tpl['minute']->render( array( 'field'=>$field ) );
+        return $this->tpl['minute']->render( array( 'column'=>$column ) );
     }
     
-    public function second( $field )
+    public function second( $column )
     {
         if ( !($this->tpl['second'] instanceof DialectTpl) ) $this->tpl['second'] = new DialectTpl( $this->tpl['second'], self::TPL_RE );
-        return $this->tpl['second']->render( array( 'field'=>$field ) );
+        return $this->tpl['second']->render( array( 'column'=>$column ) );
+    }
+    
+    public static function addslashes( $s, $chars=null, $esc='\\' )
+    {
+        $s2 = '';
+        if ( null === $chars ) $chars = '\\"\'' . chr(0);
+        for ($i=0,$l=strlen($s); $i<$l; $i++)
+        {
+            $c = $s[ $i ];
+            $s2 .= false === strpos($chars, $c) ? $c : (0 === ord($c) ? '\\0' : ($esc.$c));
+        }
+        return $s2;
     }
 }
 }

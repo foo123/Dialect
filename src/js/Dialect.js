@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.1
+*   @version: 0.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -33,7 +33,9 @@ else if ( !(name in root) )
     /* module factory */        function( exports, undef ) {
 "use strict";
 
-var PROTO = 'prototype', HAS = 'hasOwnProperty', Keys = Object.keys, toString = Object[PROTO].toString,
+var PROTO = 'prototype', HAS = 'hasOwnProperty', 
+    Keys = Object.keys, toString = Object[PROTO].toString,
+    CHAR = 'charAt', CHARCODE = 'charCodeAt',
     F = function( a, c ){ return new Function(a, c); },
     RE = function( r, f ){ return new RegExp(r, f||''); },
     is_callable = function( o ){ return "function" === typeof o; },
@@ -66,20 +68,25 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty', Keys = Object.keys, toString = 
         return cloned;
     },*/
     array = function( o ){ return is_array( o ) ? o : [o]; },
-    SPACE_RE = /^\s+|\s+$/g,
+    space_re = /^\s+|\s+$/g,
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
-        : function( s ){ return s.replace(SPACE_RE, ''); },
-    ESCAPED_RE = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g,
-    esc_re = function( s ) { return s.replace(ESCAPED_RE, "\\$&"); },
-    addslashes_re = /[\\"']/g, addslashes_null_re = /\u0000/g, addslashes_like_re = /[_%\\]/g,
-    addslashes = function( str ) {
-        return (str + '').replace(addslashes_re, '\\$&').replace(addslashes_null_re, '\\0');
+        : function( s ){ return s.replace(space_re, ''); },
+    escaped_re = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g,
+    esc_re = function( s ) { return s.replace(escaped_re, "\\$&"); },
+    NULL_CHAR = String.fromCharCode( 0 ),
+    addslashes = function( s, chars, esc ) {
+        var s2 = '', i, l, c;
+        if ( 3 > arguments.length ) esc = '\\';
+        if ( 2 > arguments.length ) chars = '\\"\'' + NULL_CHAR;
+        for (i=0,l=s.length; i<l; i++)
+        {
+            c = s[CHAR]( i );
+            s2 += -1 === chars.indexOf( c ) ? c : (0 === c[CHARCODE](0) ? '\\0' : (esc+c));
+        }
+        return s2;
     },
-    addslashes_like = function( str ) {
-        return (str + '').replace(addslashes_like_re, '\\$&');
-    },
-    Tpl, Dialect
+    Tpl, Ref, Dialect
 ;
 
 
@@ -233,23 +240,103 @@ Tpl[PROTO] = {
     }
 };
 
+Ref = function( col, col_q, tbl, tbl_q, alias, alias_q, 
+                tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ) {
+    var self = this;
+    self.col = col;
+    self.col_q = col_q;
+    self.tbl = tbl;
+    self.tbl_q = tbl_q;
+    self.alias = alias;
+    self.alias_q = alias_q;
+    self.tbl_col = tbl_col;
+    self.tbl_col_q = tbl_col_q;
+    self.tbl_col_alias = tbl_col_alias;
+    self.tbl_col_alias_q = tbl_col_alias_q;
+};
+Ref.parse = function( r, d ) {
+    var col, col_q, tbl, tbl_q, alias, alias_q, 
+        tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q;
+    r = trim( r ).split(' AS ');
+    col = r[ 0 ].split( '.' );
+    tbl = col.length < 2 ? null : trim(col[ 0 ]);
+    col = tbl ? trim(col[ 1 ]) : trim(col[ 0 ]);
+    col_q = d.quote_name( col );
+    if ( tbl )
+    {
+        tbl_q = d.quote_name( tbl );
+        tbl_col = tbl + '.' + col;
+        tbl_col_q = tbl_q + '.' + col_q;
+    }
+    else
+    {
+        tbl_q = null;
+        tbl_col = col;
+        tbl_col_q = col_q;
+    }
+    if ( r.length < 2 )
+    {
+        alias = tbl_col;
+        alias_q = tbl_col_q;
+        tbl_col_alias = tbl_col;
+        tbl_col_alias_q = tbl_col_q;
+    }
+    else
+    {
+        alias = trim( r[1] );
+        alias_q = d.quote_name( alias );
+        tbl_col_alias = tbl_col + ' AS ' + alias;
+        tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q;
+    }
+    return new Ref( col, col_q, tbl, tbl_q, alias, alias_q, 
+                tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q );
+};
+Ref[PROTO] = {
+     constructor: Ref
+    
+    ,col: null
+    ,col_q: null
+    ,tbl: null
+    ,tbl_q: null
+    ,alias: null
+    ,alias_q: null
+    ,tbl_col: null
+    ,tbl_col_q: null
+    ,tbl_col_alias: null
+    ,tbl_col_alias_q: null
+    
+    ,dispose: function( ) {
+        var self = this;
+        self.col = null;
+        self.col_q = null;
+        self.tbl = null;
+        self.tbl_q = null;
+        self.alias = null;
+        self.alias_q = null;
+        self.tbl_col = null;
+        self.tbl_col_q = null;
+        self.tbl_col_alias = null;
+        self.tbl_col_alias_q = null;
+        return self;
+    }
+};
+
 var dialect = {
  'mysql'            : {
-    
-     'quote'        : [ "'", '`' ]
+     'quote'        : [ "'", '`', '' ]
     ,'clauses'      : {
-    // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+     // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
      'select'  : ['select','from','join','where','group','having','order','limit']
-    // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+     // https://dev.mysql.com/doc/refman/5.0/en/insert.html
     ,'insert'  : ['insert','values']
-    // https://dev.mysql.com/doc/refman/5.0/en/update.html
+     // https://dev.mysql.com/doc/refman/5.0/en/update.html
     ,'update'  : ['update','set','where','order','limit']
-    // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+     // https://dev.mysql.com/doc/refman/5.0/en/delete.html
     ,'delete'  : ['delete','from','where','order','limit']
     }
     ,'tpl'        : {
-     'select'   : 'SELECT $(fields)'
-    ,'insert'   : 'INSERT INTO $(tables) ($(fields))'
+     'select'   : 'SELECT $(columns)'
+    ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
     ,'update'   : 'UPDATE $(tables)'
     ,'delete'   : 'DELETE '
     ,'values'   : 'VALUES $(values_values)'
@@ -262,112 +349,126 @@ var dialect = {
     ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
     ,'where'    : 'WHERE $(conditions)'
     ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
-    ,'group'    : 'GROUP BY $(field) $(dir)'
-    ,'group_'   : '$(group),$(field) $(dir)'
+    ,'group'    : 'GROUP BY $(column) $(dir)'
+    ,'group_'   : '$(group),$(column) $(dir)'
     ,'having'   : 'HAVING $(conditions)'
     ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
-    ,'order'    : 'ORDER BY $(field) $(dir)'
-    ,'order_'   : '$(order),$(field) $(dir)'
+    ,'order'    : 'ORDER BY $(column) $(dir)'
+    ,'order_'   : '$(order),$(column) $(dir)'
     ,'limit'    : 'LIMIT $(offset),$(count)'
-    
-    ,'year'     : 'YEAR($(field))'
-    ,'month'    : 'MONTH($(field))'
-    ,'day'      : 'DAY($(field))'
-    ,'hour'     : 'HOUR($(field))'
-    ,'minute'   : 'MINUTE($(field))'
-    ,'second'   : 'SECOND($(field))'
-    }
- }
-/*
-,'postgre'          : {
-     'quote'        : [ "'", '`' ]
-    ,'clauses'      : {
-    // http://www.postgresql.org/docs/
-     'select'  : ['select','from','join','where','group','having','order','limit']
-    ,'insert'  : ['insert','values']
-    ,'update'  : ['update','set','where','order','limit']
-    ,'delete'  : ['delete','from','where','order','limit']
-    }
-    ,'tpl'        : {
-     'select'   : 'SELECT $(fields)'
-    ,'insert'   : 'INSERT INTO $(tables) ($(fields))'
-    ,'update'   : 'UPDATE $(tables)'
-    ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $(values_values)'
-    ,'values_'  : '$(values),$(values_values)'
-    ,'set'      : 'SET $(set_values)'
-    ,'set_'     : '$(set),$(set_values)'
-    ,'from'     : 'FROM $(tables)'
-    ,'from_'    : '$(from),$(tables)'
-    ,'join'     : '$(join_type)JOIN $(join_clause)'
-    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
-    ,'where'    : 'WHERE $(conditions)'
-    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
-    ,'group'    : 'GROUP BY $(field) $(dir)'
-    ,'group_'   : '$(group),$(field) $(dir)'
-    ,'having'   : 'HAVING $(conditions)'
-    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
-    ,'order'    : 'ORDER BY $(field) $(dir)'
-    ,'order_'   : '$(order),$(field) $(dir)'
-    ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
-    
-    ,'year'     : 'EXTRACT (YEAR FROM $(field))'
-    ,'month'    : 'EXTRACT (MONTH FROM $(field))'
-    ,'day'      : 'EXTRACT (DAY FROM $(field))'
-    ,'hour'     : 'EXTRACT (HOUR FROM $(field))'
-    ,'minute'   : 'EXTRACT (MINUTE FROM $(field))'
-    ,'second'   : 'EXTRACT (SECOND FROM $(field))'
+
+    ,'year'     : 'YEAR($(column))'
+    ,'month'    : 'MONTH($(column))'
+    ,'day'      : 'DAY($(column))'
+    ,'hour'     : 'HOUR($(column))'
+    ,'minute'   : 'MINUTE($(column))'
+    ,'second'   : 'SECOND($(column))'
     }
 }
-*/
+,'postgre'          : {
+     'quote'        : [ '`', '"', 'E' ]
+    ,'clauses'      : {
+     // http://www.postgresql.org/docs/
+     'select'  : ['select','from','join','where','group','having','order','limit']
+    ,'insert'  : ['insert','values']
+    ,'update'  : ['update','set','where','order','limit']
+    ,'delete'  : ['delete','from','where','order','limit']
+    }
+    ,'tpl'        : {
+     'select'   : 'SELECT $(columns)'
+    ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
+    ,'update'   : 'UPDATE $(tables)'
+    ,'delete'   : 'DELETE '
+    ,'values'   : 'VALUES $(values_values)'
+    ,'values_'  : '$(values),$(values_values)'
+    ,'set'      : 'SET $(set_values)'
+    ,'set_'     : '$(set),$(set_values)'
+    ,'from'     : 'FROM $(tables)'
+    ,'from_'    : '$(from),$(tables)'
+    ,'join'     : '$(join_type)JOIN $(join_clause)'
+    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
+    ,'where'    : 'WHERE $(conditions)'
+    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
+    ,'group'    : 'GROUP BY $(column) $(dir)'
+    ,'group_'   : '$(group),$(column) $(dir)'
+    ,'having'   : 'HAVING $(conditions)'
+    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
+    ,'order'    : 'ORDER BY $(column) $(dir)'
+    ,'order_'   : '$(order),$(column) $(dir)'
+    ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
+
+    ,'year'     : 'EXTRACT (YEAR FROM $(column))'
+    ,'month'    : 'EXTRACT (MONTH FROM $(column))'
+    ,'day'      : 'EXTRACT (DAY FROM $(column))'
+    ,'hour'     : 'EXTRACT (HOUR FROM $(column))'
+    ,'minute'   : 'EXTRACT (MINUTE FROM $(column))'
+    ,'second'   : 'EXTRACT (SECOND FROM $(column))'
+    }
+}
 };
 
 Dialect = function Dialect( type ) {
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
     
+    self.clau = null;
+    self.clus = null;
+    self.tbls = null;
+    self.cols = null;
+    self.vews = { };
+    
     self.db = null;
-    self.prefix = '';
     self.escdb = null;
-    self.clause = null;
-    self.state = null;
+    self.p = '';
+    
     type = type || 'mysql';
     self.clauses = Dialect.dialect[ type ][ 'clauses' ];
     self.tpl = Dialect.dialect[ type ][ 'tpl' ];
     self.q = Dialect.dialect[ type ][ 'quote' ][ 0 ];
     self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
-    self._views = { };
+    self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] || '';
 };
-Dialect.VERSION = "0.1";
+Dialect.VERSION = "0.2";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = Tpl;
+Dialect.Ref = Ref;
 Dialect[PROTO] = {
     constructor: Dialect
     
-    ,clause: null
-    ,state: null
+    ,clau: null
+    ,clus: null
+    ,tbls: null
+    ,cols: null
+    ,vews: null
+    
+    ,db: null
+    ,escdb: null
+    ,p: null
+    
     ,clauses: null
     ,tpl: null
-    ,db: null
-    ,prefix: null
-    ,escdb: null
     ,q: null
     ,qn: null
-    ,_views: null
+    ,e: null
     
     ,dispose: function( ) {
         var self = this;
+        self.clau = null;
+        self.clus = null;
+        self.tbls = null;
+        self.cols = null;
+        self.vews = null;
+        
         self.db = null;
-        self.prefix = null;
         self.escdb = null;
-        self.clause = null;
-        self.state = null;
+        self.p = null;
+        
         self.clauses = null;
         self.tpl = null;
         self.q = null;
         self.qn = null;
-        self._views = null;
+        self.e = null;
         return self;
     }
     
@@ -377,27 +478,41 @@ Dialect[PROTO] = {
     
     ,driver: function( db ) {
         var self = this;
-        self.db = db ? db : null;
-        return self;
-    }
-    
-    ,table_prefix: function( prefix ) {
-        var self = this;
-        self.prefix = prefix ? prefix : '';
-        return self;
+        if ( arguments.length )
+        {
+            self.db = db ? db : null;
+            return self;
+        }
+        return self.db;
     }
     
     ,escape: function( escdb ) {
         var self = this;
-        self.escdb = escdb && is_callable(escdb) ? escdb : null;
-        return self;
+        if ( arguments.length )
+        {
+            self.escdb = escdb && is_callable( escdb ) ? escdb : null;
+            return self;
+        }
+        return self.escdb;
+    }
+    
+    ,prefix: function( prefix ) {
+        var self = this;
+        if ( arguments.length )
+        {
+            self.p = prefix && prefix.length ? prefix : '';
+            return self;
+        }
+        return self.p;
     }
     
     ,reset: function( clause ) {
         var self = this, i, l, clauses, c;
-        self.clause = clause;
-        self.state = { };
-        clauses = self.clauses[ self.clause ];
+        self.clau = clause;
+        self.clus = { };
+        self.tbls = { };
+        self.cols = { };
+        clauses = self.clauses[ self.clau ];
         for (i=0,l=clauses.length; i<l; i++)
         {
             clause = clauses[ i ];
@@ -415,22 +530,24 @@ Dialect[PROTO] = {
     
     ,clear: function( ) {
         var self = this;
-        self.clause = null;
-        self.state = null;
+        self.clau = null;
+        self.clus = null;
+        self.tbls = null;
+        self.cols = null;
         return self;
     }
     
     ,sql: function( ) {
         var self = this, query = null, i, l, clause, clauses;
-        if ( self.clause && self.state && self.clauses[HAS]( self.clause ) )
+        if ( self.clau && self.clus && self.clauses[HAS]( self.clau ) )
         {
             query = [ ];
-            clauses = self.clauses[ self.clause ];
+            clauses = self.clauses[ self.clau ];
             for (i=0,l=clauses.length; i<l; i++)
             {
                 clause = clauses[ i ];
-                if ( self.state[ HAS ]( clause ) )
-                    query.push( self.state[ clause ] );
+                if ( self.clus[ HAS ]( clause ) )
+                    query.push( self.clus[ clause ] );
             }
             query = query.join("\n");
         }
@@ -439,7 +556,7 @@ Dialect[PROTO] = {
     }
     
     ,prepare: function( query, args, left, right ) {
-        var self = this, pattern, offset, m, pos, len, param, type, prepared;
+        var self = this, pattern, offset, m, pos, len, i, l, tmp, param, type, prepared;
         if ( query && args )
         {
             // custom delimiters
@@ -460,13 +577,17 @@ Dialect[PROTO] = {
                     switch( type )
                     {
                         // array of references, e.g fields
-                        case 'af': param = self.ref( array(args[param]) ).join(','); break;
+                        case 'af': 
+                            tmp = array( args[param] );
+                            param = Ref.parse( tmp[0], self ).tbl_col_alias_q;
+                            for (i=1,l=tmp.length; i<l; i++) param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q;
+                            break;
                         // array of integers param
                         case 'ad': param = '(' + self.intval( array(args[param]) ).join(',') + ')'; break;
                         // array of strings param
                         case 'as': param = '(' + self.quote( array(args[param]) ).join(',') + ')'; break;
                         // reference, e.g field
-                        case 'f': param = self.ref( args[param] ); break;
+                        case 'f': param = Ref.parse( args[param], self ).tbl_col_alias_q; break;
                         // like param
                         case 'l': param = self.like( args[param] ); break;
                         // raw param
@@ -492,9 +613,14 @@ Dialect[PROTO] = {
     
     ,make_view: function( view ) {
         var self = this;
-        if ( view && self.clause )
+        if ( view && self.clau )
         {
-            self._views[ view ] = {clause:self.clause, state:self.state};
+            self.vews[ view ] = {
+                clau:self.clau, 
+                clus:self.clus, 
+                tbls:self.tbls, 
+                cols:self.cols
+            };
             self.clear( );
         }
         return self;
@@ -502,47 +628,66 @@ Dialect[PROTO] = {
     
     ,clear_view: function( view ) {
         var self = this;
-        if ( view && self._views[HAS](view) )
+        if ( view && self.vews[HAS](view) )
         {
-            delete self._views[ view ];
+            delete self.vews[ view ];
         }
         return self;
     }
     
-    ,select: function( fields, format ) {
-        var self = this;
+    ,select: function( cols, format ) {
+        var self = this, i, l, columns;
         self.reset('select');
-        format = false !== format;
-        if ( !fields || !fields.length || '*' === fields ) fields = self.quote_name('*');
-        else if ( format ) fields = self.ref( array( fields ) ).join(',');
-        else fields = array( fields ).join(',');
-        self.state.select = self.tpl.select.render( { fields:fields } );
-        return self;
-    }
-    
-    ,insert: function( tables, fields, format ) {
-        var self = this, maybe_view;
-        self.reset('insert');
-        format = false !== format;
-        maybe_view = is_array( tables ) ? tables[0] : tables;
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
+        if ( !cols || !cols.length || '*' === cols ) 
         {
-            // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
+            columns = '*';
         }
         else
-        {
-            if ( format )
+        {            
+            if ( false !== format )
             {
-                tables = self.ref( array( tables ) ).join(',');
-                fields = self.ref( array( fields ) ).join(',');
+                cols = self.refs( cols, self.cols );
+                columns = cols[ 0 ].tbl_col_alias_q;
+                for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_alias_q;
             }
             else
             {
-                tables = array( tables ).join(',');
-                fields = array( fields ).join(',');
+                columns = array( cols ).join(',');
             }
-            self.state.insert = self.tpl.insert.render( { tables:tables, fields:fields } );
+        }
+        self.clus.select = self.tpl.select.render( { columns:columns } );
+        return self;
+    }
+    
+    ,insert: function( tbls, cols, format ) {
+        var self = this, i, l, view, tables, columns;
+        self.reset('insert');
+        view = is_array( tbls ) ? tbls[0] : tbls;
+        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
+        {
+            // using custom 'soft' view
+            view = self.vews[ view ];
+            self.clus = self.defaults( self.clus, view.clus, true );
+            self.tbls = self.defaults( {}, view.tbls, true );
+            self.cols = self.defaults( {}, view.cols, true );
+        }
+        else
+        {
+            if ( false !== format )
+            {
+                tbls = self.refs( tbls, self.tbls );
+                cols = self.refs( cols, self.cols );
+                tables = tbls[ 0 ].tbl_col_alias_q;
+                columns = cols[ 0 ].tbl_col_q;
+                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
+                for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_q;
+            }
+            else
+            {
+                tables = array( tbls ).join(',');
+                columns = array( cols ).join(',');
+            }
+            self.clus.insert = self.tpl.insert.render( { tables:tables, columns:columns } );
         }
         return self;
     }
@@ -587,39 +732,50 @@ Dialect[PROTO] = {
             }
         }
         insert_values = insert_values.join(',');
-        if ( self.state.values ) self.state.values = self.tpl.values_.render( { values:self.state.values, values_values:insert_values } );
-        else self.state.values = self.tpl.values.render( { values_values:insert_values } );
+        if ( self.clus.values ) self.clus.values = self.tpl.values_.render( { values:self.clus.values, values_values:insert_values } );
+        else self.clus.values = self.tpl.values.render( { values_values:insert_values } );
         return self;
     }
     
-    ,update: function( tables, format ) {
-        var self = this, maybe_view;
+    ,update: function( tbls, format ) {
+        var self = this, i, l, view, tables;
         self.reset('update');
-        format = false !== format;
-        maybe_view = is_array( tables ) ? tables[0] : tables;
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
+        view = is_array( tbls ) ? tbls[0] : tbls;
+        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
         {
             // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
+            view = self.vews[ view ];
+            self.clus = self.defaults( self.clus, view.clus, true );
+            self.tbls = self.defaults( {}, view.tbls, true );
+            self.cols = self.defaults( {}, view.cols, true );
         }
         else
         {
-            if ( format ) tables = self.ref( array( tables ) ).join(',');
-            else tables = array( tables ).join(',');
-            self.state.update = self.tpl.update.render( { tables:tables } );
+            if ( false !== format )
+            {
+                tbls = self.refs( tbls, self.tbls );
+                tables = tbls[ 0 ].tbl_col_alias_q;
+                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
+            }
+            else
+            {
+                tables = array( tbls ).join(',');
+            }
+            self.clus.update = self.tpl.update.render( { tables:tables } );
         }
         return self;
     }
     
     ,set: function( fields_values ) {
-        var self = this, set_values, field, value;
+        var self = this, set_values, f, field, value, COLS;
         if ( empty(fields_values) ) return self;
         set_values = [];
-        for (field in fields_values)
+        COLS = self.cols;
+        for (f in fields_values)
         {
-            if ( !fields_values[HAS](field) ) continue;
-            value = fields_values[field];
-            field = self.ref( field );
+            if ( !fields_values[HAS](f) ) continue;
+            field = self.refs( f, COLS )[0].tbl_col_q;
+            value = fields_values[f];
             
             if ( is_obj(value) )
             {
@@ -650,41 +806,51 @@ Dialect[PROTO] = {
             }
         }
         set_values = set_values.join(',');
-        if ( self.state.set ) self.state.set = self.tpl.set_.render( { set:self.state.set, set_values:set_values } );
-        else self.state.set = self.tpl.set.render( { set_values:set_values } );
+        if ( self.clus.set ) self.clus.set = self.tpl.set_.render( { set:self.clus.set, set_values:set_values } );
+        else self.clus.set = self.tpl.set.render( { set_values:set_values } );
         return self;
     }
     
     ,del: function( ) {
         var self = this;
         self.reset('delete');
-        self.state['delete'] = self.tpl['delete'].render( {} );
+        self.clus['delete'] = self.tpl['delete'].render( {} );
         return self;
     }
     
-    ,from: function( tables, format ) {
-        var self = this, maybe_view;
-        if ( empty(tables) ) return self;
-        format = false !== format;
-        maybe_view = is_array( tables ) ? tables[0] : tables;
-        if ( self._views[HAS]( maybe_view ) && self.clause === self._views[ maybe_view ].clause )
+    ,from: function( tbls, format ) {
+        var self = this, i, l, view, tables;
+        if ( empty(tbls) ) return self;
+        view = is_array( tbls ) ? tbls[0] : tbls;
+        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
         {
             // using custom 'soft' view
-            self.state = self.defaults( self.state, self._views[ maybe_view ].state, true );
+            view = self.vews[ view ];
+            self.clus = self.defaults( self.clus, view.clus, true );
+            self.tbls = self.defaults( {}, view.tbls, true );
+            self.cols = self.defaults( {}, view.cols, true );
         }
         else
         {
-            if ( format ) tables = self.ref( array( tables ) ).join(',');
-            else tables = array( tables ).join(',');
-            if ( self.state.from ) self.state.from = self.tpl.from_.render( { from:self.state.from, tables:tables } );
-            else self.state.from = self.tpl.from.render( { tables:tables } );
+            if ( false !== format )
+            {
+                tbls = self.refs( tbls, self.tbls );
+                tables = tbls[ 0 ].tbl_col_alias_q;
+                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
+            }
+            else
+            {
+                tables = array( tbls ).join(',');
+            }
+            if ( self.clus.from ) self.clus.from = self.tpl.from_.render( { from:self.clus.from, tables:tables } );
+            else self.clus.from = self.tpl.from.render( { tables:tables } );
         }
         return self;
     }
     
     ,join: function( table, on_cond, join_type ) {
         var self = this, join_clause, field, cond;
-        table = self.ref( table );
+        table = self.refs( table, self.tbls )[0].tbl_col_alias_q;
         if ( empty(on_cond) )
         {
             join_clause = table;
@@ -693,7 +859,8 @@ Dialect[PROTO] = {
         {
             if ( is_string(on_cond) )
             {
-                on_cond = '(' + self.ref( on_cond.split('=') ).join( '=' ) + ')';
+                on_cond = self.refs( on_cond.split('='), self.cols );
+                on_cond = '(' + on_cond[0].tbl_col_q + '=' + on_cond[1].tbl_col_q + ')';
             }
             else
             {
@@ -701,15 +868,15 @@ Dialect[PROTO] = {
                 {
                     if ( !on_cond[HAS](field) ) continue;
                     cond = on_cond[ field ];
-                    if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'field'};
+                    if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'identifier'};
                 }
-                on_cond = self.conditions( on_cond );
+                on_cond = self.conditions( on_cond, false );
             }
             join_clause = table + " ON " + on_cond;
         }
         join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
-        if ( self.state.join ) self.state.join = self.tpl.join_.render( { join:self.state.join, join_clause:join_clause, join_type:join_type } );
-        else self.state.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
+        if ( self.clus.join ) self.clus.join = self.tpl.join_.render( { join:self.clus.join, join_clause:join_clause, join_type:join_type } );
+        else self.clus.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
         return self;
     }
     
@@ -718,19 +885,19 @@ Dialect[PROTO] = {
         if ( empty(conditions) ) return self;
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
-        conditions = self.conditions( conditions );
-        if ( self.state.where ) self.state.where = self.tpl.where_.render( { where:self.state.where, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.state.where = self.tpl.where.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        conditions = self.conditions( conditions, false );
+        if ( self.clus.where ) self.clus.where = self.tpl.where_.render( { where:self.clus.where, boolean_connective:boolean_connective, conditions:conditions } );
+        else self.clus.where = self.tpl.where.render( { boolean_connective:boolean_connective, conditions:conditions } );
         return self;
     }
     
-    ,group: function( field, dir ) {
-        var self = this;
+    ,group: function( col, dir ) {
+        var self = this, column;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        field = self.ref( field );
-        if ( self.state.group ) self.state.group = self.tpl.group_.render( { group:self.state.group, field:field, dir:dir } );
-        else self.state.group = self.tpl.group.render( { field:field, dir:dir } );
+        column = self.refs( col, self.cols )[0].alias_q;
+        if ( self.clus.group ) self.clus.group = self.tpl.group_.render( { group:self.clus.group, column:column, dir:dir } );
+        else self.clus.group = self.tpl.group.render( { column:column, dir:dir } );
         return self;
     }
     
@@ -739,26 +906,26 @@ Dialect[PROTO] = {
         if ( empty(conditions) ) return self;
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
-        conditions = self.conditions( conditions );
-        if ( self.state.having ) self.state.having = self.tpl.having_.render( { having:self.state.having, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.state.having = self.tpl.having.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        conditions = self.conditions( conditions, true );
+        if ( self.clus.having ) self.clus.having = self.tpl.having_.render( { having:self.clus.having, boolean_connective:boolean_connective, conditions:conditions } );
+        else self.clus.having = self.tpl.having.render( { boolean_connective:boolean_connective, conditions:conditions } );
         return self;
     }
     
-    ,order: function( field, dir ) {
-        var self = this;
+    ,order: function( col, dir ) {
+        var self = this, column;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        field = self.ref( field );
-        if ( self.state.order ) self.state.order = self.tpl.order_.render( { order:self.state.order, field:field, dir:dir } );
-        else self.state.order = self.tpl.order.render( { field:field, dir:dir } );
+        column = self.refs( col, self.cols )[0].alias_q;
+        if ( self.clus.order ) self.clus.order = self.tpl.order_.render( { order:self.clus.order, column:column, dir:dir } );
+        else self.clus.order = self.tpl.order.render( { column:column, dir:dir } );
         return self;
     }
     
     ,limit: function( count, offset ) {
         var self = this;
         count = parseInt(count,10); offset = parseInt(offset||0,10);
-        self.state.limit = self.tpl.limit.render( { offset:offset, count:count } );
+        self.clus.limit = self.tpl.limit.render( { offset:offset, count:count } );
         return self;
     }
     
@@ -769,70 +936,96 @@ Dialect[PROTO] = {
     }
     
     ,join_conditions: function( join, conditions ) {
-        var self = this, j = 0, field, cond, field_raw, where,
+        var self = this, j = 0, f, ref, field, cond, where,
             main_table, main_id, join_table, join_id, join_alias,
             join_key, join_value;
-        for ( field in conditions )
+        for ( f in conditions )
         {
-            if ( !conditions[HAS](field) ) continue;
+            if ( !conditions[HAS](f) ) continue;
             
-            field_raw = self.fld( field );
-            if ( join[HAS](field_raw) )
+            ref = Ref.parse( f, self );
+            field = ref.col;
+            if ( !join[HAS]( field ) ) continue;
+            cond = conditions[ f ];
+            main_table = join[field].table;
+            main_id = join[field].id;
+            join_table = join[field].join;
+            join_id = join[field].join_id;
+            
+            j++; join_alias = join_table+j;
+            
+            where = { };
+            if ( join[field][HAS]('key') && field !== join[field].key )
             {
-                cond = conditions[ field ];
-                main_table = join[field_raw].table;
-                main_id = join[field_raw].id;
-                join_table = join[field_raw].join;
-                join_id = join[field_raw].join_id;
-                
-                j++; join_alias = join_table+j;
-                
-                where = { };
-                if ( join[field_raw][HAS]('key') && field_raw !== join[field_raw].key )
-                {
-                    join_key = join[field_raw].key;
-                    where[join_alias+'.'+join_key] = field_raw;
-                }
-                else
-                {
-                    join_key = field_raw;
-                }
-                if ( join[field_raw][HAS]('value') )
-                {
-                    join_value = join[field_raw].value;
-                    where[join_alias+'.'+join_value] = cond;
-                }
-                else
-                {
-                    join_value = join_key;
-                    where[join_alias+'.'+join_value] = cond;
-                }
-                self.join(
-                    join_table+" AS "+join_alias, 
-                    main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
-                    "inner"
-                ).where( where );
-                
-                delete conditions[field];
-           }
+                join_key = join[field].key;
+                where[join_alias+'.'+join_key] = field;
+            }
+            else
+            {
+                join_key = field;
+            }
+            if ( join[field][HAS]('value') )
+            {
+                join_value = join[field].value;
+                where[join_alias+'.'+join_value] = cond;
+            }
+            else
+            {
+                join_value = join_key;
+                where[join_alias+'.'+join_value] = cond;
+            }
+            self.join(
+                join_table+" AS "+join_alias, 
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                "inner"
+            ).where( where );
+            
+            delete conditions[f];
         }
         return self;
     }
     
-    ,conditions: function( conditions ) {
-        var self = this, condquery, conds, field, value, op, type, v;
+    ,refs: function( refs, lookup ) {
+        var self = this, i, l, j, m, r, rs, ref;
+        rs = array( refs );
+        refs = [ ];
+        for (i=0,l=rs.length; i<l; i++)
+        {
+            r = rs[ i ].split(',');
+            for (j=0,m=r.length; j<m; j++)
+            {
+                ref = Ref.parse( r[ j ], self );
+                if ( !lookup[HAS](ref.tbl_col) ) 
+                {
+                    lookup[ ref.tbl_col ] = ref;
+                    if ( ref.tbl_col !== ref.alias ) lookup[ ref.alias ] = ref;
+                }
+                else
+                {                    
+                    ref = lookup[ ref.tbl_col ];
+                }
+                refs.push( ref );
+            }
+        }
+        return refs;
+    }
+    
+    ,conditions: function( conditions, can_use_alias ) {
+        var self = this, condquery, conds, f, field, value, fmt, op, type, v, COLS;
         if ( empty(conditions) ) return '';
         if ( is_string(conditions) ) return conditions;
         
         condquery = '';
         conds = [];
+        COLS = self.cols;
+        fmt = true === can_use_alias ? 'alias_q' : 'tbl_col_q';
         
-        for ( field in conditions)
+        for (f in conditions)
         {
-            if ( !conditions[HAS](field) ) continue;
+            if ( !conditions[HAS](f) ) continue;
             
-            value = conditions[field];
-            field = self.ref( field );
+            field = self.refs( f, COLS )[0][ fmt ];
+            value = conditions[ f ];
             
             if ( is_obj( value ) )
             {
@@ -935,9 +1128,9 @@ Dialect[PROTO] = {
                     {
                         v = self.intval( v );
                     }
-                    else if ( 'field' === type )
+                    else if ( 'identifier' === type || 'field' === type )
                     {
-                        v = self.ref( v );
+                        v = self.refs( v, COLS )[0][ fmt ];
                     }
                     else
                     {
@@ -958,9 +1151,9 @@ Dialect[PROTO] = {
                     {
                         v = self.intval( v );
                     }
-                    else if ( 'field' === type )
+                    else if ( 'identifier' === type || 'field' === type )
                     {
-                        v = self.ref( v );
+                        v = self.refs( v, COLS )[0][ fmt ];
                     }
                     else
                     {
@@ -981,9 +1174,9 @@ Dialect[PROTO] = {
                     {
                         v = self.intval( v );
                     }
-                    else if ( 'field' === type )
+                    else if ( 'identifier' === type || 'field' === type )
                     {
-                        v = self.ref( v );
+                        v = self.refs( v, COLS )[0][ fmt ];
                     }
                     else
                     {
@@ -1004,9 +1197,9 @@ Dialect[PROTO] = {
                     {
                         v = self.intval( v );
                     }
-                    else if ( 'field' === type )
+                    else if ( 'identifier' === type || 'field' === type )
                     {
-                        v = self.ref( v );
+                        v = self.refs( v, COLS )[0][ fmt ];
                     }
                     else
                     {
@@ -1066,33 +1259,10 @@ Dialect[PROTO] = {
     }
     
     ,tbl: function( table ) {
-        var self = this, prefix = self.prefix;
+        var self = this, prefix = self.p;
         if ( is_array( table ) )
             return table.map(function( table ){return prefix+table;});
         return prefix+table;
-    }
-    
-    ,fld: function( field ) {
-        var self = this;
-        if ( is_array( field ) )
-            return field.map(function( field ){return field.split('.').pop( );});
-        return field.split('.').pop( );
-    }
-    
-    ,ref: function( refs ) {
-        var self = this, i, l, ref, j, m;
-        if ( is_array(refs) ) return refs.map(function( ref ){ return self.ref( ref ); });
-        refs = refs.split( ',' ).map( trim );
-        for (i=0,l=refs.length; i<l; i++)
-        {
-            ref = refs[ i ].split( ' AS ' ).map( trim );
-            for (j=0,m=ref.length; j<m; j++)
-            {
-                ref[ j ] = self.quote_name( ref[ j ].split( '.' ) ).join( '.' );
-            }
-            refs[ i ] = ref.join( ' AS ' );
-        }
-        return refs.join( ',' );
     }
     
     ,intval: function( v ) {
@@ -1110,41 +1280,53 @@ Dialect[PROTO] = {
     }
     
     ,quote: function( v ) {
-        var self = this, q = self.q;
+        var self = this, q = self.q, e = self.escdb ? '' : self.e;
         if ( is_array( v ) )
-            return v.map(function( v ){return q + self.esc( v ) + q;});
-        return q + self.esc( v ) + q;
+            return v.map(function( v ){return e + q + self.esc( v ) + q;});
+        return e + q + self.esc( v ) + q;
     }
     
     ,esc: function( v ) {
-        var self = this;
+        // simple ecsaping using addslashes
+        // '"\ and NUL (the NULL byte).
+        var self = this, chars, esc;
         if ( is_array( v ) )
         {
-            if ( self.escdb ) 
+            if ( self.escdb )
+            {
                 return v.map( self.escdb );
+            }
             else
-                return v.map(function( v ){return addslashes( v );});
+            {
+                chars = self.q + '"\'\\' + NULL_CHAR; 
+                esc = '\\';
+                return v.map(function( v ){return addslashes( v, chars, esc );});
+            }
         }
         if ( self.escdb ) 
+        {
             return self.escdb( v );
+        }
         else
-            // simple ecsaping using addslashes
-            // '"\ and NUL (the NULL byte).
-            return addslashes( v );
+        {
+            chars = self.q + '"\'\\' + NULL_CHAR; 
+            esc = '\\';
+            return addslashes( v, chars, esc );
+        }
     }
     
     ,esc_like: function( v ) {
-        var self = this;
+        var self = this, chars = '_%', esc = '\\';
         if ( is_array( v ) )
-            return v.map(function( v ){return addslashes_like( v );});
-        return addslashes_like( v );
+            return v.map(function( v ){return addslashes( v, chars, esc );});
+        return addslashes( v, chars, esc );
     }
     
     ,like: function( v ) {
-        var self = this, q = self.q;
+        var self = this, q = self.q, e = self.escdb ? '' : self.e;
         if ( is_array( v ) )
-            return v.map(function( v ){return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q;});
-        return q + '%' + self.esc( self.esc_like( v ) ) + '%' + q;
+            return v.map(function( v ){return e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q;});
+        return e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q;
     }
     
     ,multi_like: function( f, v, doTrim ) {
@@ -1166,40 +1348,40 @@ Dialect[PROTO] = {
         return ORs.join(' OR ');
     }
     
-    ,year: function( field ) {
+    ,year: function( column ) {
         var self = this;
         if ( !(self.tpl.year instanceof Tpl) ) self.tpl.year = new Tpl( self.tpl.year, Dialect.TPL_RE );
-        return self.tpl.year.render( { field:field } );
+        return self.tpl.year.render( { column:column } );
     }
     
-    ,month: function( field ) {
+    ,month: function( column ) {
         var self = this;
         if ( !(self.tpl.month instanceof Tpl) ) self.tpl.month = new Tpl( self.tpl.month, Dialect.TPL_RE );
-        return self.tpl.month.render( { field:field } );
+        return self.tpl.month.render( { column:column } );
     }
     
-    ,day: function( field ) {
+    ,day: function( column ) {
         var self = this;
         if ( !(self.tpl.day instanceof Tpl) ) self.tpl.day = new Tpl( self.tpl.day, Dialect.TPL_RE );
-        return self.tpl.day.render( { field:field } );
+        return self.tpl.day.render( { column:column } );
     }
     
-    ,hour: function( field ) {
+    ,hour: function( column ) {
         var self = this;
         if ( !(self.tpl.hour instanceof Tpl) ) self.tpl.hour = new Tpl( self.tpl.hour, Dialect.TPL_RE );
-        return self.tpl.hour.render( { field:field } );
+        return self.tpl.hour.render( { column:column } );
     }
     
-    ,minute: function( field ) {
+    ,minute: function( column ) {
         var self = this;
         if ( !(self.tpl.minute instanceof Tpl) ) self.tpl.minute = new Tpl( self.tpl.minute, Dialect.TPL_RE );
-        return self.tpl.minute.render( { field:field } );
+        return self.tpl.minute.render( { column:column } );
     }
     
-    ,second: function( field ) {
+    ,second: function( column ) {
         var self = this;
         if ( !(self.tpl.second instanceof Tpl) ) self.tpl.second = new Tpl( self.tpl.second, Dialect.TPL_RE );
-        return self.tpl.second.render( { field:field } );
+        return self.tpl.second.render( { column:column } );
     }
 };
 

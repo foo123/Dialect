@@ -4,13 +4,14 @@ Dialect
 **Cross-Platform SQL Builder for PHP, Python, Node/JS**
 
 
-__Requirements:__
+**Requirements:**
 
-* Support multiple DB vendors (eg. MySQL, Postgre, Oracle, SQL Server )
+* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `Oracle`, `SQL Server` )
 * Easily extended to new DBs ( prefereably through a config setting )
 * Flexible and Intuitive API
 * Light-weight ( one class/file per implementation if possible )
 * Speed
+
 
 **see also:**  
 
@@ -23,6 +24,12 @@ __Requirements:__
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
+
+
+**DB vendor sql support**
+
+1. `MySQL`
+2. `Postgre`
 
 
 **Methods:**
@@ -122,7 +129,7 @@ dialect
 var query_soft_view = dialect
                         .select()
                         .from('my_view')
-                        .having({f1:'2'})
+                        .where({f1:'2'})
                         .sql()
                     ;
 
@@ -134,4 +141,4 @@ dialect.clear_view('my_view');
 
 * add full support for custom soft views [DONE PARTIALY]
 * add full support for sql directives (e.g `create` / `alter` etc.. ) [DONE PARTIALY]
-* add full support for other sql vendors (e.g `postgre`, `sql server` etc.. ) [DONE PARTIALY]
+* add full support for other sql vendors (e.g `sql server` etc.. ) [DONE PARTIALY]
