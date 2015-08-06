@@ -104,14 +104,11 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 // available modifiers:
 // NOTE: any quotes will be added automaticaly, 
 // quotes, for example for parameters representing strings should not be added manualy
-// d:       typecast to integer
-// s:       typecast to escaped string with appropriate quotes (see `.escape` method above)
-// l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
 // r:       raw, pass as is
-// f:       typecast to escaped string representing a table or field reference with appropriate quotes
-// ad:      typecast to array of integers (eg for "IN" argument)
-// as:      typecast to array of escaped strings with appropriate quotes (see `.escape` method above) (eg for "IN" argument)
-// af:      typecast to array of escaped strings representing table or field references with appropriate quotes
+// l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
+// f:       typecast to escaped string or comma-separated list of escaped strings representing table or field reference(s) with appropriate quotes
+// d:       typecast to integer or comma-separated list of integers
+// s:       typecast to escaped string or comma-separated list of escaped strings with appropriate quotes (see `.escape` method above)
 
 
 // EXPERIMENTAL FEATURE: 
@@ -141,4 +138,4 @@ dialect.clear_view('my_view');
 
 * add full support for custom soft views [DONE PARTIALY]
 * add full support for sql directives (e.g `create` / `alter` etc.. ) [DONE PARTIALY]
-* add full support for other sql vendors (e.g `sql server` etc.. ) [DONE PARTIALY]
+* add full support for other sql vendors (e.g `SQL Server` etc.. ) [DONE PARTIALY]

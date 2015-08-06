@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.2
+*   @version: 0.2.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -428,7 +428,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
     self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] || '';
 };
-Dialect.VERSION = "0.2";
+Dialect.VERSION = "0.2.1";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = Tpl;
@@ -564,7 +564,7 @@ Dialect[PROTO] = {
             right = right ? esc_re( right ) : '%';
             
             // custom prepared parameter format
-            pattern = RE(left + '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' + right);
+            pattern = RE(left + '([rlfds]):([0-9a-zA-Z_]+)' + right);
             prepared = '';
             while ( query.length && (m = query.match( pattern )) )
             {
@@ -576,26 +576,64 @@ Dialect[PROTO] = {
                     type = m[1];
                     switch( type )
                     {
-                        // array of references, e.g fields
-                        case 'af': 
-                            tmp = array( args[param] );
-                            param = Ref.parse( tmp[0], self ).tbl_col_alias_q;
-                            for (i=1,l=tmp.length; i<l; i++) param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q;
+                        case 'r': 
+                            // raw param
+                            if ( is_array(args[param]) )
+                            {
+                                param = args[param].join(',');
+                            }
+                            else
+                            {
+                                param = args[param];
+                            }
                             break;
-                        // array of integers param
-                        case 'ad': param = '(' + self.intval( array(args[param]) ).join(',') + ')'; break;
-                        // array of strings param
-                        case 'as': param = '(' + self.quote( array(args[param]) ).join(',') + ')'; break;
-                        // reference, e.g field
-                        case 'f': param = Ref.parse( args[param], self ).tbl_col_alias_q; break;
-                        // like param
-                        case 'l': param = self.like( args[param] ); break;
-                        // raw param
-                        case 'r': param = args[param]; break;
-                        // integer param
-                        case 'd': param = self.intval( args[param] ); break;
-                        // string param
-                        case 's': default: param = self.quote( args[param] ); break;
+                        
+                        case 'l': 
+                            // like param
+                            param = self.like( args[param] ); 
+                            break;
+                            
+                        case 'f': 
+                            if ( is_array(args[param]) )
+                            {
+                                // array of references, e.g fields
+                                tmp = array( args[param] );
+                                param = Ref.parse( tmp[0], self ).tbl_col_alias_q;
+                                for (i=1,l=tmp.length; i<l; i++) param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q;
+                            }
+                            else
+                            {
+                                // reference, e.g field
+                                param = Ref.parse( args[param], self ).tbl_col_alias_q;
+                            }
+                            break;
+                            
+                        case 'd': 
+                            if ( is_array(args[param]) )
+                            {
+                                // array of integers param
+                                param = self.intval( array(args[param]) ).join(',');
+                            }
+                            else
+                            {
+                                // integer param
+                                param = self.intval( array(args[param]) );
+                            }
+                            break;
+                            
+                        case 's': 
+                        default:
+                            if ( is_array(args[param]) )
+                            {
+                                // array of strings param
+                                param = self.quote( array(args[param]) ).join(',');
+                            }
+                            else
+                            {
+                                // string param
+                                param = self.quote( args[param] );
+                            }
+                            break;
                     }
                     prepared += query.slice(0, pos) + param;
                 }

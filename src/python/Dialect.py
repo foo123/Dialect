@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 # 
-#   @version: 0.2
+#   @version: 0.2.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -353,7 +353,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.2'
+    VERSION = '0.2.1'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -550,7 +550,7 @@ class Dialect:
             right = re.escape( right ) if right else '%'
             
             # custom prepared parameter format
-            pattern = re.compile(left + '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' + right)
+            pattern = re.compile(left + '([rlfds]):([0-9a-zA-Z_]+)' + right)
             prepared = ''
             m = pattern.search( query )
             while m:
@@ -560,26 +560,43 @@ class Dialect:
                 if param in args:
                     type = m.group(1)
                     
-                    # array of references, e.g fields
-                    if 'af'==type: 
-                        tmp = array( args[param] )
-                        param = Ref.parse( tmp[0], self ).tbl_col_alias_q
-                        for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
-                    # array of integers param
-                    elif 'ad'==type: param = '(' + ','.join(self.intval2str( array(args[param]) )) + ')'
-                    # array of strings param
-                    elif 'as'==type: param = '(' + ','.join(self.quote( array(args[param]) )) + ')'
-                    # reference, e.g field
-                    elif 'f'==type: param = Ref.parse( args[param], self ).tbl_col_alias_q
-                    # like param
-                    elif 'l'==type: param = self.like( args[param] )
-                    # raw param
-                    elif 'r'==type: param = args[param]
-                    # integer param
-                    elif 'd'==type: param = self.intval2str( args[param] )
-                    # string param
+                    if 'r'==type: 
+                        # raw param
+                        if is_array(args[param]):
+                            param = ','.join(args[param])
+                        else:
+                            param = args[param]
+                    
+                    elif 'l'==type: 
+                        # like param
+                        param = self.like( args[param] )
+                    
+                    elif 'f'==type: 
+                        if is_array(args[param]):
+                            # array of references, e.g fields
+                            tmp = array( args[param] )
+                            param = Ref.parse( tmp[0], self ).tbl_col_alias_q
+                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
+                        else:
+                            # reference, e.g field
+                            param = Ref.parse( args[param], self ).tbl_col_alias_q
+                    
+                    elif 'd'==type: 
+                        if is_array(args[param]):
+                            # array of integers param
+                            param = ','.join(self.intval2str( array(args[param]) ))
+                        else:
+                            # integer param
+                            param = self.intval2str( args[param] )
+                    
                     #elif 's'==type: 
-                    else: param = self.quote( args[param] )
+                    else: 
+                        if is_array(args[param]):
+                            # array of strings param
+                            param = ','.join(self.quote( array(args[param]) ))
+                        else:
+                            # string param
+                            param = self.quote( args[param] )
                     
                     prepared += query[0:pos] + param
                 else:

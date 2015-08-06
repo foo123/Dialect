@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.2
+*   @version: 0.2.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -265,7 +265,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.2";
+    const VERSION = "0.2.1";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
@@ -505,7 +505,7 @@ class Dialect
             $right = $right ? preg_quote($right, '/') : '%';
             
             // custom prepared parameter format
-            $pattern = '/' . $left . '(ad|as|af|f|l|r|d|s):([0-9a-zA-Z_]+)' . $right . '/';
+            $pattern = '/' . $left . '([rlfds]):([0-9a-zA-Z_]+)' . $right . '/';
             $prepared = '';
             while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
             {
@@ -517,26 +517,64 @@ class Dialect
                     $type = $m[1][0];
                     switch($type)
                     {
-                        // array of references, e.g fields
-                        case 'af': 
-                            $tmp = (array)$args[$param];
-                            $param = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
-                            for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                        case 'r': 
+                            // raw param
+                            if ( is_array($args[$param]) )
+                            {
+                                $param = implode(',', $args[$param]);
+                            }
+                            else
+                            {
+                                $param = $args[$param];
+                            }
                             break;
-                        // array of integers param
-                        case 'ad': $param = '(' . implode( ',', $this->intval( (array)$args[$param] ) ) . ')'; break;
-                        // array of strings param
-                        case 'as': $param = '(' . implode( ',', $this->quote( (array)$args[$param] ) ) . ')'; break;
-                        // reference, e.g field
-                        case 'f': $param = $param = DialectRef::parse( $args[$param], $this )->tbl_col_alias_q; break;
-                        // like param
-                        case 'l': $param = $this->like( $args[$param] ); break;
-                        // raw param
-                        case 'r': $param = $args[$param]; break;
-                        // integer param
-                        case 'd': $param = $this->intval( $args[$param] ); break;
-                        // string param
-                        case 's': default: $param = $this->quote( $args[$param] ); break;
+                        
+                        case 'l': 
+                            // like param
+                            $param = $this->like( $args[$param] ); 
+                            break;
+                        
+                        case 'f': 
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of references, e.g fields
+                                $tmp = (array)$args[$param];
+                                $param = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
+                                for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                            }
+                            else
+                            {
+                                // reference, e.g field
+                                $param = DialectRef::parse( $args[$param], $this )->tbl_col_alias_q;
+                            }
+                            break;
+                        
+                        case 'd':
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of integers param
+                                $param = implode( ',', $this->intval( (array)$args[$param] ) );
+                            }
+                            else
+                            {
+                                // integer
+                                $param = $this->intval( $args[$param] );
+                            }
+                            break;
+                        
+                        case 's': 
+                        default:
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of strings param
+                                $param = implode( ',', $this->quote( (array)$args[$param] ) );
+                            }
+                            else
+                            {
+                                // string param
+                                $param = $this->quote( $args[$param] );
+                            }
+                            break;
                     }
                     $prepared .= substr($query, 0, $pos) . $param;
                 }
