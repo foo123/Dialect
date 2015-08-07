@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.2.1
+*   @version: 0.3
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -265,7 +265,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.2.1";
+    const VERSION = "0.3";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
@@ -357,6 +357,7 @@ class Dialect
     private $clau = null;
     private $clus = null;
     private $vews = null;
+    private $tpls = null;
     private $tbls = null;
     private $cols = null;
    
@@ -377,6 +378,7 @@ class Dialect
         $this->tbls = null;
         $this->cols = null;
         $this->vews = array( );
+        $this->tpls = array( );
         
         $this->db = null;
         $this->escdb = null;
@@ -396,6 +398,7 @@ class Dialect
         $this->tbls = null;
         $this->cols = null;
         $this->vews = null;
+        $this->tpls = null;
         
         $this->db = null;
         $this->escdb = null;
@@ -505,7 +508,7 @@ class Dialect
             $right = $right ? preg_quote($right, '/') : '%';
             
             // custom prepared parameter format
-            $pattern = '/' . $left . '([rlfds]):([0-9a-zA-Z_]+)' . $right . '/';
+            $pattern = '/' . $left . '([rlfds]:)?([0-9a-zA-Z_]+)' . $right . '/';
             $prepared = '';
             while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
             {
@@ -514,7 +517,7 @@ class Dialect
                 $param = $m[2][0];
                 if ( isset($args[$param]) )
                 {
-                    $type = $m[1][0];
+                    $type = isset($m[1])&&$m[1]&&strlen($m[1][0]) ? substr($m[1][0],0,-1) : "s";
                     switch($type)
                     {
                         case 'r': 
@@ -610,6 +613,134 @@ class Dialect
         if ( !empty($view) && isset($this->vews[$view]) )
         {
            unset( $this->vews[ $view ] );
+        }
+        return $this;
+    }
+    
+    public function prepare_tpl( $tpl, $left=null, $right=null ) 
+    {
+        if ( !empty($tpl) )
+        {
+            // custom delimiters
+            $left = $left ? preg_quote($left, '/') : '%';
+            $right = $right ? preg_quote($right, '/') : '%';
+            
+            // custom prepared parameter format
+            $pattern = '/' . $left . '(([rlfds]:)?[0-9a-zA-Z_]+)' . $right . '/';
+            
+            $sql = new DialectTpl( $this->sql( ), $pattern );
+            
+            $types = array();
+            // extract parameter types
+            foreach ($sql->tpl as &$tpli)
+            {
+                if ( !$tpli[ 0 ] )
+                {
+                    $k = explode( ':', $tpli[ 1 ] );
+                    if ( isset($k[1]) )
+                    {
+                        $types[ $k[1] ] = $k[0];
+                        $tpli[ 1 ] = $k[1];
+                    }
+                    else
+                    {
+                        $types[ $k[0] ] = "s";
+                        $tpli[ 1 ] = $k[0];
+                    }
+                }
+            }
+            $this->tpls[ $tpl ] = (object)array(
+                'sql'=>$sql, 
+                'types'=>$types
+            );
+            $this->clear( );
+        }
+        return $this;
+    }
+    
+    public function prepared( $tpl, $args )
+    {
+        if ( !empty($tpl) && isset($this->tpls[$tpl]) )
+        {
+            $sql = $this->tpls[$tpl]->sql;
+            $types = $this->tpls[$tpl]->types;
+            $params = array( );
+            foreach((array)$args as $k=>$v)
+            {
+                $type = isset($types[$k]) ? $types[$k] : "s";
+                switch($type)
+                {
+                    case 'r': 
+                        // raw param
+                        if ( is_array($v) )
+                        {
+                            $params[$k] = implode(',', $v);
+                        }
+                        else
+                        {
+                            $params[$k] = $v;
+                        }
+                        break;
+                    
+                    case 'l': 
+                        // like param
+                        $params[$k] = $this->like( $v ); 
+                        break;
+                    
+                    case 'f': 
+                        if ( is_array($v) )
+                        {
+                            // array of references, e.g fields
+                            $tmp = (array)$v;
+                            $params[$k] = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
+                            for ($i=1,$l=count($tmp); $i<$l; $i++) $params[$k] .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                        }
+                        else
+                        {
+                            // reference, e.g field
+                            $params[$k] = DialectRef::parse( $v, $this )->tbl_col_alias_q;
+                        }
+                        break;
+                    
+                    case 'd':
+                        if ( is_array($v) )
+                        {
+                            // array of integers param
+                            $params[$k] = implode( ',', $this->intval( (array)$v ) );
+                        }
+                        else
+                        {
+                            // integer
+                            $params[$k] = $this->intval( $v );
+                        }
+                        break;
+                    
+                    case 's': 
+                    default:
+                        if ( is_array($v) )
+                        {
+                            // array of strings param
+                            $params[$k] = implode( ',', $this->quote( (array)$v ) );
+                        }
+                        else
+                        {
+                            // string param
+                            $params[$k] = $this->quote( $v );
+                        }
+                        break;
+                }
+            }
+            return $sql->render( $params );
+        }
+        return '';
+    }
+    
+    public function clear_tpl( $tpl ) 
+    {
+        if ( !empty($tpl) && isset($this->tpls[$tpl]) )
+        {
+           $this->tpls[ $tpl ]->sql->dispose( );
+           unset( $this->tpls[ $tpl ] );
         }
         return $this;
     }

@@ -101,7 +101,7 @@ var prepared_sql = dialect.prepare( String sql_code, Object parameters [, String
 // example, will automaticaly typecast the key to integer (i.e "d:" modifier)
 var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", {key:'12'} );
 
-// available modifiers:
+// available optional modifiers:
 // NOTE: any quotes will be added automaticaly, 
 // quotes, for example for parameters representing strings should not be added manualy
 // r:       raw, pass as is
@@ -109,8 +109,12 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 // f:       typecast to escaped string or comma-separated list of escaped strings representing table or field reference(s) with appropriate quotes
 // d:       typecast to integer or comma-separated list of integers
 // s:       typecast to escaped string or comma-separated list of escaped strings with appropriate quotes (see `.escape` method above)
+// if no modifier is present default typecasting is "s:" modifier, i.e as escaped and quoted string
 
 
+
+
+//
 // EXPERIMENTAL FEATURE: 
 // Create custom "soft" views and treat as usual tables
 
@@ -119,7 +123,7 @@ dialect
     .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     .from('t')
     .join('t2',{'t.id':'t2.id'},'inner')
-    .make_view('my_view') // automaticale clears instance state after view created, so new statements can be used
+    .make_view('my_view') // automaticaly clears instance state after view created, so new statements can be used
 ;
 
 // use it in a SELECT statement
@@ -132,6 +136,29 @@ var query_soft_view = dialect
 
 // drop the custom view, if exists
 dialect.clear_view('my_view');
+
+
+
+//
+// EXPERIMENTAL FEATURE: 
+// Create prepared sql queries as pre-compiled templates (parses sql only once on template creation)
+
+// define/create a prepared sql query template
+dialect
+    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .from('t')
+    .where({
+        f1:{eq:'%d:id%',type:'raw'} // NOTE: parameter type format is same as that used in .prepare method above
+    })
+    .prepare_tpl('prepared_query') // automaticaly clears instance state after tpl created, so new statements can be used
+;
+
+// use it
+// will automaticaly typecast the key to integer (i.e "d:" modifier was used in prepared template definition)
+var query_prepared = dialect.prepared('prepared_query',{id:'12'});
+
+// drop the custom prepared sql template, if exists
+dialect.clear_tpl('prepared_query');
 ```
 
 **TODO**

@@ -6,8 +6,9 @@ echo( );
 var dialect = new Dialect( 'mysql' );
 
 var conditions = {
-    'main.name':{'like':'%l:name%', type:'raw'},
-    'main.year':{'eq':dialect.year('date'), type:'raw'},
+    'main.name':{'like':'%l:name%', 'type':'raw'},
+    'main.str':{'eq':'%str%', 'type':'raw'},
+    'main.year':{'eq':dialect.year('date'), 'type':'raw'},
     'main.project': {'in':[1,2,3],'type':'integer'}
 };
 
@@ -18,6 +19,15 @@ dialect
     .make_view('my_view')
 ;
 
+dialect
+    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .from('t')
+    .where({
+        'f1':{'eq':'%d:id%','type':'raw'}
+    })
+    .prepare_tpl('prepared_query')
+;
+
 var query_soft_view = dialect
         .select()
         .from('my_view')
@@ -25,6 +35,8 @@ var query_soft_view = dialect
         .sql()
     ;
     
+var query_prepared = dialect.prepared('prepared_query',{'id':'12'});
+
 var query = dialect
         .select()
         .order('main.field1')
@@ -45,9 +57,11 @@ var query = dialect
         .sql( )
     ;
     
-var prepared = dialect.prepare(query, {'name':'na%me'});
+var prepared = dialect.prepare(query, {'name':'na%me','str':'a string'});
 
 echo( query_soft_view );
+echo( );
+echo( query_prepared );
 echo( );
 echo( query );
 echo( );

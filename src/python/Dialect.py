@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 # 
-#   @version: 0.2.1
+#   @version: 0.3
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -353,7 +353,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.2.1'
+    VERSION = '0.3'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -451,6 +451,7 @@ class Dialect:
         self.tbls = None
         self.cols = None
         self.vews = { }
+        self.tpls = { }
         
         self.db = None
         self.escdb = None
@@ -471,6 +472,7 @@ class Dialect:
         self.tbls = None
         self.cols = None
         self.vews = None
+        self.tpls = None
         
         self.db = None
         self.escdb = None
@@ -543,14 +545,14 @@ class Dialect:
         self.clear( )
         return query
     
-    def prepare( self, query, args, left='%', right='%' ):
+    def prepare( self, query, args, left=None, right=None ):
         if query and args:
             # custom delimiters
             left = re.escape( left ) if left else '%'
             right = re.escape( right ) if right else '%'
             
             # custom prepared parameter format
-            pattern = re.compile(left + '([rlfds]):([0-9a-zA-Z_]+)' + right)
+            pattern = re.compile(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right)
             prepared = ''
             m = pattern.search( query )
             while m:
@@ -558,7 +560,7 @@ class Dialect:
                 le = len(m.group(0))
                 param = m.group(2)
                 if param in args:
-                    type = m.group(1)
+                    type = m.group(1)[0:-1] if m.group(1) else "s"
                     
                     if 'r'==type: 
                         # raw param
@@ -623,6 +625,94 @@ class Dialect:
     def clear_view( self, view ):
         if view and (view in self.vews):
             del self.vews[ view ]
+        return self
+    
+    def prepare_tpl( self, tpl, left=None, right=None ):
+        if tpl:
+            # custom delimiters
+            left = re.escape( left ) if left else '%'
+            right = re.escape( right ) if right else '%'
+            
+            # custom prepared parameter format
+            pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
+            
+            sql = Tpl( self.sql( ), pattern )
+            
+            types = { }
+            # extract parameter types
+            for i in range(len(sql.tpl)):
+                tpli = sql.tpl[ i ]
+                if not tpli[ 0 ]:
+                    k = tpli[ 1 ].split(':')
+                    if len(k) > 1:
+                        types[ k[1] ] = k[0]
+                        sql.tpl[ i ][ 1 ] = k[1]
+                    else:
+                        types[ k[0] ] = "s"
+                        sql.tpl[ i ][ 1 ] = k[0]
+            
+            self.tpls[ tpl ] = {
+                'sql':sql, 
+                'types':types
+            }
+            self.clear( )
+        return self
+    
+    def prepared( self, tpl, args ):
+        if tpl and (tpl in self.tpls):
+            
+            sql = self.tpls[tpl]['sql']
+            types = self.tpls[tpl]['types']
+            params = { }
+            for k in args:
+                
+                v = args[k]
+                type = types[k] if k in types else "s"
+                if 'r'==type: 
+                    # raw param
+                    if is_array(v):
+                        params[k] = ','.join(v)
+                    else:
+                        params[k] = v
+                
+                elif 'l'==type: 
+                    # like param
+                    params[k] = self.like( v )
+                
+                elif 'f'==type: 
+                    if is_array(v):
+                        # array of references, e.g fields
+                        tmp = array( v )
+                        params[k] = Ref.parse( tmp[0], self ).tbl_col_alias_q
+                        for i in range(1,len(tmp)): params[k] += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
+                    else:
+                        # reference, e.g field
+                        params[k] = Ref.parse( v, self ).tbl_col_alias_q
+                
+                elif 'd'==type: 
+                    if is_array(v):
+                        # array of integers param
+                        params[k] = ','.join(self.intval2str( array(v) ))
+                    else:
+                        # integer param
+                        params[k] = self.intval2str( v )
+                
+                #elif 's'==type: 
+                else: 
+                    if is_array(v):
+                        # array of strings param
+                        params[k] = ','.join(self.quote( array(v) ))
+                    else:
+                        # string param
+                        params[k] = self.quote( v )
+            
+            return sql.render( params )
+        return ''
+    
+    def clear_tpl( self, tpl ):
+        if tpl and (tpl in self.tpls):
+           self.tpls[ tpl ]['sql'].dispose( )
+           del self.tpls[ tpl ]
         return self
     
     def select( self, cols='*', format=True ):

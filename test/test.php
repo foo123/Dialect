@@ -12,6 +12,7 @@ $dialect = new Dialect( 'mysql' );
 
 $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
+    'main.str'=>array('eq'=>'%str%','type'=>'raw'),
     'main.year'=>array('eq'=>$dialect->year('date'),'type'=>'raw'),
     'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
 );
@@ -23,6 +24,15 @@ $dialect
     ->make_view('my_view')
 ;
 
+$dialect
+    ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    ->from('t')
+    ->where(array(
+        'f1'=>array('eq'=>'%d:id%','type'=>'raw')
+    ))
+    ->prepare_tpl('prepared_query')
+;
+
 $query_soft_view = $dialect
         ->select()
         ->from('my_view')
@@ -30,6 +40,8 @@ $query_soft_view = $dialect
         ->sql()
     ;
     
+
+$query_prepared = $dialect->prepared('prepared_query',array('id'=>'12'));
 
 $query = $dialect
         ->select()
@@ -51,11 +63,11 @@ $query = $dialect
         ->sql( )
     ;
     
-$prepared = $dialect->prepare($query, array('name'=>'na%me'));
+$prepared = $dialect->prepare($query, array('name'=>'na%me','str'=>'a string'));
 
-/*echo_( $dialect->ref('t.a AS a,t.b,t2.c AS c2') );
-echo_( );*/
 echo_( $query_soft_view );
+echo_( );
+echo_( $query_prepared );
 echo_( );
 echo_( $query );
 echo_( );

@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.2.1
+*   @version: 0.3
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -416,6 +416,7 @@ Dialect = function Dialect( type ) {
     self.tbls = null;
     self.cols = null;
     self.vews = { };
+    self.tpls = { };
     
     self.db = null;
     self.escdb = null;
@@ -428,7 +429,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
     self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] || '';
 };
-Dialect.VERSION = "0.2.1";
+Dialect.VERSION = "0.3";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = Tpl;
@@ -441,6 +442,7 @@ Dialect[PROTO] = {
     ,tbls: null
     ,cols: null
     ,vews: null
+    ,tpls: null
     
     ,db: null
     ,escdb: null
@@ -459,6 +461,7 @@ Dialect[PROTO] = {
         self.tbls = null;
         self.cols = null;
         self.vews = null;
+        self.tpls = null;
         
         self.db = null;
         self.escdb = null;
@@ -564,7 +567,7 @@ Dialect[PROTO] = {
             right = right ? esc_re( right ) : '%';
             
             // custom prepared parameter format
-            pattern = RE(left + '([rlfds]):([0-9a-zA-Z_]+)' + right);
+            pattern = RE(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right);
             prepared = '';
             while ( query.length && (m = query.match( pattern )) )
             {
@@ -573,7 +576,7 @@ Dialect[PROTO] = {
                 param = m[2];
                 if ( args[HAS](param) )
                 {
-                    type = m[1];
+                    type = m[1] ? m[1].slice(0,-1) : "s";
                     switch( type )
                     {
                         case 'r': 
@@ -669,6 +672,137 @@ Dialect[PROTO] = {
         if ( view && self.vews[HAS](view) )
         {
             delete self.vews[ view ];
+        }
+        return self;
+    }
+    
+    ,prepare_tpl: function( tpl, left, right ) {
+        var self = this, pattern, sql, types, i, l, tpli, k;
+        if ( !empty(tpl) )
+        {
+            // custom delimiters
+            left = left ? esc_re( left ) : '%';
+            right = right ? esc_re( right ) : '%';
+            
+            // custom prepared parameter format
+            pattern = RE(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right);
+            
+            sql = new Tpl( self.sql( ), pattern );
+            
+            types = {};
+            // extract parameter types
+            for(i=0,l=sql.tpl.length; i<l; i++)
+            {
+                tpli = sql.tpl[ i ];
+                if ( !tpli[ 0 ] )
+                {
+                    k = tpli[ 1 ].split(':');
+                    if ( k.length > 1 )
+                    {
+                        types[ k[1] ] = k[0];
+                        sql.tpl[ i ][ 1 ] = k[1];
+                    }
+                    else
+                    {
+                        types[ k[0] ] = "s";
+                        sql.tpl[ i ][ 1 ] = k[0];
+                    }
+                }
+            }
+            self.tpls[ tpl ] = {
+                'sql':sql, 
+                'types':types
+            };
+            self.clear( );
+        }
+        return self;
+    }
+    
+    ,prepared: function( tpl, args ) {
+        var self = this, sql, types, type, params, k, v, tmp, i, l;
+        if ( !empty(tpl) && self.tpls[HAS](tpl) )
+        {
+            sql = self.tpls[tpl].sql;
+            types = self.tpls[tpl].types;
+            params = { };
+            for(k in args)
+            {
+                if ( !args[HAS](k) ) continue;
+                v = args[k];
+                type = types[HAS](k) ? types[k] : "s";
+                switch(type)
+                {
+                    case 'r': 
+                        // raw param
+                        if ( is_array(v) )
+                        {
+                            params[k] = v.join(',');
+                        }
+                        else
+                        {
+                            params[k] = v;
+                        }
+                        break;
+                    
+                    case 'l': 
+                        // like param
+                        params[k] = self.like( v ); 
+                        break;
+                    
+                    case 'f': 
+                        if ( is_array(v) )
+                        {
+                            // array of references, e.g fields
+                            tmp = array(v);
+                            params[k] = Ref.parse( tmp[0], self ).tbl_col_alias_q;
+                            for (i=1,l=tmp.length; i<l; i++) params[k] += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q;
+                        }
+                        else
+                        {
+                            // reference, e.g field
+                            params[k] = DialectRef.parse( v, self ).tbl_col_alias_q;
+                        }
+                        break;
+                    
+                    case 'd':
+                        if ( is_array(v) )
+                        {
+                            // array of integers param
+                            params[k] = self.intval( array(v) ).join(',');
+                        }
+                        else
+                        {
+                            // integer
+                            params[k] = self.intval( v );
+                        }
+                        break;
+                    
+                    case 's': 
+                    default:
+                        if ( is_array(v) )
+                        {
+                            // array of strings param
+                            params[k] = self.quote( array(v) ).join(',');
+                        }
+                        else
+                        {
+                            // string param
+                            params[k] = self.quote( v );
+                        }
+                        break;
+                }
+            }
+            return sql.render( params );
+        }
+        return '';
+    }
+    
+    ,clear_tpl: function( tpl ) {
+        var self = this;
+        if ( !empty(tpl) && self.tpls[HAS](tpl) )
+        {
+           self.tpls[ tpl ].sql.dispose( );
+           delete self.tpls[ tpl ];
         }
         return self;
     }
