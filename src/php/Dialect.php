@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.3
+*   @version: 0.3.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -265,7 +265,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.3";
+    const VERSION = "0.3.1";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
@@ -617,18 +617,57 @@ class Dialect
         return $this;
     }
     
-    public function prepare_tpl( $tpl, $left=null, $right=null ) 
+    public function prepare_tpl( $tpl /*, $query=null, $left=null, $right=null*/ ) 
     {
         if ( !empty($tpl) )
         {
+            $args = func_get_args(); 
+            $argslen = count($args);
+            
+            if ( 1 === $argslen )
+            {
+                $query = null;
+                $left = null;
+                $right = null;
+                $use_internal_query = true;
+            }
+            elseif ( 2 === $argslen )
+            {
+                $query = $args[ 1 ];
+                $left = null;
+                $right = null;
+                $use_internal_query = false;
+            }
+            else if ( 3 === $argslen )
+            {
+                $query = null;
+                $left = $args[ 1 ];
+                $right = $args[ 2 ];
+                $use_internal_query = true;
+            }
+            else/* if ( 3 < argslen )*/
+            {
+                $query = $args[ 1 ];
+                $left = $args[ 2 ];
+                $right = $args[ 3 ];
+                $use_internal_query = false;
+            }
+            
             // custom delimiters
             $left = $left ? preg_quote($left, '/') : '%';
             $right = $right ? preg_quote($right, '/') : '%';
-            
             // custom prepared parameter format
             $pattern = '/' . $left . '(([rlfds]:)?[0-9a-zA-Z_]+)' . $right . '/';
             
-            $sql = new DialectTpl( $this->sql( ), $pattern );
+            if ( $use_internal_query )
+            {
+                $sql = new DialectTpl( $this->sql( ), $pattern );
+                $this->clear( );
+            }
+            else
+            {
+                $sql = new DialectTpl( $query, $pattern );
+            }
             
             $types = array();
             // extract parameter types
@@ -653,7 +692,6 @@ class Dialect
                 'sql'=>$sql, 
                 'types'=>$types
             );
-            $this->clear( );
         }
         return $this;
     }

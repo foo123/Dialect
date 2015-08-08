@@ -45,9 +45,14 @@ dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').where({
     'f1':{'eq':'%d:id%','type':'raw'}
 }).prepare_tpl('prepared_query')
 
+dialect.prepare_tpl('prepared_query2', dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').where({
+    'f1':{'eq':'%d:id%','type':'raw'}
+}).sql( ))
+
 query_soft_view = dialect.select().from_('my_view').where({'f1':'2'}).sql()
     
 query_prepared = dialect.prepared('prepared_query',{'id':'12'})
+query_prepared2 = dialect.prepared('prepared_query2',{'id':'12'})
 
 query = dialect.select().order('main.field1').from_('table AS main').join_conditions({
     'project' : {
@@ -65,6 +70,8 @@ prepared = dialect.prepare(query, {'name':'na%me','str':'a string'})
 echo( query_soft_view )
 echo( )
 echo( query_prepared )
+echo( )
+echo( query_prepared2 )
 echo( )
 echo( query )
 echo( )

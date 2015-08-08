@@ -33,6 +33,16 @@ $dialect
     ->prepare_tpl('prepared_query')
 ;
 
+$dialect->prepare_tpl(
+    'prepared_query2',
+    $dialect
+        ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+        ->from('t')
+        ->where(array(
+            'f1'=>array('eq'=>'%d:id%','type'=>'raw')
+        ))->sql( )
+);
+
 $query_soft_view = $dialect
         ->select()
         ->from('my_view')
@@ -42,6 +52,7 @@ $query_soft_view = $dialect
     
 
 $query_prepared = $dialect->prepared('prepared_query',array('id'=>'12'));
+$query_prepared2 = $dialect->prepared('prepared_query2',array('id'=>'12'));
 
 $query = $dialect
         ->select()
@@ -68,6 +79,8 @@ $prepared = $dialect->prepare($query, array('name'=>'na%me','str'=>'a string'));
 echo_( $query_soft_view );
 echo_( );
 echo_( $query_prepared );
+echo_( );
+echo_( $query_prepared2 );
 echo_( );
 echo_( $query );
 echo_( );

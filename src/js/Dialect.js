@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.3
+*   @version: 0.3.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -429,7 +429,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
     self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] || '';
 };
-Dialect.VERSION = "0.3";
+Dialect.VERSION = "0.3.1";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = Tpl;
@@ -676,18 +676,58 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,prepare_tpl: function( tpl, left, right ) {
-        var self = this, pattern, sql, types, i, l, tpli, k;
+    ,prepare_tpl: function( tpl /*, query, left, right*/ ) {
+        var self = this, pattern, sql, types, i, l, tpli, k, 
+            args, argslen, query, left, right, use_internal_query;
         if ( !empty(tpl) )
         {
+            args = arguments; 
+            argslen = args.length;
+            
+            if ( 1 === argslen )
+            {
+                query = null;
+                left = null;
+                right = null;
+                use_internal_query = true;
+            }
+            else if ( 2 === argslen )
+            {
+                query = args[ 1 ];
+                left = null;
+                right = null;
+                use_internal_query = false;
+            }
+            else if ( 3 === argslen )
+            {
+                query = null;
+                left = args[ 1 ];
+                right = args[ 2 ];
+                use_internal_query = true;
+            }
+            else/* if ( 3 < argslen )*/
+            {
+                query = args[ 1 ];
+                left = args[ 2 ];
+                right = args[ 3 ];
+                use_internal_query = false;
+            }
+            
             // custom delimiters
             left = left ? esc_re( left ) : '%';
             right = right ? esc_re( right ) : '%';
-            
             // custom prepared parameter format
             pattern = RE(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right);
             
-            sql = new Tpl( self.sql( ), pattern );
+            if ( use_internal_query )
+            {
+                sql = new Tpl( self.sql( ), pattern );
+                self.clear( );
+            }
+            else
+            {
+                sql = new Tpl( query, pattern );
+            }
             
             types = {};
             // extract parameter types
@@ -713,7 +753,6 @@ Dialect[PROTO] = {
                 'sql':sql, 
                 'types':types
             };
-            self.clear( );
         }
         return self;
     }

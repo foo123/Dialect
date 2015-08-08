@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 # 
-#   @version: 0.3
+#   @version: 0.3.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -353,7 +353,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.3'
+    VERSION = '0.3.1'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -627,16 +627,43 @@ class Dialect:
             del self.vews[ view ]
         return self
     
-    def prepare_tpl( self, tpl, left=None, right=None ):
+    def prepare_tpl( self, tpl, *args ):
+                                #, query, left, right
         if tpl:
+            argslen = len(args)
+            
+            if 0 == argslen:
+                query = None
+                left = None
+                right = None
+                use_internal_query = True
+            elif 1 == argslen:
+                query = args[ 0 ]
+                left = None
+                right = None
+                use_internal_query = False
+            elif 2 == argslen:
+                query = None
+                left = args[ 0 ]
+                right = args[ 1 ]
+                use_internal_query = True
+            else: # if 2 < argslen:
+                query = args[ 0 ]
+                left = args[ 1 ]
+                right = args[ 2 ]
+                use_internal_query = False
+            
             # custom delimiters
             left = re.escape( left ) if left else '%'
             right = re.escape( right ) if right else '%'
-            
             # custom prepared parameter format
             pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
             
-            sql = Tpl( self.sql( ), pattern )
+            if use_internal_query:
+                sql = Tpl( self.sql( ), pattern )
+                self.clear( )
+            else:
+                sql = Tpl( query, pattern )
             
             types = { }
             # extract parameter types
@@ -655,7 +682,6 @@ class Dialect:
                 'sql':sql, 
                 'types':types
             }
-            self.clear( )
         return self
     
     def prepared( self, tpl, args ):

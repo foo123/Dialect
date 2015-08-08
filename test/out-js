@@ -1,9 +1,13 @@
-Dialect.VERSION = 0.3
+Dialect.VERSION = 0.3.1
 
 SELECT `t`.`f1` AS `f1`,`t`.`f2` AS `f2`,`t2`.`f3` AS `f3`
 FROM `t`
 INNER JOIN `t2` ON (`t`.`id` = `t2`.`id`)
 WHERE (`t`.`f1` = '2')
+
+SELECT `t`.`f1` AS `f1`,`t`.`f2` AS `f2`,`t2`.`f3` AS `f3`
+FROM `t`
+WHERE (`t`.`f1` = 12)
 
 SELECT `t`.`f1` AS `f1`,`t`.`f2` AS `f2`,`t2`.`f3` AS `f3`
 FROM `t`

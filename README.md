@@ -153,6 +153,9 @@ dialect
     .prepare_tpl('prepared_query') // automaticaly clears instance state after tpl created, so new statements can be used
 ;
 
+// or using a ready-made query string also works
+dialect.prepare_tpl('prepared_query', "SELECT * FROM `table` WHERE `field` = %d:id%");
+
 // use it
 // will automaticaly typecast the key to integer (i.e "d:" modifier was used in prepared template definition)
 var query_prepared = dialect.prepared('prepared_query',{id:'12'});
