@@ -1,8 +1,8 @@
 /**
 *   Dialect, 
-*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
+*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.3.1
+*   @version: 0.4.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -11,23 +11,15 @@
 **/
 !function( root, name, factory ) {
 "use strict";
-
-// export the module, umd-style (no other dependencies)
-var isCommonJS = ("object" === typeof(module)) && module.exports, 
-    isAMD = ("function" === typeof(define)) && define.amd, m;
-
-// CommonJS, node, etc..
-if ( isCommonJS ) 
-    module.exports = (module.$deps = module.$deps || {})[ name ] = module.$deps[ name ] || (factory.call( root, {NODE:module} ) || 1);
-
-// AMD, requireJS, etc..
-else if ( isAMD && ("function" === typeof(require)) && ("function" === typeof(require.specified)) && require.specified(name) ) 
-    define( name, ['require', 'exports', 'module'], function( require, exports, module ){ return factory.call( root, {AMD:module} ); } );
-
-// browser, web worker, etc.. + AMD, other loaders
-else if ( !(name in root) ) 
-    (root[ name ] = (m=factory.call( root, {} ) || 1)) && isAMD && define( name, [], function( ){ return m; } );
-
+var m;
+if ( ('undefined'!==typeof Components)&&('object'===typeof Components.classes)&&('object'===typeof Components.classesByID)&&Components.utils&&('function'===typeof Components.utils['import']) ) /* XPCOM */
+    (root.EXPORTED_SYMBOLS = [ name ]) && (root[ name ] = factory.call( root ));
+else if ( ('object'===typeof module)&&module.exports ) /* CommonJS */
+    module.exports = factory.call( root );
+else if ( ('function'===typeof(define))&&define.amd&&('function'===typeof(require))&&('function'===typeof(require.specified))&&require.specified(name) ) /* AMD */
+    define(name,['require','exports','module'],function( ){return factory.call( root );});
+else if ( !(name in root) ) /* Browser/WebWorker/.. */
+    (root[ name ] = (m=factory.call( root )))&&('function'===typeof(define))&&define.amd&&define(function( ){return m;} );
 }(  /* current root */          this, 
     /* module name */           "Dialect",
     /* module factory */        function( exports, undef ) {
@@ -36,59 +28,146 @@ else if ( !(name in root) )
 var PROTO = 'prototype', HAS = 'hasOwnProperty', 
     Keys = Object.keys, toString = Object[PROTO].toString,
     CHAR = 'charAt', CHARCODE = 'charCodeAt',
-    F = function( a, c ){ return new Function(a, c); },
-    RE = function( r, f ){ return new RegExp(r, f||''); },
-    is_callable = function( o ){ return "function" === typeof o; },
-    is_string = function( o ){ return "string" === typeof o; },
-    is_array = function( o ){ return o instanceof Array || '[object Array]' === toString.call(o); },
-    is_obj = function( o ){ return o instanceof Object || '[object Object]' === toString.call(o); },
-    is_string_or_array = function( o ){ 
-        var to_string = toString.call(o);
-        return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string); 
-    },
-    empty = function( o ){ 
-        if ( !o ) return true;
-        var to_string = toString.call(o);
-        if ( (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length ) return true;
-        if ( (o instanceof Object || '[object Array]' === to_string) && !Keys(o).length ) return true;
-        return false;
-    },
-    is_int = function( mixed_var ) {
-        return mixed_var === +mixed_var && isFinite(mixed_var) && !(mixed_var % 1);
-    },
-    /*clone = function( o ){ 
-        var cloned = { }, k, v;
-        for (k in o)
-        {
-            if ( !o[HAS](k) ) continue;
-            v = o[k];
-            if ( is_string_or_array( v ) ) cloned[k] = v.slice();
-            else cloned[k] = v;
-        }
-        return cloned;
-    },*/
-    array = function( o ){ return is_array( o ) ? o : [o]; },
-    space_re = /^\s+|\s+$/g,
+    escaped_re = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, trim_re = /^\s+|\s+$/g,
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
-        : function( s ){ return s.replace(space_re, ''); },
-    escaped_re = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g,
-    esc_re = function( s ) { return s.replace(escaped_re, "\\$&"); },
+        : function( s ){ return s.replace(trim_re, ''); },
     NULL_CHAR = String.fromCharCode( 0 ),
-    addslashes = function( s, chars, esc ) {
-        var s2 = '', i, l, c;
-        if ( 3 > arguments.length ) esc = '\\';
-        if ( 2 > arguments.length ) chars = '\\"\'' + NULL_CHAR;
-        for (i=0,l=s.length; i<l; i++)
-        {
-            c = s[CHAR]( i );
-            s2 += -1 === chars.indexOf( c ) ? c : (0 === c[CHARCODE](0) ? '\\0' : (esc+c));
-        }
-        return s2;
-    },
     Tpl, Ref, Dialect
 ;
-
+function F( a, c )
+{
+    return new Function(a, c);
+}
+function RE( r, f )
+{
+    return new RegExp(r, f||'');
+}
+function esc_re( s )
+{
+    return s.replace(escaped_re, "\\$&");
+}
+function is_callable( o )
+{
+    return "function" === typeof o;
+}
+function is_string( o )
+{
+    return "string" === typeof o;
+}
+function is_array( o )
+{
+    return o instanceof Array || '[object Array]' === toString.call(o);
+}
+function is_obj( o )
+{
+    return o instanceof Object || '[object Object]' === toString.call(o);
+}
+function is_string_or_array( o )
+{
+    var to_string = toString.call(o);
+    return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string); 
+}
+function empty( o )
+{
+    if ( !o ) return true;
+    var to_string = toString.call(o);
+    if ( (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length ) return true;
+    if ( (o instanceof Object || '[object Array]' === to_string) && !Keys(o).length ) return true;
+    return false;
+}
+function int( n )
+{
+    return parseInt(n||0, 10)||0;
+}
+function is_int( mixed_var )
+{
+    return mixed_var === +mixed_var && isFinite(mixed_var) && !(mixed_var % 1);
+}
+function array( o )
+{
+    return is_array( o ) ? o : [o];
+}
+function addslashes( s, chars, esc )
+{
+    var s2 = '', i, l, c;
+    if ( 3 > arguments.length ) esc = '\\';
+    if ( 2 > arguments.length ) chars = '\\"\'' + NULL_CHAR;
+    for (i=0,l=s.length; i<l; i++)
+    {
+        c = s[CHAR]( i );
+        s2 += -1 === chars.indexOf( c ) ? c : (0 === c[CHARCODE](0) ? '\\0' : (esc+c));
+    }
+    return s2;
+}
+function fmap( x, F )
+{
+    var l = x.length;
+    if ( !l ) return [];
+    var i, k, r = l&15, q = r&1, Fx=new Array(l);
+    if ( q ) Fx[0] = F(x[0]);
+    for (i=q; i<r; i+=2)
+    { 
+        k = i;
+        Fx[i  ] = F(x[k  ]);
+        Fx[i+1] = F(x[k+1]);
+    }
+    for (i=r; i<l; i+=16)
+    {
+        k = i;
+        Fx[i  ] = F(x[k  ]);
+        Fx[i+1] = F(x[k+1]);
+        Fx[i+2] = F(x[k+2]);
+        Fx[i+3] = F(x[k+3]);
+        Fx[i+4] = F(x[k+4]);
+        Fx[i+5] = F(x[k+5]);
+        Fx[i+6] = F(x[k+6]);
+        Fx[i+7] = F(x[k+7]);
+        Fx[i+8] = F(x[k+8]);
+        Fx[i+9] = F(x[k+9]);
+        Fx[i+10] = F(x[k+10]);
+        Fx[i+11] = F(x[k+11]);
+        Fx[i+12] = F(x[k+12]);
+        Fx[i+13] = F(x[k+13]);
+        Fx[i+14] = F(x[k+14]);
+        Fx[i+15] = F(x[k+15]);
+    }
+    return Fx;
+}
+function ffilter( x, F )
+{
+    var l = x.length;
+    if ( !l ) return [];
+    var i, k, r = l&15, q = r&1, Fx=[];
+    if ( q && F(x[0]) ) Fx.push(x[0]);
+    for (i=q; i<r; i+=2)
+    { 
+        k = i;
+        if ( F(x[  k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+    }
+    for (i=r; i<l; i+=16)
+    {
+        k = i;
+        if ( F(x[  k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+        if ( F(x[++k]) ) Fx.push(x[k]);
+    }
+    return Fx;
+}
 
 Tpl = function Tpl( tpl, replacements, compiled ) {
     var self = this;
@@ -323,86 +402,88 @@ Ref[PROTO] = {
 
 var dialect = {
  'mysql'            : {
-     'quote'        : [ "'", '`', '' ]
-    ,'clauses'      : {
-     // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-     'select'  : ['select','from','join','where','group','having','order','limit']
+     // https://dev.mysql.com/doc/refman/5.0/en/select.html
+     // https://dev.mysql.com/doc/refman/5.0/en/join.html
+     // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
      // https://dev.mysql.com/doc/refman/5.0/en/insert.html
-    ,'insert'  : ['insert','values']
      // https://dev.mysql.com/doc/refman/5.0/en/update.html
-    ,'update'  : ['update','set','where','order','limit']
      // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+     'quote'        : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
+    ,'clauses'      : {
+     'select'  : ['select','from','join','where','group','having','order','limit']
+    ,'insert'  : ['insert','values']
+    ,'update'  : ['update','set','where','order','limit']
     ,'delete'  : ['delete','from','where','order','limit']
     }
     ,'tpl'        : {
-     'select'   : 'SELECT $(columns)'
-    ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
-    ,'update'   : 'UPDATE $(tables)'
+     'select'   : 'SELECT $(select_columns)'
+    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
+    ,'update'   : 'UPDATE $(update_tables)'
     ,'delete'   : 'DELETE '
     ,'values'   : 'VALUES $(values_values)'
-    ,'values_'  : '$(values),$(values_values)'
     ,'set'      : 'SET $(set_values)'
-    ,'set_'     : '$(set),$(set_values)'
-    ,'from'     : 'FROM $(tables)'
-    ,'from_'    : '$(from),$(tables)'
-    ,'join'     : '$(join_type)JOIN $(join_clause)'
-    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
-    ,'where'    : 'WHERE $(conditions)'
-    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
-    ,'group'    : 'GROUP BY $(column) $(dir)'
-    ,'group_'   : '$(group),$(column) $(dir)'
-    ,'having'   : 'HAVING $(conditions)'
-    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
-    ,'order'    : 'ORDER BY $(column) $(dir)'
-    ,'order_'   : '$(order),$(column) $(dir)'
+    ,'from'     : 'FROM $(from_tables)'
+    ,'join'     : '$(join_clauses)'
+    ,'where'    : 'WHERE $(where_conditions)'
+    ,'group'    : 'GROUP BY $(group_conditions)'
+    ,'having'   : 'HAVING $(having_conditions)'
+    ,'order'    : 'ORDER BY $(order_conditions)'
     ,'limit'    : 'LIMIT $(offset),$(count)'
-
-    ,'year'     : 'YEAR($(column))'
-    ,'month'    : 'MONTH($(column))'
-    ,'day'      : 'DAY($(column))'
-    ,'hour'     : 'HOUR($(column))'
-    ,'minute'   : 'MINUTE($(column))'
-    ,'second'   : 'SECOND($(column))'
     }
 }
 ,'postgre'          : {
-     'quote'        : [ '`', '"', 'E' ]
-    ,'clauses'      : {
      // http://www.postgresql.org/docs/
+     // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+     'quote'        : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
+    ,'clauses'      : {
      'select'  : ['select','from','join','where','group','having','order','limit']
     ,'insert'  : ['insert','values']
     ,'update'  : ['update','set','where','order','limit']
     ,'delete'  : ['delete','from','where','order','limit']
     }
     ,'tpl'        : {
-     'select'   : 'SELECT $(columns)'
-    ,'insert'   : 'INSERT INTO $(tables) ($(columns))'
-    ,'update'   : 'UPDATE $(tables)'
+     'select'   : 'SELECT $(select_columns)'
+    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
+    ,'update'   : 'UPDATE $(update_tables)'
     ,'delete'   : 'DELETE '
     ,'values'   : 'VALUES $(values_values)'
-    ,'values_'  : '$(values),$(values_values)'
     ,'set'      : 'SET $(set_values)'
-    ,'set_'     : '$(set),$(set_values)'
-    ,'from'     : 'FROM $(tables)'
-    ,'from_'    : '$(from),$(tables)'
-    ,'join'     : '$(join_type)JOIN $(join_clause)'
-    ,'join_'    : '$(join)' + "\n" + '$(join_type)JOIN $(join_clause)'
-    ,'where'    : 'WHERE $(conditions)'
-    ,'where_'   : '$(where) $(boolean_connective) $(conditions)'
-    ,'group'    : 'GROUP BY $(column) $(dir)'
-    ,'group_'   : '$(group),$(column) $(dir)'
-    ,'having'   : 'HAVING $(conditions)'
-    ,'having_'  : '$(having) $(boolean_connective) $(conditions)'
-    ,'order'    : 'ORDER BY $(column) $(dir)'
-    ,'order_'   : '$(order),$(column) $(dir)'
+    ,'from'     : 'FROM $(from_tables)'
+    ,'join'     : '$(join_clauses)'
+    ,'where'    : 'WHERE $(where_conditions)'
+    ,'group'    : 'GROUP BY $(group_conditions)'
+    ,'having'   : 'HAVING $(having_conditions)'
+    ,'order'    : 'ORDER BY $(order_conditions)'
     ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
-
-    ,'year'     : 'EXTRACT (YEAR FROM $(column))'
-    ,'month'    : 'EXTRACT (MONTH FROM $(column))'
-    ,'day'      : 'EXTRACT (DAY FROM $(column))'
-    ,'hour'     : 'EXTRACT (HOUR FROM $(column))'
-    ,'minute'   : 'EXTRACT (MINUTE FROM $(column))'
-    ,'second'   : 'EXTRACT (SECOND FROM $(column))'
+    }
+}
+,'sqlserver'        : {
+     // https://msdn.microsoft.com/en-us/library/ms189499.aspx
+     // https://msdn.microsoft.com/en-us/library/ms174335.aspx
+     // https://msdn.microsoft.com/en-us/library/ms177523.aspx
+     // https://msdn.microsoft.com/en-us/library/ms189835.aspx
+     // https://msdn.microsoft.com/en-us/library/ms179859.aspx
+     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+     'quote'        : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
+    ,'clauses'      : {
+     'select'  : ['select','from','join','where','group','having','order']
+    ,'insert'  : ['insert','values']
+    ,'update'  : ['update','set','where','order']
+    ,'delete'  : ['delete','from','where','order']
+    }
+    ,'tpl'        : {
+     'select'   : 'SELECT $(select_columns)'
+    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
+    ,'update'   : 'UPDATE $(update_tables)'
+    ,'delete'   : 'DELETE '
+    ,'values'   : 'VALUES $(values_values)'
+    ,'set'      : 'SET $(set_values)'
+    ,'from'     : 'FROM $(from_tables)'
+    ,'join'     : '$(join_clauses)'
+    ,'where'    : 'WHERE $(where_conditions)'
+    ,'group'    : 'GROUP BY $(group_conditions)'
+    ,'having'   : 'HAVING $(having_conditions)'
+    ,'order'    : 'ORDER BY $(order_conditions)'
     }
 }
 };
@@ -422,14 +503,14 @@ Dialect = function Dialect( type ) {
     self.escdb = null;
     self.p = '';
     
-    type = type || 'mysql';
-    self.clauses = Dialect.dialect[ type ][ 'clauses' ];
-    self.tpl = Dialect.dialect[ type ][ 'tpl' ];
-    self.q = Dialect.dialect[ type ][ 'quote' ][ 0 ];
-    self.qn = Dialect.dialect[ type ][ 'quote' ][ 1 ];
-    self.e = Dialect.dialect[ type ][ 'quote' ][ 2 ] || '';
+    self.type = type || 'mysql';
+    self.clauses = Dialect.dialect[ self.type ][ 'clauses' ];
+    self.tpl = Dialect.dialect[ self.type ][ 'tpl' ];
+    self.q  = Dialect.dialect[ self.type ][ 'quote' ][ 0 ];
+    self.qn = Dialect.dialect[ self.type ][ 'quote' ][ 1 ];
+    self.e  = Dialect.dialect[ self.type ][ 'quote' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.3.1";
+Dialect.VERSION = "0.4.0";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
 Dialect.Tpl = Tpl;
@@ -448,6 +529,7 @@ Dialect[PROTO] = {
     ,escdb: null
     ,p: null
     
+    ,type: null
     ,clauses: null
     ,tpl: null
     ,q: null
@@ -467,6 +549,7 @@ Dialect[PROTO] = {
         self.escdb = null;
         self.p = null;
         
+        self.type = null;
         self.clauses = null;
         self.tpl = null;
         self.q = null;
@@ -519,14 +602,8 @@ Dialect[PROTO] = {
         for (i=0,l=clauses.length; i<l; i++)
         {
             clause = clauses[ i ];
-            
             if ( self.tpl[HAS](clause) && !(self.tpl[ clause ] instanceof Tpl) )
                 self.tpl[ clause ] = new Tpl( self.tpl[ clause ], Dialect.TPL_RE );
-            
-            // continuation clause if exists, ..
-            c = clause + '_';
-            if ( self.tpl[HAS](c) && !(self.tpl[ c ] instanceof Tpl) )
-                self.tpl[ c ] = new Tpl( self.tpl[ c ], Dialect.TPL_RE );
         }
         return self;
     }
@@ -541,18 +618,37 @@ Dialect[PROTO] = {
     }
     
     ,sql: function( ) {
-        var self = this, query = null, i, l, clause, clauses;
+        var self = this, query = null, i, l, clause, clauses,
+            sqlserver_limit = null, order_by;
         if ( self.clau && self.clus && self.clauses[HAS]( self.clau ) )
         {
-            query = [ ];
+            query = "";
+            if ( 'sqlserver' === self.type && 'select' === self.clau && self.clus[ HAS ]( 'limit' ) )
+            {
+                sqlserver_limit = self.clus[ 'limit' ];
+                delete self.clus[ 'limit' ];
+                if ( self.clus.order )
+                {
+                    order_by = self.tpl[ 'order' ].render( self.clus[ 'order' ] );
+                    delete self.clus[ 'order' ];
+                }
+                else
+                {
+                    order_by = 'ORDER BY (SELECT 1)';
+                }
+                self.clus[ 'select' ].select_columns = 'ROW_NUMBER() OVER ('+order_by+') AS __row__,'+self.clus[ 'select' ].select_columns;
+            }
             clauses = self.clauses[ self.clau ];
             for (i=0,l=clauses.length; i<l; i++)
             {
                 clause = clauses[ i ];
                 if ( self.clus[ HAS ]( clause ) )
-                    query.push( self.clus[ clause ] );
+                    query += (query.length ? "\n" : "") + self.tpl[ clause ].render( self.clus[ clause ] );
             }
-            query = query.join("\n");
+            if ( sqlserver_limit )
+            {
+                query = "SELECT * FROM(\n"+query+"\n) AS __a__ WHERE __row__ BETWEEN "+(sqlserver_limit.offset+1)+" AND "+(sqlserver_limit.offset+sqlserver_limit.count);
+            }
         }
         self.clear( );
         return query;
@@ -620,7 +716,7 @@ Dialect[PROTO] = {
                             else
                             {
                                 // integer param
-                                param = self.intval( array(args[param]) );
+                                param = self.intval( args[param] );
                             }
                             break;
                             
@@ -866,7 +962,9 @@ Dialect[PROTO] = {
                 columns = array( cols ).join(',');
             }
         }
-        self.clus.select = self.tpl.select.render( { columns:columns } );
+        if ( self.clus.select && self.clus.select.select_columns.length > 0 )
+            columns = self.clus.select.select_columns + ',' + columns;
+        self.clus.select = {select_columns: columns};
         return self;
     }
     
@@ -898,7 +996,14 @@ Dialect[PROTO] = {
                 tables = array( tbls ).join(',');
                 columns = array( cols ).join(',');
             }
-            self.clus.insert = self.tpl.insert.render( { tables:tables, columns:columns } );
+            if ( self.clus.insert )
+            {
+                if ( self.clus.insert.insert_tables.length > 0 )
+                    tables = self.clus.insert.insert_tables + ',' + tables;
+                if ( self.clus.insert.insert_columns.length > 0 )
+                    columns = self.clus.insert.insert_columns + ',' + columns;
+            }
+            self.clus.insert = { insert_tables:tables, insert_columns:columns };
         }
         return self;
     }
@@ -943,8 +1048,9 @@ Dialect[PROTO] = {
             }
         }
         insert_values = insert_values.join(',');
-        if ( self.clus.values ) self.clus.values = self.tpl.values_.render( { values:self.clus.values, values_values:insert_values } );
-        else self.clus.values = self.tpl.values.render( { values_values:insert_values } );
+        if ( self.clus.values && self.clus.values.values_values > 0 )
+            insert_values = self.clus.values.values_values + ',' + insert_values;
+        self.clus.values = { values_values:insert_values };
         return self;
     }
     
@@ -972,7 +1078,9 @@ Dialect[PROTO] = {
             {
                 tables = array( tbls ).join(',');
             }
-            self.clus.update = self.tpl.update.render( { tables:tables } );
+            if ( self.clus.update && self.clus.update.update_tables > 0 )
+                tables = self.clus.update.update_tables + ',' + tables;
+            self.clus.update = { update_tables:tables };
         }
         return self;
     }
@@ -1017,15 +1125,16 @@ Dialect[PROTO] = {
             }
         }
         set_values = set_values.join(',');
-        if ( self.clus.set ) self.clus.set = self.tpl.set_.render( { set:self.clus.set, set_values:set_values } );
-        else self.clus.set = self.tpl.set.render( { set_values:set_values } );
+        if ( self.clus.set && self.clus.set.set_values > 0 )
+            set_values = self.clus.set.set_values + ',' + set_values;
+        self.clus.set = { set_values:set_values };
         return self;
     }
     
     ,del: function( ) {
         var self = this;
         self.reset('delete');
-        self.clus['delete'] = self.tpl['delete'].render( {} );
+        self.clus['delete'] = {};
         return self;
     }
     
@@ -1053,8 +1162,9 @@ Dialect[PROTO] = {
             {
                 tables = array( tbls ).join(',');
             }
-            if ( self.clus.from ) self.clus.from = self.tpl.from_.render( { from:self.clus.from, tables:tables } );
-            else self.clus.from = self.tpl.from.render( { tables:tables } );
+            if ( self.clus.from && self.clus.from.from_tables.length > 0 )
+                tables = self.clus.from.from_tables + ',' + tables;
+            self.clus.from = { from_tables:tables };
         }
         return self;
     }
@@ -1085,9 +1195,10 @@ Dialect[PROTO] = {
             }
             join_clause = table + " ON " + on_cond;
         }
-        join_type = empty(join_type) ? "" : (join_type.toUpperCase() + " ");
-        if ( self.clus.join ) self.clus.join = self.tpl.join_.render( { join:self.clus.join, join_clause:join_clause, join_type:join_type } );
-        else self.clus.join = self.tpl.join.render( { join_clause:join_clause, join_type:join_type } );
+        join_clause = (empty(join_type) ? "JOIN " : (join_type.toUpperCase() + " JOIN ")) + join_clause;
+        if ( self.clus.join && self.clus.join.join_clauses.length > 0 )
+            join_clause = self.clus.join.join_clauses + "\n" + join_clause;
+        self.clus.join = { join_clauses:join_clause };
         return self;
     }
     
@@ -1097,18 +1208,20 @@ Dialect[PROTO] = {
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions, false );
-        if ( self.clus.where ) self.clus.where = self.tpl.where_.render( { where:self.clus.where, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.clus.where = self.tpl.where.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        if ( self.clus.where && self.clus.where.where_conditions.length > 0 )
+            conditions = self.clus.where.where_conditions + " "+boolean_connective+" " + conditions;
+        self.clus.where = { where_conditions:conditions };
         return self;
     }
     
     ,group: function( col, dir ) {
-        var self = this, column;
+        var self = this, group_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        column = self.refs( col, self.cols )[0].alias_q;
-        if ( self.clus.group ) self.clus.group = self.tpl.group_.render( { group:self.clus.group, column:column, dir:dir } );
-        else self.clus.group = self.tpl.group.render( { column:column, dir:dir } );
+        group_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
+        if ( self.clus.group && self.clus.group.group_conditions.length > 0 )
+            group_condition = self.clus.group.group_conditions + ',' + group_condition;
+        self.clus.group = { group_conditions:group_condition };
         return self;
     }
     
@@ -1118,32 +1231,58 @@ Dialect[PROTO] = {
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions, true );
-        if ( self.clus.having ) self.clus.having = self.tpl.having_.render( { having:self.clus.having, boolean_connective:boolean_connective, conditions:conditions } );
-        else self.clus.having = self.tpl.having.render( { boolean_connective:boolean_connective, conditions:conditions } );
+        if ( self.clus.having && self.clus.having.having_conditions.length > 0 )
+            conditions = self.clus.having.having_conditions + " "+boolean_connective+" " + conditions;
+        self.clus.having = { having_conditions:conditions };
         return self;
     }
     
     ,order: function( col, dir ) {
-        var self = this, column;
+        var self = this, order_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        column = self.refs( col, self.cols )[0].alias_q;
-        if ( self.clus.order ) self.clus.order = self.tpl.order_.render( { order:self.clus.order, column:column, dir:dir } );
-        else self.clus.order = self.tpl.order.render( { column:column, dir:dir } );
+        order_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
+        if ( self.clus.order && self.clus.order.order_conditions.length > 0 )
+            order_condition = self.clus.order.order_conditions + ',' + order_condition;
+        self.clus.order = { order_conditions:order_condition };
         return self;
     }
     
     ,limit: function( count, offset ) {
         var self = this;
-        count = parseInt(count,10); offset = parseInt(offset||0,10);
-        self.clus.limit = self.tpl.limit.render( { offset:offset, count:count } );
+        self.clus.limit = { offset:int(offset), count:int(count) };
         return self;
     }
     
     ,page: function( page, perpage ) {
         var self = this;
-        page = parseInt(page,10); perpage = parseInt(perpage,10);
+        page = int(page); perpage = int(perpage);
         return self.limit( perpage, page*perpage );
+    }
+    
+    ,refs: function( refs, lookup ) {
+        var self = this, i, l, j, m, r, rs, ref;
+        rs = array( refs );
+        refs = [ ];
+        for (i=0,l=rs.length; i<l; i++)
+        {
+            r = rs[ i ].split(',');
+            for (j=0,m=r.length; j<m; j++)
+            {
+                ref = Ref.parse( r[ j ], self );
+                if ( !lookup[HAS](ref.tbl_col) ) 
+                {
+                    lookup[ ref.tbl_col ] = ref;
+                    if ( ref.tbl_col !== ref.alias ) lookup[ ref.alias ] = ref;
+                }
+                else
+                {                    
+                    ref = lookup[ ref.tbl_col ];
+                }
+                refs.push( ref );
+            }
+        }
+        return refs;
     }
     
     ,join_conditions: function( join, conditions ) {
@@ -1194,31 +1333,6 @@ Dialect[PROTO] = {
             delete conditions[f];
         }
         return self;
-    }
-    
-    ,refs: function( refs, lookup ) {
-        var self = this, i, l, j, m, r, rs, ref;
-        rs = array( refs );
-        refs = [ ];
-        for (i=0,l=rs.length; i<l; i++)
-        {
-            r = rs[ i ].split(',');
-            for (j=0,m=r.length; j<m; j++)
-            {
-                ref = Ref.parse( r[ j ], self );
-                if ( !lookup[HAS](ref.tbl_col) ) 
-                {
-                    lookup[ ref.tbl_col ] = ref;
-                    if ( ref.tbl_col !== ref.alias ) lookup[ ref.alias ] = ref;
-                }
-                else
-                {                    
-                    ref = lookup[ ref.tbl_col ];
-                }
-                refs.push( ref );
-            }
-        }
-        return refs;
     }
     
     ,conditions: function( conditions, can_use_alias ) {
@@ -1471,128 +1585,90 @@ Dialect[PROTO] = {
     
     ,tbl: function( table ) {
         var self = this, prefix = self.p;
-        if ( is_array( table ) )
-            return table.map(function( table ){return prefix+table;});
-        return prefix+table;
+        return is_array( table )
+        ? fmap(table, function( table ){ return prefix+table; })
+        : prefix+table
+        ;
     }
     
     ,intval: function( v ) {
         var self = this;
-        if ( is_array( v ) )
-            return v.map(function( v ){return parseInt( v, 10 );});
-        return parseInt( v, 10 );
+        return is_array( v ) ? fmap(v, int) : int( v );
     }
     
     ,quote_name: function( f ) {
         var self = this, qn = self.qn;
-        if ( is_array( f ) )
-            return f.map(function( f ){return '*' === f ? f : qn + f + qn;});
-        return '*' === f ? f : qn + f + qn;
+        return is_array( f )
+        ? fmap(f, function( f ){ return '*' === f ? f : qn[0] + f + qn[1]; })
+        : ('*' === f ? f : qn[0] + f + qn[1])
+        ;
     }
     
     ,quote: function( v ) {
-        var self = this, q = self.q, e = self.escdb ? '' : self.e;
-        if ( is_array( v ) )
-            return v.map(function( v ){return e + q + self.esc( v ) + q;});
-        return e + q + self.esc( v ) + q;
-    }
-    
-    ,esc: function( v ) {
-        // simple ecsaping using addslashes
-        // '"\ and NUL (the NULL byte).
-        var self = this, chars, esc;
-        if ( is_array( v ) )
-        {
-            if ( self.escdb )
-            {
-                return v.map( self.escdb );
-            }
-            else
-            {
-                chars = self.q + '"\'\\' + NULL_CHAR; 
-                esc = '\\';
-                return v.map(function( v ){return addslashes( v, chars, esc );});
-            }
-        }
-        if ( self.escdb ) 
-        {
-            return self.escdb( v );
-        }
-        else
-        {
-            chars = self.q + '"\'\\' + NULL_CHAR; 
-            esc = '\\';
-            return addslashes( v, chars, esc );
-        }
-    }
-    
-    ,esc_like: function( v ) {
-        var self = this, chars = '_%', esc = '\\';
-        if ( is_array( v ) )
-            return v.map(function( v ){return addslashes( v, chars, esc );});
-        return addslashes( v, chars, esc );
+        var self = this, q = self.q;
+        return is_array( v )
+        ? fmap(v, function( v ){ return q[0] + self.esc( v ) + q[1]; })
+        : q[0] + self.esc( v ) + q[1]
+        ;
     }
     
     ,like: function( v ) {
-        var self = this, q = self.q, e = self.escdb ? '' : self.e;
-        if ( is_array( v ) )
-            return v.map(function( v ){return e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q;});
-        return e + q + '%' + self.esc_like( self.esc( v ) ) + '%' + q;
+        var self = this, q = self.q, e = self.escdb ? ['',''] : self.e;
+        return is_array( v )
+        ? fmap(v, function( v ){ return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]; })
+        : e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]
+        ;
     }
     
-    ,multi_like: function( f, v, doTrim ) {
+    ,multi_like: function( f, v, trimmed ) {
         var self = this, like, ORs, ANDs, i, l, j, m;
-        doTrim = false !== doTrim;
+        trimmed = false !== trimmed;
         like = f + " LIKE ";
         ORs = v.split(',');
-        if ( doTrim ) ORs = ORs.map( trim ).filter( Boolean );
+        if ( trimmed ) ORs = ffilter( fmap( ORs, trim ), Boolean );
         for (i=0,l=ORs.length; i<l; i++)
         {
             ANDs = ORs[i].split('+');
-            if ( doTrim ) ANDs = ANDs.map( trim ).filter( Boolean );
-            for (j=0,m=ANDs.length; j<m; j++)
-            {
-                ANDs[j] = like + self.like( ANDs[j] );
-            }
+            if ( trimmed ) ANDs = ffilter( fmap( ANDs, trim ), Boolean );
+            for (j=0,m=ANDs.length; j<m; j++) ANDs[j] = like + self.like( ANDs[j] );
             ORs[i] = '(' + ANDs.join(' AND ') + ')';
         }
         return ORs.join(' OR ');
     }
     
-    ,year: function( column ) {
-        var self = this;
-        if ( !(self.tpl.year instanceof Tpl) ) self.tpl.year = new Tpl( self.tpl.year, Dialect.TPL_RE );
-        return self.tpl.year.render( { column:column } );
+    ,esc: function( v ) {
+        var self = this, chars, esc, i, l, ve, c, q = self.q;
+        if ( self.escdb ) 
+        {
+            return is_array( v ) ? fmap(v, self.escdb) : self.escdb( v );
+        }
+        else if ( is_array( v ) )
+        {
+            return fmap(v, function( v ){ return self.esc( v ); });
+        }
+        else
+        {
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            chars = '"\'\\' + NULL_CHAR; esc = '\\';
+            v = String(v); ve = '';
+            for(i=0,l=v.length; i<l; i++)
+            {
+                c = v.charAt(i);
+                if ( q[0] === c ) ve += q[2];
+                else if ( q[1] === c ) ve += q[3];
+                else ve += addslashes( c, chars, esc );
+            }
+            return ve;
+        }
     }
     
-    ,month: function( column ) {
-        var self = this;
-        if ( !(self.tpl.month instanceof Tpl) ) self.tpl.month = new Tpl( self.tpl.month, Dialect.TPL_RE );
-        return self.tpl.month.render( { column:column } );
-    }
-    
-    ,day: function( column ) {
-        var self = this;
-        if ( !(self.tpl.day instanceof Tpl) ) self.tpl.day = new Tpl( self.tpl.day, Dialect.TPL_RE );
-        return self.tpl.day.render( { column:column } );
-    }
-    
-    ,hour: function( column ) {
-        var self = this;
-        if ( !(self.tpl.hour instanceof Tpl) ) self.tpl.hour = new Tpl( self.tpl.hour, Dialect.TPL_RE );
-        return self.tpl.hour.render( { column:column } );
-    }
-    
-    ,minute: function( column ) {
-        var self = this;
-        if ( !(self.tpl.minute instanceof Tpl) ) self.tpl.minute = new Tpl( self.tpl.minute, Dialect.TPL_RE );
-        return self.tpl.minute.render( { column:column } );
-    }
-    
-    ,second: function( column ) {
-        var self = this;
-        if ( !(self.tpl.second instanceof Tpl) ) self.tpl.second = new Tpl( self.tpl.second, Dialect.TPL_RE );
-        return self.tpl.second.render( { column:column } );
+    ,esc_like: function( v ) {
+        var self = this, chars = '_%', esc = '\\';
+        return is_array( v )
+        ? fmap(v, function( v ){ return addslashes( v, chars, esc ); })
+        : addslashes( v, chars, esc )
+        ;
     }
 };
 

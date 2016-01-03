@@ -8,12 +8,12 @@ function echo_($s='')
 echo_('Dialect.VERSION = ' . Dialect::VERSION);
 echo_();
 
-$dialect = new Dialect( 'mysql' );
+$dialect = new Dialect( 'sqlserver' );
 
 $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
     'main.str'=>array('eq'=>'%str%','type'=>'raw'),
-    'main.year'=>array('eq'=>$dialect->year('date'),'type'=>'raw'),
+    'main.year'=>array('eq'=>'2000','type'=>'raw'),
     'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
 );
 

@@ -3,12 +3,12 @@ var Dialect = require("../src/js/Dialect.js"), echo = console.log;
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( );
 
-var dialect = new Dialect( 'mysql' );
+var dialect = new Dialect( 'sqlserver' );
 
 var conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},
     'main.str':{'eq':'%str%', 'type':'raw'},
-    'main.year':{'eq':dialect.year('date'), 'type':'raw'},
+    'main.year':{'eq':'2000', 'type':'raw'},
     'main.project': {'in':[1,2,3],'type':'integer'}
 };
 
@@ -16,6 +16,7 @@ dialect
     .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     .from('t')
     .join('t2',{'t.id':'t2.id'},'inner')
+    .where({f1:'2'})
     .make_view('my_view')
 ;
 
@@ -41,7 +42,7 @@ dialect.prepare_tpl(
 var query_soft_view = dialect
         .select()
         .from('my_view')
-        .where({f1:'2'})
+        .where({f2:'3'}, 'OR')
         .sql()
     ;
     

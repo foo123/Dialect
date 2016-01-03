@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
 * 
-*   @version: 0.3.1
+*   @version: 0.4.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -265,91 +265,93 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.3.1";
+    const VERSION = "0.4.0";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
     'mysql'            => array(
-         'quote'        => array( "'", '`', '' )
+        // https://dev.mysql.com/doc/refman/5.0/en/select.html
+        // https://dev.mysql.com/doc/refman/5.0/en/join.html
+        // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+        // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+        // https://dev.mysql.com/doc/refman/5.0/en/update.html
+        // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+         'quote'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
         ,'clauses'      => array(
-         // https://dev.mysql.com/doc/refman/5.0/en/select.html, https://dev.mysql.com/doc/refman/5.0/en/join.html, https://dev.mysql.com/doc/refman/5.5/en/expressions.html
          'select'  => array('select','from','join','where','group','having','order','limit')
-         // https://dev.mysql.com/doc/refman/5.0/en/insert.html
         ,'insert'  => array('insert','values')
-         // https://dev.mysql.com/doc/refman/5.0/en/update.html
         ,'update'  => array('update','set','where','order','limit')
-         // https://dev.mysql.com/doc/refman/5.0/en/delete.html
         ,'delete'  => array('delete','from','where','order','limit')
         )
         ,'tpl'        => array(
-         'select'   => 'SELECT $(columns)'
-        ,'insert'   => 'INSERT INTO $(tables) ($(columns))'
-        ,'update'   => 'UPDATE $(tables)'
+         'select'   => 'SELECT $(select_columns)'
+        ,'insert'   => 'INSERT INTO $(insert_tables) ($(insert_columns))'
+        ,'update'   => 'UPDATE $(update_tables)'
         ,'delete'   => 'DELETE '
         ,'values'   => 'VALUES $(values_values)'
-        ,'values_'  => '$(values),$(values_values)'
         ,'set'      => 'SET $(set_values)'
-        ,'set_'     => '$(set),$(set_values)'
-        ,'from'     => 'FROM $(tables)'
-        ,'from_'    => '$(from),$(tables)'
-        ,'join'     => '$(join_type)JOIN $(join_clause)'
-        ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
-        ,'where'    => 'WHERE $(conditions)'
-        ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
-        ,'group'    => 'GROUP BY $(column) $(dir)'
-        ,'group_'   => '$(group),$(column) $(dir)'
-        ,'having'   => 'HAVING $(conditions)'
-        ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
-        ,'order'    => 'ORDER BY $(column) $(dir)'
-        ,'order_'   => '$(order),$(column) $(dir)'
+        ,'from'     => 'FROM $(from_tables)'
+        ,'join'     => '$(join_clauses)'
+        ,'where'    => 'WHERE $(where_conditions)'
+        ,'group'    => 'GROUP BY $(group_conditions)'
+        ,'having'   => 'HAVING $(having_conditions)'
+        ,'order'    => 'ORDER BY $(order_conditions)'
         ,'limit'    => 'LIMIT $(offset),$(count)'
-
-        ,'year'     => 'YEAR($(column))'
-        ,'month'    => 'MONTH($(column))'
-        ,'day'      => 'DAY($(column))'
-        ,'hour'     => 'HOUR($(column))'
-        ,'minute'   => 'MINUTE($(column))'
-        ,'second'   => 'SECOND($(column))'
         )
     )
     ,'postgre'          => array(
-         'quote'        => array( '`', '"', 'E' )
+        // http://www.postgresql.org/docs/
+        // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+         'quote'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
         ,'clauses'      => array(
-         // http://www.postgresql.org/docs/
          'select'  => array('select','from','join','where','group','having','order','limit')
         ,'insert'  => array('insert','values')
         ,'update'  => array('update','set','where','order','limit')
         ,'delete'  => array('delete','from','where','order','limit')
         )
         ,'tpl'        => array(
-         'select'   => 'SELECT $(columns)'
-        ,'insert'   => 'INSERT INTO $(tables) ($(columns))'
-        ,'update'   => 'UPDATE $(tables)'
+         'select'   => 'SELECT $(select_columns)'
+        ,'insert'   => 'INSERT INTO $(insert_tables) ($(insert_columns))'
+        ,'update'   => 'UPDATE $(update_tables)'
         ,'delete'   => 'DELETE '
         ,'values'   => 'VALUES $(values_values)'
-        ,'values_'  => '$(values),$(values_values)'
         ,'set'      => 'SET $(set_values)'
-        ,'set_'     => '$(set),$(set_values)'
-        ,'from'     => 'FROM $(tables)'
-        ,'from_'    => '$(from),$(tables)'
-        ,'join'     => '$(join_type)JOIN $(join_clause)'
-        ,'join_'    => "\$(join)\n\$(join_type)JOIN \$(join_clause)"
-        ,'where'    => 'WHERE $(conditions)'
-        ,'where_'   => '$(where) $(boolean_connective) $(conditions)'
-        ,'group'    => 'GROUP BY $(column) $(dir)'
-        ,'group_'   => '$(group),$(column) $(dir)'
-        ,'having'   => 'HAVING $(conditions)'
-        ,'having_'  => '$(having) $(boolean_connective) $(conditions)'
-        ,'order'    => 'ORDER BY $(column) $(dir)'
-        ,'order_'   => '$(order),$(column) $(dir)'
+        ,'from'     => 'FROM $(from_tables)'
+        ,'join'     => '$(join_clauses)'
+        ,'where'    => 'WHERE $(where_conditions)'
+        ,'group'    => 'GROUP BY $(group_conditions)'
+        ,'having'   => 'HAVING $(having_conditions)'
+        ,'order'    => 'ORDER BY $(order_conditions)'
         ,'limit'    => 'LIMIT $(count) OFFSET $(offset)'
-
-        ,'year'     => 'EXTRACT (YEAR FROM $(column))'
-        ,'month'    => 'EXTRACT (MONTH FROM $(column))'
-        ,'day'      => 'EXTRACT (DAY FROM $(column))'
-        ,'hour'     => 'EXTRACT (HOUR FROM $(column))'
-        ,'minute'   => 'EXTRACT (MINUTE FROM $(column))'
-        ,'second'   => 'EXTRACT (SECOND FROM $(column))'
+        )
+    )
+    ,'sqlserver'          => array(
+        // https://msdn.microsoft.com/en-us/library/ms189499.aspx
+        // https://msdn.microsoft.com/en-us/library/ms174335.aspx
+        // https://msdn.microsoft.com/en-us/library/ms177523.aspx
+        // https://msdn.microsoft.com/en-us/library/ms189835.aspx
+        // https://msdn.microsoft.com/en-us/library/ms179859.aspx
+        // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+         'quote'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
+        ,'clauses'      => array(
+         'select'  => array('select','from','join','where','group','having','order')
+        ,'insert'  => array('insert','values')
+        ,'update'  => array('update','set','where','order')
+        ,'delete'  => array('delete','from','where','order')
+        )
+        ,'tpl'        => array(
+         'select'   => 'SELECT $(select_columns)'
+        ,'insert'   => 'INSERT INTO $(insert_tables) ($(insert_columns))'
+        ,'update'   => 'UPDATE $(update_tables)'
+        ,'delete'   => 'DELETE '
+        ,'values'   => 'VALUES $(values_values)'
+        ,'set'      => 'SET $(set_values)'
+        ,'from'     => 'FROM $(from_tables)'
+        ,'join'     => '$(join_clauses)'
+        ,'where'    => 'WHERE $(where_conditions)'
+        ,'group'    => 'GROUP BY $(group_conditions)'
+        ,'having'   => 'HAVING $(having_conditions)'
+        ,'order'    => 'ORDER BY $(order_conditions)'
         )
     )
     );
@@ -365,6 +367,7 @@ class Dialect
     public $escdb = null;
     public $p = null;
     
+    public $type = null;
     public $clauses = null;
     public $tpl = null;
     public $q = null;
@@ -384,11 +387,12 @@ class Dialect
         $this->escdb = null;
         $this->p = '';
         
-        $this->clauses =& self::$dialect[ $type ][ 'clauses' ];
-        $this->tpl =& self::$dialect[ $type ][ 'tpl' ];
-        $this->q = self::$dialect[ $type ][ 'quote' ][ 0 ];
-        $this->qn = self::$dialect[ $type ][ 'quote' ][ 1 ];
-        $this->e = isset(self::$dialect[ $type ][ 'quote' ][ 2 ]) ? self::$dialect[ $type ][ 'quote' ][ 2 ] : '';
+        $this->type = $type;
+        $this->clauses =& self::$dialect[ $this->type ][ 'clauses' ];
+        $this->tpl =& self::$dialect[ $this->type ][ 'tpl' ];
+        $this->q = self::$dialect[ $this->type ][ 'quote' ][ 0 ];
+        $this->qn = self::$dialect[ $this->type ][ 'quote' ][ 1 ];
+        $this->e = isset(self::$dialect[ $this->type ][ 'quote' ][ 2 ]) ? self::$dialect[ $this->type ][ 'quote' ][ 2 ] : array('','');
     }
     
     public function dispose( )
@@ -404,6 +408,7 @@ class Dialect
         $this->escdb = null;
         $this->p = null;
         
+        $this->type = null;
         $this->clauses = null;
         $this->tpl = null;
         $this->q = null;
@@ -464,11 +469,6 @@ class Dialect
         {
             if ( isset($this->tpl[ $clause ]) && !($this->tpl[ $clause ] instanceof DialectTpl) )
                 $this->tpl[ $clause ] = new DialectTpl( $this->tpl[ $clause ], self::TPL_RE );
-            
-            // continuation clause if exists, ..
-            $c = "{$clause}_";
-            if ( isset($this->tpl[ $c ]) && !($this->tpl[ $c ] instanceof DialectTpl) )
-                $this->tpl[ $c ] = new DialectTpl( $this->tpl[ $c ], self::TPL_RE );
         }
         return $this;
     }
@@ -487,13 +487,32 @@ class Dialect
         $query = null;
         if ( $this->clau && !empty($this->clus) && isset($this->clauses[ $this->clau ]) )
         {
-            $query = array( );
+            $query = "";
+            $sqlserver_limit = null;
+            if ( 'sqlserver' === $this->type && 'select' === $this->clau && isset($this->clus[ 'limit' ]) )
+            {
+                $sqlserver_limit = $this->clus[ 'limit' ];
+                unset($this->clus[ 'limit' ]);
+                if ( isset($this->clus[ 'order' ]) )
+                {
+                    $order_by = $this->tpl[ 'order' ]->render( $this->clus[ 'order' ] );
+                    unset($this->clus[ 'order' ]);
+                }
+                else
+                {
+                    $order_by = 'ORDER BY (SELECT 1)';
+                }
+                $this->clus[ 'select' ]['select_columns'] = 'ROW_NUMBER() OVER ('.$order_by.') AS __row__,'.$this->clus[ 'select' ]['select_columns'];
+            }
             foreach($this->clauses[ $this->clau ] as $clause)
             {
                 if ( isset($this->clus[ $clause ]) )
-                    $query[] = $this->clus[ $clause ];
+                    $query .= (empty($query) ? "" : "\n") . $this->tpl[ $clause ]->render( $this->clus[ $clause ] );
             }
-            $query = implode("\n", $query);
+            if ( isset($sqlserver_limit) )
+            {
+                $query = "SELECT * FROM(\n".$query."\n) AS __a__ WHERE __row__ BETWEEN ".($sqlserver_limit['offset']+1)." AND ".($sqlserver_limit['offset']+$sqlserver_limit['count']);
+            }
         }
         $this->clear( );
         return $query;
@@ -803,7 +822,9 @@ class Dialect
                 $columns = implode( ',', (array)$cols );
             }
         }
-        $this->clus['select'] = $this->tpl['select']->render( array( 'columns'=>$columns ) );
+        if ( isset($this->clus['select']) && !empty($this->clus['select']['select_columns']) )
+            $columns = $this->clus['select']['select_columns'] . ',' . $columns;
+        $this->clus['select'] = array( 'select_columns'=>$columns );
         return $this;
     }
     
@@ -835,7 +856,14 @@ class Dialect
                 $tables = implode( ',', (array)$tbls );
                 $columns = implode( ',', (array)$cols );
             }
-            $this->clus['insert'] = $this->tpl['insert']->render( array( 'tables'=>$tables, 'columns'=>$columns ) );
+            if ( isset($this->clus['select']) )
+            {
+                if ( !empty($this->clus['insert']['insert_tables']) )
+                    $tables = $this->clus['insert']['insert_tables'] . ',' . $tables;
+                if ( !empty($this->clus['insert']['insert_columns']) )
+                    $columns = $this->clus['insert']['insert_columns'] . ',' . $columns;
+            }
+            $this->clus['insert'] = array( 'insert_tables'=>$tables, 'insert_columns'=>$columns );
         }
         return $this;
     }
@@ -878,8 +906,9 @@ class Dialect
             }
         }
         $insert_values = implode(',', $insert_values);
-        if ( isset($this->clus['values']) ) $this->clus['values'] = $this->tpl['values_']->render( array( 'values'=>$this->clus['values'], 'values_values'=>$insert_values ) );
-        else $this->clus['values'] = $this->tpl['values']->render( array( 'values_values'=>$insert_values ) );
+        if ( isset($this->clus['values']) && !empty($this->clus['values']['values_values']) )
+            $insert_values = $this->clus['values']['values_values'] . ',' . $insert_values;
+        $this->clus['values'] = array( 'values_values'=>$insert_values );
         return $this;
     }
     
@@ -907,7 +936,9 @@ class Dialect
             {
                 $tables = implode( ',', (array)$tbls );
             }
-            $this->clus['update'] = $this->tpl['update']->render( array( 'tables'=>$tables ) );
+            if ( isset($this->clus['update']) && !empty($this->clus['update']['update_tables']) )
+                $tables = $this->clus['update']['update_tables'] . ',' . $tables;
+            $this->clus['update'] = array( 'update_tables'=>$tables );
         }
         return $this;
     }
@@ -949,15 +980,16 @@ class Dialect
             }
         }
         $set_values = implode(',', $set_values);
-        if ( isset($this->clus['set']) ) $this->clus['set'] = $this->tpl['set_']->render( array( 'set'=>$this->clus['set'], 'set_values'=>$set_values ) );
-        else $this->clus['set'] = $this->tpl['set']->render( array( 'set_values'=>$set_values ) );
+        if ( isset($this->clus['set']) && !empty($this->clus['set']['set_values']) )
+            $set_values = $this->clus['set']['set_values'] . ',' . $set_values;
+        $this->clus['set'] = array( 'set_values'=>$set_values );
         return $this;
     }
     
     public function del( )
     {
         $this->reset('delete');
-        $this->clus['delete'] = $this->tpl['delete']->render( array() );
+        $this->clus['delete'] = array();
         return $this;
     }
     
@@ -985,8 +1017,9 @@ class Dialect
             {
                 $tables = implode( ',', (array)$tbls );
             }
-            if ( isset($this->clus['from']) ) $this->clus['from'] = $this->tpl['from_']->render( array( 'from'=>$this->clus['from'], 'tables'=>$tables ) );
-            else $this->clus['from'] = $this->tpl['from']->render( array( 'tables'=>$tables ) );
+            if ( isset($this->clus['from']) && !empty($this->clus['from']['from_tables']) )
+                $tables = $this->clus['from']['from_tables'] . ',' . $tables;
+            $this->clus['from'] = array( 'from_tables'=>$tables );
         }
         return $this;
     }
@@ -1017,9 +1050,10 @@ class Dialect
             }
             $join_clause = "$table ON $on_cond";
         }
-        $join_type = empty($join_type) ? "" : (strtoupper($join_type) . " ");
-        if ( isset($this->clus['join']) ) $this->clus['join'] = $this->tpl['join_']->render( array( 'join'=>$this->clus['join'], 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
-        else $this->clus['join'] = $this->tpl['join']->render( array( 'join_clause'=>$join_clause, 'join_type'=>$join_type ) );
+        $join_clause = (empty($join_type) ? "JOIN " : (strtoupper($join_type) . " JOIN ")) . $join_clause;
+        if ( isset($this->clus['join']) && !empty($this->clus['join']['join_clauses']) )
+            $join_clause = $this->clus['join']['join_caluses'] . "\n" . $join_clause;
+        $this->clus['join'] = array( 'join_clauses'=>$join_clause );
         return $this;
     }
     
@@ -1029,8 +1063,9 @@ class Dialect
         $boolean_connective = strtoupper($boolean_connective);
         if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
         $conditions = $this->conditions( $conditions, false );
-        if ( isset($this->clus['where']) ) $this->clus['where'] = $this->tpl['where_']->render( array( 'where'=>$this->clus['where'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
-        else $this->clus['where'] = $this->tpl['where']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        if ( isset($this->clus['where']) && !empty($this->clus['where']['where_conditions']) )
+            $conditions = $this->clus['where']['where_conditions'] . " ".$boolean_connective." " . $conditions;
+        $this->clus['where'] = array( 'where_conditions'=>$conditions );
         return $this;
     }
     
@@ -1039,9 +1074,10 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $column = $this->refs( $col, $this->cols );
-        $column = $column[0]->alias_q;
-        if ( isset($this->clus['group']) ) $this->clus['group'] = $this->tpl['group_']->render( array( 'group'=>$this->clus['group'], 'column'=>$column, 'dir'=>$dir ) );
-        else $this->clus['group'] = $this->tpl['group']->render( array( 'column'=>$column, 'dir'=>$dir ) );
+        $group_condition = $column[0]->alias_q . " " . $dir;
+        if ( isset($this->clus['group']) && !empty($this->clus['group']['group_conditions']) )
+            $group_condition = $this->clus['group']['group_conditions'] . ',' . $group_condition;
+        $this->clus['group'] = array( 'group_conditions'=>$group_condition );
         return $this;
     }
     
@@ -1050,9 +1086,10 @@ class Dialect
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
         if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
-        $conditions = $this->conditions( $conditions, true );
-        if ( isset($this->clus['having']) ) $this->clus['having'] = $this->tpl['having_']->render( array( 'having'=>$this->clus['having'], 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
-        else $this->clus['having'] = $this->tpl['having']->render( array( 'boolean_connective'=>$boolean_connective, 'conditions'=>$conditions ) );
+        $conditions = $this->conditions( $conditions, false );
+        if ( isset($this->clus['having']) && !empty($this->clus['having']['having_conditions']) )
+            $conditions = $this->clus['having']['having_conditions'] . " ".$boolean_connective." " . $conditions;
+        $this->clus['having'] = array( 'having_conditions'=>$conditions );
         return $this;
     }
     
@@ -1061,16 +1098,16 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $column = $this->refs( $col, $this->cols );
-        $column = $column[0]->alias_q;
-        if ( isset($this->clus['order']) ) $this->clus['order'] = $this->tpl['order_']->render( array( 'order'=>$this->clus['order'], 'column'=>$column, 'dir'=>$dir ) );
-        else $this->clus['order'] = $this->tpl['order']->render( array( 'column'=>$column, 'dir'=>$dir ) );
+        $order_condition = $column[0]->alias_q . " " . $dir;
+        if ( isset($this->clus['order']) && !empty($this->clus['order']['order_conditions']) )
+            $order_condition = $this->clus['order']['order_conditions'] . ',' . $order_condition;
+        $this->clus['order'] = array( 'order_conditions'=>$order_condition );
         return $this;
     }
     
     public function limit( $count, $offset=0 )
     {
-        $count = intval($count,10); $offset = intval($offset,10);
-        $this->clus['limit'] = $this->tpl['limit']->render( array( 'offset'=>$offset, 'count'=>$count ) );
+        $this->clus['limit'] = array( 'offset'=>intval($offset,10), 'count'=>intval($count,10) );
         return $this;
     }
     
@@ -1397,125 +1434,86 @@ class Dialect
     
     public function tbl( $table )
     {
-        if ( is_array($table) ) return array_map(array($this, 'tbl'), (array)$table);
-        return $this->p.$table;
+        return is_array( $table ) ? array_map(array($this, 'tbl'), (array)$table): $this->p.$table;
     }
     
     public function intval( $v )
     {
-        if ( is_array( $v ) )
-            return array_map( array($this, 'intval'), $v );
-        return intval( $v, 10 );
+        return is_array( $v ) ? array_map( array($this, 'intval'), $v ) : intval( $v, 10 );
     }
     
     public function quote_name( $f )
     {
-        if ( is_array( $f ) )
-            return array_map( array($this, 'quote_name'), $f );
-        return '*' === $f ? $f : $this->qn . $f . $this->qn;
+        return is_array( $f )
+        ? array_map( array($this, 'quote_name'), $f )
+        : ('*' === $f ? $f : $this->qn[0] . $f . $this->qn[1]);
     }
     
     public function quote( $v )
     {
-        if ( is_array( $v ) )
-            return array_map( array($this, 'quote'), $v );
-        $q = $this->q;
-        $e = $this->escdb ? '' : $this->e;
-        return $e . $q . $this->esc($v) . $q;
-    }
-    
-    public function esc( $v )
-    {
-        if ( is_array( $v ) )
-        {
-            if ( $this->escdb ) 
-                return array_map( $this->escdb, $v );
-            else
-                return array_map( array($this, 'esc'), $v );
-        }
-        if ( $this->escdb ) 
-        {
-            return call_user_func( $this->escdb, $v );
-        }
-        else
-        {
-            // simple ecsaping using addslashes
-            // '"\ and NUL (the NULL byte).
-            $chars = $this->q . '"\'\\' . chr(0); 
-            $esc = '\\';
-            return self::addslashes( $v, $chars, $esc );
-        }
-    }
-    
-    public function esc_like( $v )
-    {
-        if ( is_array( $v ) )
-            return array_map( array($this, 'esc_like'), $v );
-        $chars = '_%'; $esc = '\\';
-        return self::addslashes( $v, $chars, $esc );
+        return is_array( $v )
+        ? array_map( array($this, 'quote'), $v )
+        : ($this->q[0] . $this->esc( $v ) . $this->q[1]);
     }
     
     public function like( $v )
     {
-        if ( is_array( $v ) )
-            return array_map( array($this, 'like'), $v );
+        if ( is_array( $v ) ) return array_map( array($this, 'like'), $v );
         $q = $this->q;
-        $e = $this->escdb ? '' : $this->e;
-        return $e . $q . '%' . $this->esc_like( $this->esc( $v ) ) . '%' . $q;
+        $e = $this->escdb ? array('','') : $this->e;
+        return $e[0] . $q[0] . '%' . $this->esc_like( $this->esc( $v ) ) . '%' . $q[1] . $e[1];
     }
     
-    public function multi_like( $f, $v, $doTrim=true )
+    public function multi_like( $f, $v, $trimmed=true )
     {
+        $trimmed = false !== $trimmed;
         $like = "$f LIKE ";
         $ORs = explode(',', $v);
-        if ( $doTrim ) $ORs = array_filter(array_map('trim', $ORs), 'strlen');
+        if ( $trimmed ) $ORs = array_filter(array_map('trim', $ORs), 'strlen');
         foreach($ORs as &$OR)
         {
             $ANDs = explode('+', $OR);
-            if ( $doTrim ) $ANDs = array_filter(array_map('trim', $ANDs), 'strlen');
-            foreach($ANDs as &$AND)
-            {
-                $AND = $like . $this->like($AND);
-            }
+            if ( $trimmed ) $ANDs = array_filter(array_map('trim', $ANDs), 'strlen');
+            foreach($ANDs as &$AND) $AND = $like . $this->like($AND);
             $OR = '(' . implode(' AND ', $ANDs) . ')';
         }
         return implode(' OR ', $ORs);
     }
     
-    public function year( $column )
+    public function esc( $v )
     {
-        if ( !($this->tpl['year'] instanceof DialectTpl) ) $this->tpl['year'] = new DialectTpl( $this->tpl['year'], self::TPL_RE );
-        return $this->tpl['year']->render( array( 'column'=>$column ) );
+        if ( $this->escdb )
+        {
+            return is_array( $v )
+            ? array_map( $this->escdb, $v )
+            : call_user_func( $this->escdb, $v );
+        }
+        elseif ( is_array( $v ) )
+        {
+            return array_map( array($this, 'esc'), $v );
+        }
+        else
+        {
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            $chars = '"\'\\' . chr(0); $esc = '\\';
+            $q =& $this->q; $v = strval($v); $ve = '';
+            for($i=0,$l=strlen($v); $i<$l; $i++)
+            {
+                $c = $v[$i];
+                if ( $q[0] === $c ) $ve .= $q[2];
+                elseif ( $q[1] === $c ) $ve .= $q[3];
+                else $ve .= self::addslashes( $c, $chars, $esc );
+            }
+            return $ve;
+        }
     }
     
-    public function month( $column )
+    public function esc_like( $v )
     {
-        if ( !($this->tpl['month'] instanceof DialectTpl) ) $this->tpl['month'] = new DialectTpl( $this->tpl['month'], self::TPL_RE );
-        return $this->tpl['month']->render( array( 'column'=>$column ) );
-    }
-    
-    public function day( $column )
-    {
-        if ( !($this->tpl['day'] instanceof DialectTpl) ) $this->tpl['day'] = new DialectTpl( $this->tpl['day'], self::TPL_RE );
-        return $this->tpl['day']->render( array( 'column'=>$column ) );
-    }
-    
-    public function hour( $column )
-    {
-        if ( !($this->tpl['hour'] instanceof DialectTpl) ) $this->tpl['hour'] = new DialectTpl( $this->tpl['hour'], self::TPL_RE );
-        return $this->tpl['hour']->render( array( 'column'=>$column ) );
-    }
-    
-    public function minute( $column )
-    {
-        if ( !($this->tpl['minute'] instanceof DialectTpl) ) $this->tpl['minute'] = new DialectTpl( $this->tpl['minute'], self::TPL_RE );
-        return $this->tpl['minute']->render( array( 'column'=>$column ) );
-    }
-    
-    public function second( $column )
-    {
-        if ( !($this->tpl['second'] instanceof DialectTpl) ) $this->tpl['second'] = new DialectTpl( $this->tpl['second'], self::TPL_RE );
-        return $this->tpl['second']->render( array( 'column'=>$column ) );
+        if ( is_array( $v ) ) return array_map( array($this, 'esc_like'), $v );
+        $chars = '_%'; $esc = '\\';
+        return self::addslashes( $v, $chars, $esc );
     }
     
     public static function addslashes( $s, $chars=null, $esc='\\' )

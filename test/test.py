@@ -30,12 +30,12 @@ def echo( s='' ):
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( 'mysql' )
+dialect = Dialect( 'sqlserver' )
 
 conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},
     'main.str':{'eq':'%str%', 'type':'raw'},
-    'main.year':{'eq':dialect.year('date'), 'type':'raw'},
+    'main.year':{'eq':'2000', 'type':'raw'},
     'main.project': {'in':[1,2,3],'type':'integer'}
 }
 

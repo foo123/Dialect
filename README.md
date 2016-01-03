@@ -1,12 +1,12 @@
 Dialect
 =======
 
-**Cross-Platform SQL Builder for PHP, Python, Node/JS**
+**Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS**
 
 
 **Requirements:**
 
-* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `Oracle`, `SQL Server` )
+* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `SQL Server`, `Oracle` )
 * Easily extended to new DBs ( prefereably through a config setting )
 * Flexible and Intuitive API
 * Light-weight ( one class/file per implementation if possible )
@@ -15,14 +15,14 @@ Dialect
 
 **see also:**  
 
-* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/JS, PHP, Python, ActionScript
-* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/JS, Python (can be used as plugins for Contemplate engine as well)
+* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/XPCOM/JS, PHP, Python, ActionScript
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/XPCOM/JS, Python (can be used as plugins for Contemplate engine as well)
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
 * [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
-* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/JS, PHP, Python, ActionScript
+* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/JS, PHP, Python, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
-* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
+* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
 
@@ -30,6 +30,7 @@ Dialect
 
 1. `MySQL`
 2. `Postgre`
+3. `Sql Server`
 
 
 **Methods:**
@@ -110,7 +111,6 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 // d:       typecast to integer or comma-separated list of integers
 // s:       typecast to escaped string or comma-separated list of escaped strings with appropriate quotes (see `.escape` method above)
 // if no modifier is present default typecasting is "s:" modifier, i.e as escaped and quoted string
-
 
 
 
