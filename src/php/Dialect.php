@@ -712,7 +712,7 @@ class Dialect
             if ( $use_internal_query )
             {
                 $sql = new DialectTpl( $this->sql( ), $pattern );
-                $this->clear( );
+                //$this->clear( );
             }
             else
             {

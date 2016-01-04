@@ -706,7 +706,7 @@ class Dialect:
             
             if use_internal_query:
                 sql = Tpl( self.sql( ), pattern )
-                self.clear( )
+                #self.clear( )
             else:
                 sql = Tpl( query, pattern )
             
