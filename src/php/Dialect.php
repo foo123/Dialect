@@ -55,6 +55,8 @@ class DialectTpl
                         $negative = 0;
                     }
                     $b = $a; $a = array_pop($stack);
+                    if ( strlen($s) ) $b[] = array(1, $s);
+                    $s = '';
                     $a[] = array(-1, $argument, $negative, $b);
                     $i = $p+1;
                 }
@@ -379,41 +381,61 @@ class Dialect
     
     public static $dialect = array(
     'mysql'            => array(
-        // https://dev.mysql.com/doc/refman/5.0/en/select.html
-        // https://dev.mysql.com/doc/refman/5.0/en/join.html
-        // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-        // https://dev.mysql.com/doc/refman/5.0/en/insert.html
-        // https://dev.mysql.com/doc/refman/5.0/en/update.html
-        // https://dev.mysql.com/doc/refman/5.0/en/delete.html
-         'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
-        ,'clauses'       => array(
-     'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+    // https://dev.mysql.com/doc/refman/5.0/en/select.html
+    // https://dev.mysql.com/doc/refman/5.0/en/join.html
+    // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+    // https://dev.mysql.com/doc/refman/5.0/en/insert.html
+    // https://dev.mysql.com/doc/refman/5.0/en/update.html
+    // https://dev.mysql.com/doc/refman/5.0/en/delete.html
+    // http://dev.mysql.com/doc/refman/5.7/en/create-table.html
+    // http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
+    // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
+     'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
+    ,'clauses'       => array(
+     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
+    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
     ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
     ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
     ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
         )
     )
     ,'postgre'          => array(
-        // http://www.postgresql.org/docs/
-        // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-         'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
-        ,'clauses'       => array(
-     'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+    // http://www.postgresql.org/docs/
+    // http://www.postgresql.org/docs/9.1/static/sql-createtable.html
+    // http://www.postgresql.org/docs/9.1/static/sql-droptable.html
+    // http://www.postgresql.org/docs/9.1/static/sql-altertable.html
+    // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+     'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
+    ,'clauses'       => array(
+     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
+    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
     ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
     ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
     ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
         )
     )
     ,'sqlserver'          => array(
-        // https://msdn.microsoft.com/en-us/library/ms189499.aspx
-        // https://msdn.microsoft.com/en-us/library/ms174335.aspx
-        // https://msdn.microsoft.com/en-us/library/ms177523.aspx
-        // https://msdn.microsoft.com/en-us/library/ms189835.aspx
-        // https://msdn.microsoft.com/en-us/library/ms179859.aspx
-        // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-         'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
-        ,'clauses'       => array(
-     'select'       => "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
+    // https://msdn.microsoft.com/en-us/library/ms189499.aspx
+    // https://msdn.microsoft.com/en-us/library/ms174335.aspx
+    // https://msdn.microsoft.com/en-us/library/ms177523.aspx
+    // https://msdn.microsoft.com/en-us/library/ms189835.aspx
+    // https://msdn.microsoft.com/en-us/library/ms179859.aspx
+    // https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
+    // https://msdn.microsoft.com/en-us/library/ms174979.aspx
+    // https://msdn.microsoft.com/en-us/library/ms173790.aspx
+    // https://msdn.microsoft.com/en-us/library/cc879314.aspx
+    // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+    // http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
+     'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
+    ,'clauses'       => array(
+     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
+    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}{?\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(order_conditions){?{?\nORDER BY 1\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(!order_conditions)"
     ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
     ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
     ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
@@ -834,6 +856,74 @@ class Dialect
         return $this;
     }
     
+    public function create( $table, $defs, $opts=null, $format=true )
+    {
+        $this->reset('create');
+        if ( false !== $format )
+        {
+            $table = $this->refs( $table, $this->tbls );
+            $table = $table[0]->tbl_col_q;
+        }
+        $this->clus['create_table'] = $table;
+        if ( !empty($this->clus['create_defs']) )
+            $defs = $this->clus['create_defs'] . ',' . $defs;
+        $this->clus['create_defs'] = $defs;
+        if ( !empty($opts) )
+        {
+            if ( !empty($this->clus['create_opts']) )
+                $opts = $this->clus['create_opts'] . ',' . $opts;
+            $this->clus['create_opts'] = $opts;
+        }
+        return $this;
+    }
+    
+    public function alter( $table, $defs, $opts=null, $format=true )
+    {
+        $this->reset('alter');
+        if ( false !== $format )
+        {
+            $table = $this->refs( $table, $this->tbls );
+            $table = $table[0]->tbl_col_q;
+        }
+        $this->clus['alter_table'] = $table;
+        if ( !empty($this->clus['alter_defs']) )
+            $defs = $this->clus['alter_defs'] . ',' . $defs;
+        $this->clus['alter_defs'] = $defs;
+        if ( !empty($opts) )
+        {
+            if ( !empty($this->clus['alter_opts']) )
+                $opts = $this->clus['alter_opts'] . ',' . $opts;
+            $this->clus['alter_opts'] = $opts;
+        }
+        return $this;
+    }
+    
+    public function drop( $tables, $format=true )
+    {
+        $this->reset('drop');
+        if ( empty($tables) || '*' === $tables ) 
+        {
+            $tables = '*';
+        }
+        else
+        {            
+            if ( false !== $format )
+            {
+                $tbls = $this->refs( $tables, $this->tbls );
+                $tables = $tbls[ 0 ]->tbl_col_q;
+                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_q;
+            }
+            else
+            {
+                $tables = implode(',', (array)$tables);
+            }
+        }
+        if ( !empty($this->clus['drop_tables']) )
+            $tables = $this->clus['drop_tables'] . ',' . $tables;
+        $this->clus['drop_tables'] = $tables;
+        return $this;
+    }
+    
     public function select( $cols='*', $format=true )
     {
         $this->reset('select');
@@ -1138,6 +1228,7 @@ class Dialect
     {
         $this->clus['count'] = intval($count,10);
         $this->clus['offset'] = intval($offset,10);
+        $this->clus['limit'] = 1;
         return $this;
     }
     

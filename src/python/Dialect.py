@@ -201,6 +201,8 @@ class Tpl:
                     else:
                         negative = 0
                     b = a
+                    if len(s): b.append([1, s])
+                    s = ''
                     a = stack.pop(-1)
                     a.append([-1, argument, negative, b])
                     i = p+1
@@ -459,41 +461,61 @@ class Dialect:
 
     dialect = {
      'mysql'            : {
-         # https://dev.mysql.com/doc/refman/5.0/en/select.html
-         # https://dev.mysql.com/doc/refman/5.0/en/join.html
-         # https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-         # https://dev.mysql.com/doc/refman/5.0/en/insert.html
-         # https://dev.mysql.com/doc/refman/5.0/en/update.html
-         # https://dev.mysql.com/doc/refman/5.0/en/delete.html
+        # https://dev.mysql.com/doc/refman/5.0/en/select.html
+        # https://dev.mysql.com/doc/refman/5.0/en/join.html
+        # https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+        # https://dev.mysql.com/doc/refman/5.0/en/insert.html
+        # https://dev.mysql.com/doc/refman/5.0/en/update.html
+        # https://dev.mysql.com/doc/refman/5.0/en/delete.html
+        # http://dev.mysql.com/doc/refman/5.7/en/create-table.html
+        # http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
+        # http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
          'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
         ,'clauses'      : {
-         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
+        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
         ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
         ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
         ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
         }
     }
     ,'postgre'          : {
-         # http://www.postgresql.org/docs/
-         # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+        # http://www.postgresql.org/docs/
+        # http://www.postgresql.org/docs/9.1/static/sql-createtable.html
+        # http://www.postgresql.org/docs/9.1/static/sql-droptable.html
+        # http://www.postgresql.org/docs/9.1/static/sql-altertable.html
+        # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
          'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
         ,'clauses'      : {
-         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
+        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
         ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
         ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
         ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
         }
     }
     ,'sqlserver'        : {
-         # https://msdn.microsoft.com/en-us/library/ms189499.aspx
-         # https://msdn.microsoft.com/en-us/library/ms174335.aspx
-         # https://msdn.microsoft.com/en-us/library/ms177523.aspx
-         # https://msdn.microsoft.com/en-us/library/ms189835.aspx
-         # https://msdn.microsoft.com/en-us/library/ms179859.aspx
-         # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+        # https://msdn.microsoft.com/en-us/library/ms189499.aspx
+        # https://msdn.microsoft.com/en-us/library/ms174335.aspx
+        # https://msdn.microsoft.com/en-us/library/ms177523.aspx
+        # https://msdn.microsoft.com/en-us/library/ms189835.aspx
+        # https://msdn.microsoft.com/en-us/library/ms179859.aspx
+        # https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
+        # https://msdn.microsoft.com/en-us/library/ms174979.aspx
+        # https://msdn.microsoft.com/en-us/library/ms173790.aspx
+        # https://msdn.microsoft.com/en-us/library/cc879314.aspx
+        # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+        # http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         ,'clauses'      : {
-         'select'       : "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
+         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
+        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
+        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
+        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}{?\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(order_conditions){?{?\nORDER BY 1\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(!order_conditions)"
         ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
         ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
         ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
@@ -785,6 +807,50 @@ class Dialect:
            del self.tpls[ tpl ]
         return self
     
+    def create( self, table, defs, opts=None, format=True ):
+        self.reset('create')
+        if format is not False:
+            table = self.refs( table, self.tbls )[0].tbl_col_q
+        self.clus['create_table'] = table
+        if 'create_defs' in self.clus and len(self.clus['create_defs']) > 0:
+            defs = self.clus['create_defs'] + ',' + defs
+        self.clus['create_defs'] = defs
+        if opts:
+            if 'create_opts' in self.clus and len(self.clus['create_opts']) > 0:
+                opts = self.clus['create_opts'] + ',' + opts
+            self.clus['create_opts'] = opts
+        return self
+    
+    def alter( self, table, defs, opts=None, format=True ):
+        self.reset('alter')
+        if format is not False:
+            table = self.refs( table, self.tbls )[0].tbl_col_q
+        self.clus['alter_table'] = table
+        if 'alter_defs' in self.clus and len(self.clus['alter_defs']) > 0:
+            defs = self.clus['alter_defs'] + ',' + defs
+        self.clus['alter_defs'] = defs
+        if opts:
+            if 'alter_opts' in self.clus and len(self.clus['alter_opts']) > 0:
+                opts = self.clus['alter_opts'] + ',' + opts
+            self.clus['alter_opts'] = opts
+        return self
+    
+    def drop( self, tables, format=True ):
+        self.reset('drop')
+        if not tables or not len(tables) or '*' == tables: 
+            tables = '*'
+        else:
+            if format is not False:
+                tbls = self.refs( tables, self.tbls )
+                tables = tbls[ 0 ].tbl_col_q
+                for i in range(1,len(cols)): tables += ',' + tbls[ i ].tbl_col_q
+            else:
+                tables = ','.join(array( tables ))
+        if 'drop_tables' in self.clus and len(self.clus['drop_tables']) > 0:
+            tables = self.clus['drop_tables'] + ',' + tables
+        self.clus['drop_tables'] = tables
+        return self
+    
     def select( self, cols='*', format=True ):
         self.reset('select')
         if not cols or not len(cols) or '*' == cols: 
@@ -989,6 +1055,7 @@ class Dialect:
     def limit( self, count, offset=0 ):
         self.clus['count'] = int(count,10) if is_string(count) else count
         self.clus['offset'] = int(offset,10) if is_string(offset) else offset
+        self.clus['limit'] = 1
         return self
     
     def page( self, page, perpage ):
