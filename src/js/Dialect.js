@@ -230,7 +230,7 @@ Tpl = function Tpl( tpl, replacements, compiled ) {
 Tpl.defaultArgs = /\$(-?[0-9]+)/g;
 Tpl.multisplit_gram = function multisplit_gram( tpl ) {
     var SEPL = '{', SEPR = '}',
-        default_value = null,
+        default_value = null, negative = 0,
         argument, p, stack,
         c, a, b, s, l = tpl.length, i;
     i = 0; a = []; stack = []; s = '';
@@ -258,8 +258,17 @@ Tpl.multisplit_gram = function multisplit_gram( tpl ) {
                 s = s.slice(0,-1);
                 // optional block end
                 argument = tpl.slice(i+1, p=tpl.indexOf(')',i+1));
+                if ( '!' === argument[CHAR](0) )
+                {
+                    negative = 1;
+                    argument = argument.slice(1);
+                }
+                else
+                {
+                    negative = 0;
+                }
                 b = a; a = stack.pop( );
-                a.push([-1, argument, b]);
+                a.push([-1, argument, negative, b]);
                 i = p+1;
             }
             else
@@ -425,10 +434,12 @@ Tpl[PROTO] = {
             else if ( -1 === tt )
             {
                 // optional block
-                if ( args[HAS]( s ) )
+                if ( (0 === t[2] && args[HAS]( s )) ||
+                    (1 === t[2] && !args[HAS]( s ))
+                )
                 {
                     stack.push([tpl, i+1, l]);
-                    tpl = t[ 2 ];
+                    tpl = t[ 3 ];
                     i = 0; l = tpl.length;
                     continue;
                 }
@@ -564,11 +575,10 @@ var dialect = {
      // https://msdn.microsoft.com/en-us/library/ms177523.aspx
      // https://msdn.microsoft.com/en-us/library/ms189835.aspx
      // https://msdn.microsoft.com/en-us/library/ms179859.aspx
+     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
      'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
     ,'clauses'      : {
-     'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-     ,'select_with_limit': "SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})"
+     'select'       : "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
     ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
     ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
     ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
@@ -700,16 +710,7 @@ Dialect[PROTO] = {
     ,sql: function( ) {
         var self = this, query = null;
         if ( self.clau && self.clauses[HAS]( self.clau ) )
-        {
-            query = "";
-            if ( 'sqlserver' === self.type && 'select' === self.clau && self.clus[ HAS ]( 'count' ) )
-            {
-                self.clau = 'select_with_limit';
-                if ( !(self.clauses[ self.clau ] instanceof Tpl) )
-                    self.clauses[ self.clau ] = new Tpl( self.clauses[ self.clau ], true );
-            }
-            query = self.clauses[ self.clau ].render( self.clus );
-        }
+            query = self.clauses[ self.clau ].render( self.clus ) || "";
         self.clear( );
         return query;
     }

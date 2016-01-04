@@ -2,16 +2,16 @@ Dialect.VERSION = 0.4.0
 
 SQL dialect = sqlserver
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
+)SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
 FROM [t]
 INNER JOIN [t2] ON ([t].[id] = [t2].[id])
 WHERE ([t].[f1] = '2') OR ([t].[f2] = '3')
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
+)SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
 FROM [t]
 WHERE ([t].[f1] = 12)
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
+)SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
 FROM [t]
 WHERE ([t].[f1] = 12)
 

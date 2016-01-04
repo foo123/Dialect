@@ -195,9 +195,14 @@ class Tpl:
                     # optional block end
                     p = tpl.find(')',i+1)
                     argument = tpl[i+1:p]
+                    if '!' == argument[0]:
+                        negative = 1
+                        argument = argument[1:]
+                    else:
+                        negative = 0
                     b = a
                     a = stack.pop(-1)
-                    a.append([-1, argument, b])
+                    a.append([-1, argument, negative, b])
                     i = p+1
                 else:
                     # argument
@@ -364,9 +369,9 @@ class Tpl:
                 out += s
             elif -1 == tt:
                 # optional block
-                if s in args:
+                if (0 == t[2] and (s in args)) or (1 == t[2] and (s not in args)):
                     stack.append([tpl, i+1, l])
-                    tpl = t[ 2 ]
+                    tpl = t[ 3 ]
                     i = 0
                     l = len(tpl)
                     continue
@@ -485,11 +490,10 @@ class Dialect:
          # https://msdn.microsoft.com/en-us/library/ms177523.aspx
          # https://msdn.microsoft.com/en-us/library/ms189835.aspx
          # https://msdn.microsoft.com/en-us/library/ms179859.aspx
+         # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         ,'clauses'      : {
-         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-         # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-         ,'select_with_limit': "SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})"
+         'select'       : "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
         ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
         ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
         ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
@@ -581,11 +585,6 @@ class Dialect:
     def sql( self ):
         query = None
         if self.clau and (self.clau in self.clauses):
-            query = "";
-            if 'sqlserver' == self.type and 'select' == self.clau and ('count' in self.clus):
-                self.clau = 'select_with_limit'
-                if not isinstance(self.clauses[ self.clau ], Tpl):
-                    self.clauses[ self.clau ] = Tpl( self.clauses[ self.clau ], True )
             query = self.clauses[ self.clau ].render( self.clus )
         self.clear( )
         return query

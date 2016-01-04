@@ -45,8 +45,17 @@ class DialectTpl
                     // optional block end
                     $p = strpos($tpl, ')', $i+1);
                     $argument = substr($tpl, $i+1, $p-$i-1);
+                    if ( '!' === $argument[0] )
+                    {
+                        $negative = 1;
+                        $argument = substr($argument,1);
+                    }
+                    else
+                    {
+                        $negative = 0;
+                    }
                     $b = $a; $a = array_pop($stack);
-                    $a[] = array(-1, $argument, $b);
+                    $a[] = array(-1, $argument, $negative, $b);
                     $i = $p+1;
                 }
                 else
@@ -248,10 +257,12 @@ class DialectTpl
             elseif ( -1 === $tt )
             {
                 // optional block
-                if ( isset($args[$s]) )
+                if ( (0 === $t[2] && isset($args[$s])) ||
+                    (1 === $t[2] && !isset($args[$s]))
+                )
                 {
                     $stack[] = array($tpl, $i+1, $l);
-                    $tpl = $t[ 2 ];
+                    $tpl = $t[ 3 ];
                     $i = 0; $l = count($tpl);
                     continue;
                 }
@@ -399,11 +410,10 @@ class Dialect
         // https://msdn.microsoft.com/en-us/library/ms177523.aspx
         // https://msdn.microsoft.com/en-us/library/ms189835.aspx
         // https://msdn.microsoft.com/en-us/library/ms179859.aspx
+        // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
          'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
         ,'clauses'       => array(
-     'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-     ,'select_with_limit'=> "SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})"
+     'select'       => "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
     ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
     ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
     ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
@@ -535,16 +545,7 @@ class Dialect
     {
         $query = null;
         if ( $this->clau && isset($this->clauses[ $this->clau ]) )
-        {
-            $query = "";
-            if ( 'sqlserver' === $this->type && 'select' === $this->clau && isset($this->clus[ 'count' ]) )
-            {
-                $this->clau = 'select_with_limit';
-                if ( !($this->clauses[ $this->clau ] instanceof DialectTpl) )
-                    $this->clauses[ $this->clau ] = new DialectTpl( $this->clauses[ $this->clau ], true );
-            }
             $query = $this->clauses[ $this->clau ]->render( $this->clus );
-        }
         $this->clear( );
         return $query;
     }
