@@ -1,29 +1,31 @@
 Dialect.VERSION = 0.4.0
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
-FROM [t]
-INNER JOIN [t2] ON ([t].[id] = [t2].[id])
-WHERE ([t].[f1] = '2')
+SQL dialect = postgre
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
-FROM [t]
-WHERE ([t].[f1] = 12)
+SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
+FROM "t"
+INNER JOIN "t2" ON ("t"."id" = "t2"."id")
+WHERE ("t"."f1" = E'2')
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
-FROM [t]
-WHERE ([t].[f1] = 12)
+SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
+FROM "t"
+WHERE ("t"."f1" = 12)
 
-SELECT * FROM(
-SELECT ROW_NUMBER() OVER (ORDER BY [main].[field1] ASC,[main].[field2] ASC) AS __row__,*
-FROM [table] AS [main]
-INNER JOIN [usermeta] AS [usermeta1] ON ([main].[ID]=[usermeta1].[user_id])
-WHERE ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[year] = 2000) AND ([main].[str] = %str%) AND ([main].[name] LIKE %l:name%)
-) AS __a__ WHERE __row__ BETWEEN 2001 AND 3000
+SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
+FROM "t"
+WHERE ("t"."f1" = 12)
 
-SELECT * FROM(
-SELECT ROW_NUMBER() OVER (ORDER BY [main].[field1] ASC,[main].[field2] ASC) AS __row__,*
-FROM [table] AS [main]
-INNER JOIN [usermeta] AS [usermeta1] ON ([main].[ID]=[usermeta1].[user_id])
-WHERE ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[year] = 2000) AND ([main].[str] = 'a string') AND ([main].[name] LIKE '%na\%me%' ESCAPE '\')
-) AS __a__ WHERE __row__ BETWEEN 2001 AND 3000
+SELECT *
+FROM "table" AS "main"
+INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
+WHERE ("usermeta1"."meta_key" = E'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."year" = 2000) AND ("main"."str" = %str%) AND ("main"."name" LIKE %l:name%)
+ORDER BY "main"."field1" ASC,"main"."field2" ASC
+LIMIT 1000 OFFSET 2000
+
+SELECT *
+FROM "table" AS "main"
+INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
+WHERE ("usermeta1"."meta_key" = E'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."year" = 2000) AND ("main"."str" = E'a string') AND ("main"."name" LIKE E'%na\%me%')
+ORDER BY "main"."field1" ASC,"main"."field2" ASC
+LIMIT 1000 OFFSET 2000
 

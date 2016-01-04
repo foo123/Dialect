@@ -45,6 +45,7 @@ var dialect = new Dialect( [String vendor="mysql"] );
 // NOTE1: all methods are chainable
 // NOTE2: sql fields are automaticaly escaped appropriately except if set otherwise
 // NOTE3: field values are automaticaly escaped appropriately except if set otherwise
+// NOTE4: config sql clauses use 'grammar-like templates' to generate vendor-specific sql code in a flexible and intuitive way
 
 // initiate SELECT directive (resets the instance state to SELECT)
 dialect.select( String | Array fields='*' );
@@ -167,5 +168,5 @@ dialect.clear_tpl('prepared_query');
 **TODO**
 
 * add full support for custom soft views [DONE PARTIALY]
-* add full support for sql directives (e.g `create` / `alter` etc.. ) [DONE PARTIALY]
-* add full support for other sql vendors (e.g `SQL Server` etc.. ) [DONE PARTIALY]
+* add full support for sql directives (e.g `create table`, `drop table`, `alter table` )
+* add full support for other sql vendors (e.g `Oracle` )

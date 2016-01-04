@@ -100,6 +100,43 @@ function addslashes( s, chars, esc )
     }
     return s2;
 }
+function defaults( data, def, overwrite )
+{
+    overwrite = true === overwrite;
+    for (var k in def)
+    {
+        if ( !def[HAS](k) ) continue;
+        if ( overwrite || !data[HAS](k) )
+            data[ k ] = def[ k ];
+    }
+    return data;
+}
+/*function filter( data, filt, positive )
+{
+    var filtered, i, l, field;
+    if ( false !== positive )
+    {
+        filtered = { };
+        for (i=0,l=filt.length; i<l; i++)
+        {
+            field = filt[i];
+            if ( data[HAS](field) ) 
+                filtered[field] = data[field];
+        }
+        return filtered;
+    }
+    else
+    {
+        filtered = { };
+        for (field in data)
+        {
+            if ( !data[HAS](field) ) continue;
+            if ( 0 > filt.indexOf( field ) ) 
+                filtered[field] = data[field];
+        }
+        return filtered;
+    }
+}*/
 function fmap( x, F )
 {
     var l = x.length;
@@ -174,14 +211,82 @@ Tpl = function Tpl( tpl, replacements, compiled ) {
     if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
     self.id = null;
     self._renderer = null;
-    replacements = replacements || Tpl.defaultArgs;
-    self.tpl = replacements instanceof RegExp 
-        ? Tpl.multisplit_re(tpl||'', replacements) 
-        : Tpl.multisplit( tpl||'', replacements );
-    if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
-    self.fixRenderer( );
+    if ( true === replacements )
+    {
+        // grammar template
+        self.tpl = Tpl.multisplit_gram( tpl||'' );
+    }
+    else
+    {
+        // ordinary template
+        replacements = replacements || Tpl.defaultArgs;
+        self.tpl = replacements instanceof RegExp 
+            ? Tpl.multisplit_re(tpl||'', replacements) 
+            : Tpl.multisplit( tpl||'', replacements );
+        if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
+        self.fixRenderer( );
+    }
 };
 Tpl.defaultArgs = /\$(-?[0-9]+)/g;
+Tpl.multisplit_gram = function multisplit_gram( tpl ) {
+    var SEPL = '{', SEPR = '}',
+        default_value = null,
+        argument, p, stack,
+        c, a, b, s, l = tpl.length, i;
+    i = 0; a = []; stack = []; s = '';
+    while( i < l )
+    {
+        c = tpl[CHAR](i++);
+        if ( SEPL === c )
+        {
+            if ( s.length ) a.push([1, s]);
+            s = '';
+            
+            if ( i < l && '?' === tpl[CHAR](i) )
+            {
+                // optional block
+                stack.push( a );
+                a = [];
+                i += 1;
+            }
+            // else argument
+        }
+        else if ( SEPR === c )
+        {
+            if ( stack.length && '?' === tpl[CHAR](i-2) && '(' === tpl[CHAR](i) )
+            {
+                s = s.slice(0,-1);
+                // optional block end
+                argument = tpl.slice(i+1, p=tpl.indexOf(')',i+1));
+                b = a; a = stack.pop( );
+                a.push([-1, argument, b]);
+                i = p+1;
+            }
+            else
+            {
+                // argument
+                argument = s;
+                s = '';
+                if ( -1 < (p=argument.indexOf('|')) )
+                {
+                    default_value = argument.slice( p+1 );
+                    argument = argument.slice( 0, p );
+                }
+                else
+                {
+                    default_value = null;
+                }
+                a.push([0, argument, default_value]);
+            }
+        }
+        else
+        {
+            s += c;
+        }
+    }
+    if ( s.length ) a.push([1, s]);
+    return a;
+};
 Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
     var r, sr, s, i, j, a, b, c, al, bl;
     as_array = !!as_array;
@@ -306,14 +411,40 @@ Tpl[PROTO] = {
     ,render: function( args ) {
         args = args || [ ];
         //if ( this._renderer ) return this._renderer( args );
-        var tpl = this.tpl, l = tpl.length, 
-            argslen = args.length, 
-            i, notIsSub, s, out = ''
+        var tpl = this.tpl, l = tpl.length, stack = [], p,
+            argslen = args.length, i, t, tt, s, out = ''
         ;
-        for (i=0; i<l; i++)
+        i = 0;
+        while ( i < l )
         {
-            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
-            out += (notIsSub ? s : (!s.substr && s < 0 ? args[ argslen+s ] : args[ s ]));
+            t = tpl[ i ]; tt = t[ 0 ]; s = t[ 1 ];
+            if ( 1 === tt )
+            {
+                out += s;
+            }
+            else if ( -1 === tt )
+            {
+                // optional block
+                if ( args[HAS]( s ) )
+                {
+                    stack.push([tpl, i+1, l]);
+                    tpl = t[ 2 ];
+                    i = 0; l = tpl.length;
+                    continue;
+                }
+            }
+            else
+            {
+                if ( (+s === s) && s < 0 ) s = argslen+s;
+                // default value if missing
+                out += !args[HAS](s) && null != t[ 2 ] ? t[ 2 ] : args[ s ];
+            }
+            i++;
+            if ( i >= l && stack.length )
+            {
+                p = stack.pop( );
+                tpl = p[0]; i = p[1]; l = p[2];
+            }
         }
         return out;
     }
@@ -408,53 +539,23 @@ var dialect = {
      // https://dev.mysql.com/doc/refman/5.0/en/insert.html
      // https://dev.mysql.com/doc/refman/5.0/en/update.html
      // https://dev.mysql.com/doc/refman/5.0/en/delete.html
-     'quote'        : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
+     'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
     ,'clauses'      : {
-     'select'  : ['select','from','join','where','group','having','order','limit']
-    ,'insert'  : ['insert','values']
-    ,'update'  : ['update','set','where','order','limit']
-    ,'delete'  : ['delete','from','where','order','limit']
-    }
-    ,'tpl'        : {
-     'select'   : 'SELECT $(select_columns)'
-    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-    ,'update'   : 'UPDATE $(update_tables)'
-    ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $(values_values)'
-    ,'set'      : 'SET $(set_values)'
-    ,'from'     : 'FROM $(from_tables)'
-    ,'join'     : '$(join_clauses)'
-    ,'where'    : 'WHERE $(where_conditions)'
-    ,'group'    : 'GROUP BY $(group_conditions)'
-    ,'having'   : 'HAVING $(having_conditions)'
-    ,'order'    : 'ORDER BY $(order_conditions)'
-    ,'limit'    : 'LIMIT $(offset),$(count)'
+     'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
     }
 }
 ,'postgre'          : {
      // http://www.postgresql.org/docs/
      // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-     'quote'        : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
+     'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
     ,'clauses'      : {
-     'select'  : ['select','from','join','where','group','having','order','limit']
-    ,'insert'  : ['insert','values']
-    ,'update'  : ['update','set','where','order','limit']
-    ,'delete'  : ['delete','from','where','order','limit']
-    }
-    ,'tpl'        : {
-     'select'   : 'SELECT $(select_columns)'
-    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-    ,'update'   : 'UPDATE $(update_tables)'
-    ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $(values_values)'
-    ,'set'      : 'SET $(set_values)'
-    ,'from'     : 'FROM $(from_tables)'
-    ,'join'     : '$(join_clauses)'
-    ,'where'    : 'WHERE $(where_conditions)'
-    ,'group'    : 'GROUP BY $(group_conditions)'
-    ,'having'   : 'HAVING $(having_conditions)'
-    ,'order'    : 'ORDER BY $(order_conditions)'
-    ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
+     'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
     }
 }
 ,'sqlserver'        : {
@@ -463,27 +564,14 @@ var dialect = {
      // https://msdn.microsoft.com/en-us/library/ms177523.aspx
      // https://msdn.microsoft.com/en-us/library/ms189835.aspx
      // https://msdn.microsoft.com/en-us/library/ms179859.aspx
-     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-     'quote'        : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
+     'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
     ,'clauses'      : {
-     'select'  : ['select','from','join','where','group','having','order']
-    ,'insert'  : ['insert','values']
-    ,'update'  : ['update','set','where','order']
-    ,'delete'  : ['delete','from','where','order']
-    }
-    ,'tpl'        : {
-     'select'   : 'SELECT $(select_columns)'
-    ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-    ,'update'   : 'UPDATE $(update_tables)'
-    ,'delete'   : 'DELETE '
-    ,'values'   : 'VALUES $(values_values)'
-    ,'set'      : 'SET $(set_values)'
-    ,'from'     : 'FROM $(from_tables)'
-    ,'join'     : '$(join_clauses)'
-    ,'where'    : 'WHERE $(where_conditions)'
-    ,'group'    : 'GROUP BY $(group_conditions)'
-    ,'having'   : 'HAVING $(having_conditions)'
-    ,'order'    : 'ORDER BY $(order_conditions)'
+     'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+     ,'select_with_limit': "SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})"
+    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
     }
 }
 };
@@ -505,10 +593,9 @@ Dialect = function Dialect( type ) {
     
     self.type = type || 'mysql';
     self.clauses = Dialect.dialect[ self.type ][ 'clauses' ];
-    self.tpl = Dialect.dialect[ self.type ][ 'tpl' ];
-    self.q  = Dialect.dialect[ self.type ][ 'quote' ][ 0 ];
-    self.qn = Dialect.dialect[ self.type ][ 'quote' ][ 1 ];
-    self.e  = Dialect.dialect[ self.type ][ 'quote' ][ 2 ] || ['',''];
+    self.q  = Dialect.dialect[ self.type ][ 'quotes' ][ 0 ];
+    self.qn = Dialect.dialect[ self.type ][ 'quotes' ][ 1 ];
+    self.e  = Dialect.dialect[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
 Dialect.VERSION = "0.4.0";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
@@ -531,7 +618,6 @@ Dialect[PROTO] = {
     
     ,type: null
     ,clauses: null
-    ,tpl: null
     ,q: null
     ,qn: null
     ,e: null
@@ -551,7 +637,6 @@ Dialect[PROTO] = {
         
         self.type = null;
         self.clauses = null;
-        self.tpl = null;
         self.q = null;
         self.qn = null;
         self.e = null;
@@ -593,18 +678,13 @@ Dialect[PROTO] = {
     }
     
     ,reset: function( clause ) {
-        var self = this, i, l, clauses, c;
-        self.clau = clause;
+        var self = this, i, l, c;
         self.clus = { };
         self.tbls = { };
         self.cols = { };
-        clauses = self.clauses[ self.clau ];
-        for (i=0,l=clauses.length; i<l; i++)
-        {
-            clause = clauses[ i ];
-            if ( self.tpl[HAS](clause) && !(self.tpl[ clause ] instanceof Tpl) )
-                self.tpl[ clause ] = new Tpl( self.tpl[ clause ], Dialect.TPL_RE );
-        }
+        self.clau = clause;
+        if ( !(self.clauses[ self.clau ] instanceof Tpl) )
+            self.clauses[ self.clau ] = new Tpl( self.clauses[ self.clau ], true );
         return self;
     }
     
@@ -618,37 +698,17 @@ Dialect[PROTO] = {
     }
     
     ,sql: function( ) {
-        var self = this, query = null, i, l, clause, clauses,
-            sqlserver_limit = null, order_by;
-        if ( self.clau && self.clus && self.clauses[HAS]( self.clau ) )
+        var self = this, query = null;
+        if ( self.clau && self.clauses[HAS]( self.clau ) )
         {
             query = "";
-            if ( 'sqlserver' === self.type && 'select' === self.clau && self.clus[ HAS ]( 'limit' ) )
+            if ( 'sqlserver' === self.type && 'select' === self.clau && self.clus[ HAS ]( 'count' ) )
             {
-                sqlserver_limit = self.clus[ 'limit' ];
-                delete self.clus[ 'limit' ];
-                if ( self.clus.order )
-                {
-                    order_by = self.tpl[ 'order' ].render( self.clus[ 'order' ] );
-                    delete self.clus[ 'order' ];
-                }
-                else
-                {
-                    order_by = 'ORDER BY (SELECT 1)';
-                }
-                self.clus[ 'select' ].select_columns = 'ROW_NUMBER() OVER ('+order_by+') AS __row__,'+self.clus[ 'select' ].select_columns;
+                self.clau = 'select_with_limit';
+                if ( !(self.clauses[ self.clau ] instanceof Tpl) )
+                    self.clauses[ self.clau ] = new Tpl( self.clauses[ self.clau ], true );
             }
-            clauses = self.clauses[ self.clau ];
-            for (i=0,l=clauses.length; i<l; i++)
-            {
-                clause = clauses[ i ];
-                if ( self.clus[ HAS ]( clause ) )
-                    query += (query.length ? "\n" : "") + self.tpl[ clause ].render( self.clus[ clause ] );
-            }
-            if ( sqlserver_limit )
-            {
-                query = "SELECT * FROM(\n"+query+"\n) AS __a__ WHERE __row__ BETWEEN "+(sqlserver_limit.offset+1)+" AND "+(sqlserver_limit.offset+sqlserver_limit.count);
-            }
+            query = self.clauses[ self.clau ].render( self.clus );
         }
         self.clear( );
         return query;
@@ -818,7 +878,7 @@ Dialect[PROTO] = {
             if ( use_internal_query )
             {
                 sql = new Tpl( self.sql( ), pattern );
-                self.clear( );
+                //self.clear( );
             }
             else
             {
@@ -830,7 +890,7 @@ Dialect[PROTO] = {
             for(i=0,l=sql.tpl.length; i<l; i++)
             {
                 tpli = sql.tpl[ i ];
-                if ( !tpli[ 0 ] )
+                if ( 0 === tpli[ 0 ] )
                 {
                     k = tpli[ 1 ].split(':');
                     if ( k.length > 1 )
@@ -962,9 +1022,9 @@ Dialect[PROTO] = {
                 columns = array( cols ).join(',');
             }
         }
-        if ( self.clus.select && self.clus.select.select_columns.length > 0 )
-            columns = self.clus.select.select_columns + ',' + columns;
-        self.clus.select = {select_columns: columns};
+        if ( !!self.clus.select_columns )
+            columns = self.clus.select_columns + ',' + columns;
+        self.clus.select_columns = columns;
         return self;
     }
     
@@ -976,9 +1036,9 @@ Dialect[PROTO] = {
         {
             // using custom 'soft' view
             view = self.vews[ view ];
-            self.clus = self.defaults( self.clus, view.clus, true );
-            self.tbls = self.defaults( {}, view.tbls, true );
-            self.cols = self.defaults( {}, view.cols, true );
+            self.clus = defaults( self.clus, view.clus, true );
+            self.tbls = defaults( {}, view.tbls, true );
+            self.cols = defaults( {}, view.cols, true );
         }
         else
         {
@@ -996,14 +1056,12 @@ Dialect[PROTO] = {
                 tables = array( tbls ).join(',');
                 columns = array( cols ).join(',');
             }
-            if ( self.clus.insert )
-            {
-                if ( self.clus.insert.insert_tables.length > 0 )
-                    tables = self.clus.insert.insert_tables + ',' + tables;
-                if ( self.clus.insert.insert_columns.length > 0 )
-                    columns = self.clus.insert.insert_columns + ',' + columns;
-            }
-            self.clus.insert = { insert_tables:tables, insert_columns:columns };
+            if ( !!self.clus.insert_tables )
+                tables = self.clus.insert_tables + ',' + tables;
+            if ( !!self.clus.insert_columns )
+                columns = self.clus.insert_columns + ',' + columns;
+            self.clus.insert_tables = tables;
+            self.clus.insert_columns = columns;
         }
         return self;
     }
@@ -1048,9 +1106,9 @@ Dialect[PROTO] = {
             }
         }
         insert_values = insert_values.join(',');
-        if ( self.clus.values && self.clus.values.values_values > 0 )
-            insert_values = self.clus.values.values_values + ',' + insert_values;
-        self.clus.values = { values_values:insert_values };
+        if ( !!self.clus.values_values )
+            insert_values = self.clus.values_values + ',' + insert_values;
+        self.clus.values_values = insert_values;
         return self;
     }
     
@@ -1062,9 +1120,9 @@ Dialect[PROTO] = {
         {
             // using custom 'soft' view
             view = self.vews[ view ];
-            self.clus = self.defaults( self.clus, view.clus, true );
-            self.tbls = self.defaults( {}, view.tbls, true );
-            self.cols = self.defaults( {}, view.cols, true );
+            self.clus = defaults( self.clus, view.clus, true );
+            self.tbls = defaults( {}, view.tbls, true );
+            self.cols = defaults( {}, view.cols, true );
         }
         else
         {
@@ -1078,9 +1136,9 @@ Dialect[PROTO] = {
             {
                 tables = array( tbls ).join(',');
             }
-            if ( self.clus.update && self.clus.update.update_tables > 0 )
-                tables = self.clus.update.update_tables + ',' + tables;
-            self.clus.update = { update_tables:tables };
+            if ( !!self.clus.update_tables )
+                tables = self.clus.update_tables + ',' + tables;
+            self.clus.update_tables = tables;
         }
         return self;
     }
@@ -1125,16 +1183,15 @@ Dialect[PROTO] = {
             }
         }
         set_values = set_values.join(',');
-        if ( self.clus.set && self.clus.set.set_values > 0 )
-            set_values = self.clus.set.set_values + ',' + set_values;
-        self.clus.set = { set_values:set_values };
+        if ( !!self.clus.set_values )
+            set_values = self.clus.set_values + ',' + set_values;
+        self.clus.set_values = set_values;
         return self;
     }
     
     ,del: function( ) {
         var self = this;
         self.reset('delete');
-        self.clus['delete'] = {};
         return self;
     }
     
@@ -1146,9 +1203,9 @@ Dialect[PROTO] = {
         {
             // using custom 'soft' view
             view = self.vews[ view ];
-            self.clus = self.defaults( self.clus, view.clus, true );
-            self.tbls = self.defaults( {}, view.tbls, true );
-            self.cols = self.defaults( {}, view.cols, true );
+            self.clus = defaults( self.clus, view.clus, true );
+            self.tbls = defaults( {}, view.tbls, true );
+            self.cols = defaults( {}, view.cols, true );
         }
         else
         {
@@ -1162,9 +1219,9 @@ Dialect[PROTO] = {
             {
                 tables = array( tbls ).join(',');
             }
-            if ( self.clus.from && self.clus.from.from_tables.length > 0 )
-                tables = self.clus.from.from_tables + ',' + tables;
-            self.clus.from = { from_tables:tables };
+            if ( !!self.clus.from_tables )
+                tables = self.clus.from_tables + ',' + tables;
+            self.clus.from_tables = tables;
         }
         return self;
     }
@@ -1196,9 +1253,9 @@ Dialect[PROTO] = {
             join_clause = table + " ON " + on_cond;
         }
         join_clause = (empty(join_type) ? "JOIN " : (join_type.toUpperCase() + " JOIN ")) + join_clause;
-        if ( self.clus.join && self.clus.join.join_clauses.length > 0 )
-            join_clause = self.clus.join.join_clauses + "\n" + join_clause;
-        self.clus.join = { join_clauses:join_clause };
+        if ( !!self.clus.join_clauses )
+            join_clause = self.clus.join_clauses + "\n" + join_clause;
+        self.clus.join_clauses = join_clause;
         return self;
     }
     
@@ -1208,9 +1265,9 @@ Dialect[PROTO] = {
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions, false );
-        if ( self.clus.where && self.clus.where.where_conditions.length > 0 )
-            conditions = self.clus.where.where_conditions + " "+boolean_connective+" " + conditions;
-        self.clus.where = { where_conditions:conditions };
+        if ( !!self.clus.where_conditions )
+            conditions = self.clus.where_conditions + " "+boolean_connective+" " + conditions;
+        self.clus.where_conditions = conditions;
         return self;
     }
     
@@ -1219,9 +1276,9 @@ Dialect[PROTO] = {
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
         group_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
-        if ( self.clus.group && self.clus.group.group_conditions.length > 0 )
-            group_condition = self.clus.group.group_conditions + ',' + group_condition;
-        self.clus.group = { group_conditions:group_condition };
+        if ( !!self.clus.group_conditions )
+            group_condition = self.clus.group_conditions + ',' + group_condition;
+        self.clus.group_conditions = group_condition;
         return self;
     }
     
@@ -1231,9 +1288,9 @@ Dialect[PROTO] = {
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
         if ( "OR" !== boolean_connective ) boolean_connective = "AND";
         conditions = self.conditions( conditions, true );
-        if ( self.clus.having && self.clus.having.having_conditions.length > 0 )
-            conditions = self.clus.having.having_conditions + " "+boolean_connective+" " + conditions;
-        self.clus.having = { having_conditions:conditions };
+        if ( !!self.clus.having_conditions )
+            conditions = self.clus.having_conditions + " "+boolean_connective+" " + conditions;
+        self.clus.having_conditions = conditions;
         return self;
     }
     
@@ -1242,15 +1299,16 @@ Dialect[PROTO] = {
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
         order_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
-        if ( self.clus.order && self.clus.order.order_conditions.length > 0 )
-            order_condition = self.clus.order.order_conditions + ',' + order_condition;
-        self.clus.order = { order_conditions:order_condition };
+        if ( !!self.clus.order_conditions )
+            order_condition = self.clus.order_conditions + ',' + order_condition;
+        self.clus.order_conditions = order_condition;
         return self;
     }
     
     ,limit: function( count, offset ) {
         var self = this;
-        self.clus.limit = { offset:int(offset), count:int(count) };
+        self.clus.count = int(count);
+        self.clus.offset = int(offset);
         return self;
     }
     
@@ -1543,46 +1601,6 @@ Dialect[PROTO] = {
         return condquery;
     }
     
-    ,defaults: function( data, defaults, overwrite ) {
-        var k, v;
-        overwrite = true === overwrite;
-        for (k in defaults)
-        {
-            if ( !defaults[HAS](k) ) continue;
-            v = defaults[ k ];
-            if ( overwrite || !data[HAS](k) )
-                data[ k ] = v;
-        }
-        return data;
-    }
-    
-    ,filter: function( data, filter, positive ) {
-        var filtered, i, l, field;
-        positive = false !== positive;
-        if ( positive )
-        {
-            filtered = { };
-            for (i=0,l=filter.length; i<l; i++)
-            {
-                field = filter[i];
-                if ( data[HAS](field) ) 
-                    filtered[field] = data[field];
-            }
-            return filtered;
-        }
-        else
-        {
-            filtered = { };
-            for (field in data)
-            {
-                if ( !data[HAS](field) ) continue;
-                if ( 0 > filter.indexOf( field ) ) 
-                    filtered[field] = data[field];
-            }
-            return filtered;
-        }
-    }
-    
     ,tbl: function( table ) {
         var self = this, prefix = self.p;
         return is_array( table )
@@ -1650,7 +1668,7 @@ Dialect[PROTO] = {
         {
             // simple ecsaping using addslashes
             // '"\ and NUL (the NULL byte).
-            chars = '"\'\\' + NULL_CHAR; esc = '\\';
+            chars = '\\' + NULL_CHAR; esc = '\\';
             v = String(v); ve = '';
             for(i=0,l=v.length; i<l; i++)
             {

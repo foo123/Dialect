@@ -30,7 +30,7 @@ def echo( s='' ):
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( 'sqlserver' )
+dialect = Dialect( 'postgre' )
 
 conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},
@@ -67,6 +67,8 @@ query = dialect.select().order('main.field1').from_('table AS main').join_condit
     
 prepared = dialect.prepare(query, {'name':'na%me','str':'a string'})
 
+echo( 'SQL dialect = ' + dialect.type )
+echo( )
 echo( query_soft_view )
 echo( )
 echo( query_prepared )

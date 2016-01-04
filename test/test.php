@@ -8,7 +8,7 @@ function echo_($s='')
 echo_('Dialect.VERSION = ' . Dialect::VERSION);
 echo_();
 
-$dialect = new Dialect( 'sqlserver' );
+$dialect = new Dialect( 'mysql' );
 
 $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
@@ -76,6 +76,8 @@ $query = $dialect
     
 $prepared = $dialect->prepare($query, array('name'=>'na%me','str'=>'a string'));
 
+echo_( 'SQL dialect = ' . $dialect->type );
+echo_( );
 echo_( $query_soft_view );
 echo_( );
 echo_( $query_prepared );

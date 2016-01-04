@@ -1,6 +1,6 @@
 ##
 #   Dialect, 
-#   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/JS, ActionScript
+#   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
 #   @version: 0.4.0
 #   https://github.com/foo123/Dialect
@@ -143,9 +143,78 @@ def addslashes( s, chars=None, esc='\\' ):
         s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
     return s2
 
+def defaults( data, defau, overwrite=False ):
+    overwrite = overwrite is True
+    for k in defau:
+        if overwrite or not(k in data):
+            data[ k ] = defau[ k ]
+    return data
+
+#def filter( data, filt, positive=True ):
+#    if positive is not False:
+#        filtered = { }
+#        for field in filt:
+#            if field in data:
+#                filtered[field] = data[field]
+#        return filtered
+#    else:
+#        filtered = { }
+#        for field in data:
+#            if field not in filt:
+#                filtered[field] = data[field]
+#        return filtered
+
 
 class Tpl:
     
+    def multisplit_gram( tpl ):
+        SEPL = '{'
+        SEPR = '}'
+        default_value = None
+        l = len(tpl)
+        i = 0
+        a = []
+        stack = []
+        s = ''
+        while i < l:
+            c = tpl[i]
+            i += 1
+            if SEPL == c:
+                if len(s): a.append([1, s])
+                s = ''
+                
+                if i < l and '?' == tpl[i]:
+                    # optional block
+                    stack.append( a )
+                    a = []
+                    i += 1
+                # else argument
+            elif SEPR == c:
+                if len(stack) and '?' == tpl[i-2] and '(' == tpl[i]:
+                    s = s[0:-1]
+                    # optional block end
+                    p = tpl.find(')',i+1)
+                    argument = tpl[i+1:p]
+                    b = a
+                    a = stack.pop(-1)
+                    a.append([-1, argument, b])
+                    i = p+1
+                else:
+                    # argument
+                    argument = s
+                    s = ''
+                    p = argument.find('|')
+                    if -1 < p:
+                        default_value = argument[p+1:]
+                        argument = argument[0:p]
+                    else:
+                        default_value = None
+                    a.append([0, argument, default_value])
+            else:
+                s += c
+        if len(s): a.append([1, s])
+        return a
+
     def multisplit(tpl, reps, as_array=False):
         a = [ [1, tpl] ]
         reps = enumerate(reps) if as_array else reps.items()
@@ -260,10 +329,13 @@ class Tpl:
         self.id = None
         self.tpl = None
         self._renderer = None
-        
-        if not replacements: replacements = Tpl.defaultArgs
-        self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
-        if compiled is True: self._renderer = Tpl.compile( self.tpl )
+        if replacements is True:
+            # grammar template
+            self.tpl = Tpl.multisplit_gram( tpl )
+        else:
+            if not replacements: replacements = Tpl.defaultArgs
+            self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
+            if compiled is True: self._renderer = Tpl.compile( self.tpl )
 
     def __del__(self):
         self.dispose()
@@ -280,12 +352,33 @@ class Tpl:
         if self._renderer: return self._renderer( args )
         
         out = ''
-        
-        for tpli in self.tpl:
-        
-            notIsSub = tpli[ 0 ] 
-            s = tpli[ 1 ]
-            out += s if notIsSub else str(args[ s ])
+        stack = []
+        tpl = self.tpl
+        i = 0
+        l = len(tpl)
+        while i < l:
+            t = tpl[ i ]
+            tt = t[ 0 ]
+            s = t[ 1 ]
+            if 1 == tt:
+                out += s
+            elif -1 == tt:
+                # optional block
+                if s in args:
+                    stack.append([tpl, i+1, l])
+                    tpl = t[ 2 ]
+                    i = 0
+                    l = len(tpl)
+                    continue
+            else:
+                # default value if missing
+                out += str(t[ 2 ]) if (s not in args) and len(t) > 1 and t[ 2 ] else str(args[ s ])
+            i += 1
+            if i >= l and len(stack):
+                p = stack.pop(-1)
+                tpl = p[0]
+                i = p[1]
+                l = p[2]
         
         return out
 
@@ -361,88 +454,45 @@ class Dialect:
 
     dialect = {
      'mysql'            : {
-        # https://dev.mysql.com/doc/refman/5.0/en/select.html
-        # https://dev.mysql.com/doc/refman/5.0/en/join.html
-        # https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-        # https://dev.mysql.com/doc/refman/5.0/en/insert.html
-        # https://dev.mysql.com/doc/refman/5.0/en/update.html
-        # https://dev.mysql.com/doc/refman/5.0/en/delete.html
-         'quote'        : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
+         # https://dev.mysql.com/doc/refman/5.0/en/select.html
+         # https://dev.mysql.com/doc/refman/5.0/en/join.html
+         # https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+         # https://dev.mysql.com/doc/refman/5.0/en/insert.html
+         # https://dev.mysql.com/doc/refman/5.0/en/update.html
+         # https://dev.mysql.com/doc/refman/5.0/en/delete.html
+         'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
         ,'clauses'      : {
-         'select'  : ['select','from','join','where','group','having','order','limit']
-        ,'insert'  : ['insert','values']
-        ,'update'  : ['update','set','where','order','limit']
-        ,'delete'  : ['delete','from','where','order','limit']
-        }
-        ,'tpl'        : {
-         'select'   : 'SELECT $(select_columns)'
-        ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-        ,'update'   : 'UPDATE $(update_tables)'
-        ,'delete'   : 'DELETE '
-        ,'values'   : 'VALUES $(values_values)'
-        ,'set'      : 'SET $(set_values)'
-        ,'from'     : 'FROM $(from_tables)'
-        ,'join'     : '$(join_clauses)'
-        ,'where'    : 'WHERE $(where_conditions)'
-        ,'group'    : 'GROUP BY $(group_conditions)'
-        ,'having'   : 'HAVING $(having_conditions)'
-        ,'order'    : 'ORDER BY $(order_conditions)'
-        ,'limit'    : 'LIMIT $(offset),$(count)'
+         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
         }
     }
     ,'postgre'          : {
-        # http://www.postgresql.org/docs/
-        # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-         'quote'        : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
+         # http://www.postgresql.org/docs/
+         # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+         'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
         ,'clauses'      : {
-         'select'  : ['select','from','join','where','group','having','order','limit']
-        ,'insert'  : ['insert','values']
-        ,'update'  : ['update','set','where','order','limit']
-        ,'delete'  : ['delete','from','where','order','limit']
-        }
-        ,'tpl'        : {
-         'select'   : 'SELECT $(select_columns)'
-        ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-        ,'update'   : 'UPDATE $(update_tables)'
-        ,'delete'   : 'DELETE '
-        ,'values'   : 'VALUES $(values_values)'
-        ,'set'      : 'SET $(set_values)'
-        ,'from'     : 'FROM $(from_tables)'
-        ,'join'     : '$(join_clauses)'
-        ,'where'    : 'WHERE $(where_conditions)'
-        ,'group'    : 'GROUP BY $(group_conditions)'
-        ,'having'   : 'HAVING $(having_conditions)'
-        ,'order'    : 'ORDER BY $(order_conditions)'
-        ,'limit'    : 'LIMIT $(count) OFFSET $(offset)'
+         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
         }
     }
     ,'sqlserver'        : {
-        # https://msdn.microsoft.com/en-us/library/ms189499.aspx
-        # https://msdn.microsoft.com/en-us/library/ms174335.aspx
-        # https://msdn.microsoft.com/en-us/library/ms177523.aspx
-        # https://msdn.microsoft.com/en-us/library/ms189835.aspx
-        # https://msdn.microsoft.com/en-us/library/ms179859.aspx
-        # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-         'quote'        : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
+         # https://msdn.microsoft.com/en-us/library/ms189499.aspx
+         # https://msdn.microsoft.com/en-us/library/ms174335.aspx
+         # https://msdn.microsoft.com/en-us/library/ms177523.aspx
+         # https://msdn.microsoft.com/en-us/library/ms189835.aspx
+         # https://msdn.microsoft.com/en-us/library/ms179859.aspx
+         'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         ,'clauses'      : {
-         'select'  : ['select','from','join','where','group','having','order']
-        ,'insert'  : ['insert','values']
-        ,'update'  : ['update','set','where','order']
-        ,'delete'  : ['delete','from','where','order']
-        }
-        ,'tpl'        : {
-         'select'   : 'SELECT $(select_columns)'
-        ,'insert'   : 'INSERT INTO $(insert_tables) ($(insert_columns))'
-        ,'update'   : 'UPDATE $(update_tables)'
-        ,'delete'   : 'DELETE '
-        ,'values'   : 'VALUES $(values_values)'
-        ,'set'      : 'SET $(set_values)'
-        ,'from'     : 'FROM $(from_tables)'
-        ,'join'     : '$(join_clauses)'
-        ,'where'    : 'WHERE $(where_conditions)'
-        ,'group'    : 'GROUP BY $(group_conditions)'
-        ,'having'   : 'HAVING $(having_conditions)'
-        ,'order'    : 'ORDER BY $(order_conditions)'
+         'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+         # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+         ,'select_with_limit': "SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})"
+        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
+        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
         }
     }
     }
@@ -461,10 +511,9 @@ class Dialect:
         
         self.type = type
         self.clauses = Dialect.dialect[ self.type ][ 'clauses' ]
-        self.tpl = Dialect.dialect[ self.type ][ 'tpl' ]
-        self.q = Dialect.dialect[ self.type ][ 'quote' ][ 0 ]
-        self.qn = Dialect.dialect[ self.type ][ 'quote' ][ 1 ]
-        self.e = Dialect.dialect[ self.type ][ 'quote' ][ 2 ] if 1 < len(Dialect.dialect[ self.type ][ 'quote' ]) else ['','']
+        self.q = Dialect.dialect[ self.type ][ 'quotes' ][ 0 ]
+        self.qn = Dialect.dialect[ self.type ][ 'quotes' ][ 1 ]
+        self.e = Dialect.dialect[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialect[ self.type ][ 'quotes' ]) else ['','']
     
     def __del__( self ):
         self.dispose()
@@ -483,7 +532,6 @@ class Dialect:
         
         self.type = None
         self.clauses = None
-        self.tpl = None
         self.q = None
         self.qn = None
         self.e = None
@@ -515,14 +563,12 @@ class Dialect:
         return self.p
     
     def reset( self, clause ):
-        self.clau = clause
         self.clus = { }
         self.tbls = { }
         self.cols = { }
-        clauses = self.clauses[ self.clau ]
-        for clause in clauses:
-            if (clause in self.tpl) and not isinstance(self.tpl[ clause ], Tpl):
-                self.tpl[ clause ] = Tpl( self.tpl[ clause ], Dialect.TPL_RE )
+        self.clau = clause
+        if not isinstance(self.clauses[ self.clau ], Tpl):
+            self.clauses[ self.clau ] = Tpl( self.clauses[ self.clau ], True )
         return self
     
     def clear( self ):
@@ -534,24 +580,13 @@ class Dialect:
     
     def sql( self ):
         query = None
-        if self.clau and self.clus and (self.clau in self.clauses):
-            query = ""
-            sqlserver_limit = None
-            if 'sqlserver' == self.type and 'select' == self.clau and ('limit' in self.clus):
-                sqlserver_limit = self.clus[ 'limit' ]
-                del self.clus[ 'limit' ]
-                if 'order' in self.clus:
-                    order_by = self.tpl[ 'order' ].render( self.clus[ 'order' ] )
-                    del self.clus[ 'order' ]
-                else:
-                    order_by = 'ORDER BY (SELECT 1)'
-                self.clus[ 'select' ]['select_columns'] = 'ROW_NUMBER() OVER ('+order_by+') AS __row__,'+self.clus[ 'select' ]['select_columns']
-            clauses = self.clauses[ self.clau ]
-            for clause in clauses:
-                if clause in self.clus:
-                    query += ("\n" if len(query) else "") + self.tpl[ clause ].render( self.clus[ clause ] )
-            if sqlserver_limit:
-                query = "SELECT * FROM(\n"+query+"\n) AS __a__ WHERE __row__ BETWEEN "+str(sqlserver_limit['offset']+1)+" AND "+str(sqlserver_limit['offset']+sqlserver_limit['count'])
+        if self.clau and (self.clau in self.clauses):
+            query = "";
+            if 'sqlserver' == self.type and 'select' == self.clau and ('count' in self.clus):
+                self.clau = 'select_with_limit'
+                if not isinstance(self.clauses[ self.clau ], Tpl):
+                    self.clauses[ self.clau ] = Tpl( self.clauses[ self.clau ], True )
+            query = self.clauses[ self.clau ].render( self.clus )
         self.clear( )
         return query
     
@@ -762,9 +797,9 @@ class Dialect:
                 for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_alias_q
             else:
                 columns = ','.join(array( cols ))
-        if 'select' in self.clus and len(self.clus['select']['select_columns']) > 0:
-            columns = self.clus['select']['select_columns'] + ',' + columns
-        self.clus['select'] = { 'select_columns':columns }
+        if 'select_columns' in self.clus and len(self.clus['select_columns']) > 0:
+            columns = self.clus['select_columns'] + ',' + columns
+        self.clus['select_columns'] = columns
         return self
     
     def insert( self, tbls, cols, format=True ):
@@ -773,9 +808,9 @@ class Dialect:
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
             view = self.vews[ view ]
-            self.clus = self.defaults( self.clus, view['clus'], True )
-            self.tbls = self.defaults( {}, view['tbls'], True )
-            self.cols = self.defaults( {}, view['cols'], True )
+            self.clus = defaults( self.clus, view['clus'], True )
+            self.tbls = defaults( {}, view['tbls'], True )
+            self.cols = defaults( {}, view['cols'], True )
         else:
             if format is not False:
                 tbls = self.refs( tbls, self.tbls )
@@ -787,12 +822,12 @@ class Dialect:
             else:
                 tables = ','.join(array( tbls ))
                 columns = ','.join(array( cols ))
-            if 'insert' in self.clus:
-                if len(self.clus['insert']['insert_tables']) > 0:
-                    tables = self.clus['insert']['insert_tables'] + ',' + tables
-                if len(self.clus['insert']['insert_columns']) > 0:
-                    columns = self.clus['insert']['insert_columns'] + ',' + columns
-            self.clus['insert'] = { 'insert_tables':tables, 'insert_columns':columns }
+            if 'insert_tables' in self.clus and len(self.clus['insert_tables']) > 0:
+                tables = self.clus['insert_tables'] + ',' + tables
+            if 'insert_columns' in self.clus and len(self.clus['insert_columns']) > 0:
+                columns = self.clus['insert_columns'] + ',' + columns
+            self.clus['insert_tables'] = tables
+            self.clus['insert_columns'] = columns
         return self
     
     def values( self, values ):
@@ -816,9 +851,9 @@ class Dialect:
                         vals.append( str(val) if is_int(val) else self.quote( val ) )
                 insert_values.append( '(' + ','.join(vals) + ')' )
         insert_values = ','.join(insert_values)
-        if 'values' in self.clus and len(self.clus['values']['values_values']) > 0:
-            insert_values = self.clus['values']['values_values'] + ',' + insert_values
-        self.clus['values'] = { 'values_values':insert_values }
+        if 'values_values' in self.clus and len(self.clus['values_values']) > 0:
+            insert_values = self.clus['values_values'] + ',' + insert_values
+        self.clus['values_values'] = insert_values
         return self
     
     def update( self, tbls, format=True ):
@@ -827,9 +862,9 @@ class Dialect:
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
             view = self.vews[ view ]
-            self.clus = self.defaults( self.clus, view['clus'], True )
-            self.tbls = self.defaults( {}, view['tbls'], True )
-            self.cols = self.defaults( {}, view['cols'], True )
+            self.clus = defaults( self.clus, view['clus'], True )
+            self.tbls = defaults( {}, view['tbls'], True )
+            self.cols = defaults( {}, view['cols'], True )
         else:
             if format is not False:
                 tbls = self.refs( tbls, self.tbls )
@@ -837,9 +872,9 @@ class Dialect:
                 for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
             else:
                 tables = ','.join(array( tbls ))
-            if 'update' in self.clus and len(self.clus['update']['update_tables']) > 0:
-                tables = self.clus['update']['update_tables'] + ',' + tables
-            self.clus['update'] = { 'update_tables':tables }
+            if 'update_tables' in self.clus and len(self.clus['update_tables']) > 0:
+                tables = self.clus['update_tables'] + ',' + tables
+            self.clus['update_tables'] = tables
         return self
     
     def set( self, fields_values ):
@@ -864,14 +899,13 @@ class Dialect:
             else:
                 set_values.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
         set_values = ','.join(set_values)
-        if 'set' in self.clus and len(self.clus['set']['set_values']) > 0:
-            set_values = self.clus['set']['set_values'] + ',' + set_values
-        self.clus['set'] = { 'set_values':set_values }
+        if 'set_values' in self.clus and len(self.clus['set_values']) > 0:
+            set_values = self.clus['set_values'] + ',' + set_values
+        self.clus['set_values'] = set_values
         return self
     
     def del_( self ):
         self.reset('delete')
-        self.clus['delete'] = {}
         return self
     
     def from_( self, tbls, format=True ):
@@ -880,9 +914,9 @@ class Dialect:
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
             view = self.vews[ view ]
-            self.clus = self.defaults( self.clus, view['clus'], True )
-            self.tbls = self.defaults( {}, view['tbls'], True )
-            self.cols = self.defaults( {}, view['cols'], True )
+            self.clus = defaults( self.clus, view['clus'], True )
+            self.tbls = defaults( {}, view['tbls'], True )
+            self.cols = defaults( {}, view['cols'], True )
         else:
             if format is not False:
                 tbls = self.refs( tbls, self.tbls )
@@ -890,9 +924,9 @@ class Dialect:
                 for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
             else:
                 tables = ','.join(array( tbls ))
-            if 'from' in self.clus and len(self.clus['from']['from_tables']) > 0:
-                tables = self.clus['from']['from_tables'] + ',' + tables
-            self.clus['from'] = { 'from_tables':tables }
+            if 'from_tables' in self.clus and len(self.clus['from_tables']) > 0:
+                tables = self.clus['from_tables'] + ',' + tables
+            self.clus['from_tables'] = tables
         return self
     
     def join( self, table, on_cond=None, join_type='' ):
@@ -910,9 +944,9 @@ class Dialect:
                 on_cond = self.conditions( on_cond, False )
             join_clause = table + " ON " + on_cond
         join_clause = ("JOIN " if empty(join_type) else (join_type.upper() + " JOIN ")) + join_clause
-        if 'join' in self.clus and len(self.clus['join']['join_clauses']) > 0:
-            join_clause = self.clus['join']['join_clauses'] + "\n" + join_clause
-        self.clus['join'] = { 'join_clauses':join_clause }
+        if 'join_clauses' in self.clus and len(self.clus['join_clauses']) > 0:
+            join_clause = self.clus['join_clauses'] + "\n" + join_clause
+        self.clus['join_clauses'] = join_clause
         return self
     
     def where( self, conditions, boolean_connective="and" ):
@@ -920,18 +954,18 @@ class Dialect:
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
         conditions = self.conditions( conditions, False )
-        if 'where' in self.clus and len(self.clus['where']['where_conditions']) > 0:
-            conditions = self.clus['where']['where_conditions'] + " "+boolean_connective+" " + conditions
-        self.clus['where'] = { 'where_conditions':conditions }
+        if 'where_conditions' in self.clus and len(self.clus['where_conditions']) > 0:
+            conditions = self.clus['where_conditions'] + " "+boolean_connective+" " + conditions
+        self.clus['where_conditions'] = conditions
         return self
     
     def group( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
         group_condition = self.refs( col, self.cols )[0].alias_q + " " + dir
-        if 'group' in self.clus and len(self.clus['group']['group_conditions']) > 0:
-            group_condition = self.clus['group']['group_conditions'] + ',' + group_condition
-        self.clus['group'] = { 'group_conditions':group_condition }
+        if 'group_conditions' in self.clus and len(self.clus['group_conditions']) > 0:
+            group_condition = self.clus['group_conditions'] + ',' + group_condition
+        self.clus['group_conditions'] = group_condition
         return self
     
     def having( self, conditions, boolean_connective="and" ):
@@ -939,22 +973,23 @@ class Dialect:
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
         conditions = self.conditions( conditions, False )
-        if 'having' in self.clus and len(self.clus['having']['having_conditions']) > 0:
-            conditions = self.clus['having']['having_conditions'] + " "+boolean_connective+" " + conditions
-        self.clus['having'] = { 'having_conditions':conditions }
+        if 'having_conditions' in self.clus and len(self.clus['having_conditions']) > 0:
+            conditions = self.clus['having_conditions'] + " "+boolean_connective+" " + conditions
+        self.clus['having_conditions'] = conditions
         return self
     
     def order( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
         order_condition = self.refs( col, self.cols )[0].alias_q + " " + dir
-        if 'order' in self.clus and len(self.clus['order']['order_conditions']) > 0:
-            order_condition = self.clus['order']['order_conditions'] + ',' + order_condition
-        self.clus['order'] = { 'order_conditions':order_condition }
+        if 'order_conditions' in self.clus and len(self.clus['order_conditions']) > 0:
+            order_condition = self.clus['order_conditions'] + ',' + order_condition
+        self.clus['order_conditions'] = order_condition
         return self
     
     def limit( self, count, offset=0 ):
-        self.clus['limit'] = { 'offset':int(offset,10) if is_string(offset) else offset, 'count':int(count,10) if is_string(count) else count }
+        self.clus['count'] = int(count,10) if is_string(count) else count
+        self.clus['offset'] = int(offset,10) if is_string(offset) else offset
         return self
     
     def page( self, page, perpage ):
@@ -1144,29 +1179,6 @@ class Dialect:
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
     
-    def defaults( self, data, defaults, overwrite=False ):
-        overwrite = overwrite is True
-        for k in defaults:
-            v = defaults[ k ]
-            if overwrite or not(k in data):
-                data[ k ] = v
-        return data
-    
-    def filter( self, data, filter, positive=True ):
-        positive = positive is not False
-        if positive:
-            filtered = { }
-            for field in filter:
-                if field in data:
-                    filtered[field] = data[field]
-            return filtered
-        else:
-            filtered = { }
-            for field in data:
-                if field not in filter:
-                    filtered[field] = data[field]
-            return filtered
-    
     def tbl( self, table ):
         prefix = self.p
         return list(map(lambda table: prefix+table, table)) if is_array( table ) else (prefix+table)
@@ -1215,7 +1227,7 @@ class Dialect:
         else:
             # simple ecsaping using addslashes
             # '"\ and NUL (the NULL byte).
-            chars = '"\'\\' + NULL_CHAR
+            chars = '\\' + NULL_CHAR
             esc = '\\'
             q = self.q
             ve = ''

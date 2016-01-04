@@ -71,6 +71,8 @@ var query = dialect
     
 var prepared = dialect.prepare(query, {'name':'na%me','str':'a string'});
 
+echo( 'SQL dialect = ' + dialect.type );
+echo( );
 echo( query_soft_view );
 echo( );
 echo( query_prepared );
