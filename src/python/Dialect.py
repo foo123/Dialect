@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.4.0
+#   @version: 0.5.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -167,61 +167,6 @@ def defaults( data, defau, overwrite=False ):
 
 class Tpl:
     
-    def multisplit_gram( tpl ):
-        SEPL = '{'
-        SEPR = '}'
-        default_value = None
-        l = len(tpl)
-        i = 0
-        a = []
-        stack = []
-        s = ''
-        while i < l:
-            c = tpl[i]
-            i += 1
-            if SEPL == c:
-                if len(s): a.append([1, s])
-                s = ''
-                
-                if i < l and '?' == tpl[i]:
-                    # optional block
-                    stack.append( a )
-                    a = []
-                    i += 1
-                # else argument
-            elif SEPR == c:
-                if len(stack) and '?' == tpl[i-2] and '(' == tpl[i]:
-                    s = s[0:-1]
-                    # optional block end
-                    p = tpl.find(')',i+1)
-                    argument = tpl[i+1:p]
-                    if '!' == argument[0]:
-                        negative = 1
-                        argument = argument[1:]
-                    else:
-                        negative = 0
-                    b = a
-                    if len(s): b.append([1, s])
-                    s = ''
-                    a = stack.pop(-1)
-                    a.append([-1, argument, negative, b])
-                    i = p+1
-                else:
-                    # argument
-                    argument = s
-                    s = ''
-                    p = argument.find('|')
-                    if -1 < p:
-                        default_value = argument[p+1:]
-                        argument = argument[0:p]
-                    else:
-                        default_value = None
-                    a.append([0, argument, default_value])
-            else:
-                s += c
-        if len(s): a.append([1, s])
-        return a
-
     def multisplit(tpl, reps, as_array=False):
         a = [ [1, tpl] ]
         reps = enumerate(reps) if as_array else reps.items()
@@ -336,13 +281,9 @@ class Tpl:
         self.id = None
         self.tpl = None
         self._renderer = None
-        if replacements is True:
-            # grammar template
-            self.tpl = Tpl.multisplit_gram( tpl )
-        else:
-            if not replacements: replacements = Tpl.defaultArgs
-            self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
-            if compiled is True: self._renderer = Tpl.compile( self.tpl )
+        if not replacements: replacements = Tpl.defaultArgs
+        self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
+        if compiled is True: self._renderer = Tpl.compile( self.tpl )
 
     def __del__(self):
         self.dispose()
@@ -359,35 +300,154 @@ class Tpl:
         if self._renderer: return self._renderer( args )
         
         out = ''
-        stack = []
-        tpl = self.tpl
-        i = 0
+        for t in self.tpl:
+            if 1 == t[0]: out += t[ 1 ]
+            else:
+                s = t[ 1 ]
+                out += '' if s not in args else str(args[ s ])
+        
+        return out
+
+class GrammTpl:
+    
+    def multisplit( tpl, delims ):
+        IDL = delims[0]
+        IDR = delims[1]
+        OBL = delims[2]
+        OBR = delims[3]
+        OPT = delims[4]
+        OPTR = delims[5]
+        NEG = delims[6]
+        DEF = delims[7]
+        default_value = None
+        negative = 0
+        optional = 0
+        rest = 0
         l = len(tpl)
+        i = 0
+        a = [[], None, 0, 0]
+        stack = []
+        s = ''
+        while i < l:
+            c = tpl[i]
+            i += 1
+            if IDL == c:
+                if len(s): a[0].append([0, s])
+                s = ''
+            elif IDR == c:
+                # argument
+                argument = s
+                s = ''
+                p = argument.find(DEF);
+                if -1 < p:
+                    default_value = argument[p+1:]
+                    argument = argument[0:p]
+                else:
+                    default_value = None
+                c = argument[0]
+                if OPT == c or OPTR == c:
+                    optional = 1
+                    rest = 1 if OPTR == c else 0
+                    argument = argument[1:]
+                    if NEG == argument[0]:
+                        negative = 1
+                        argument = argument[1:]
+                    else:
+                        negative = 0
+                else:
+                    optional = 0
+                    rest = 0
+                    negative = 0
+                
+                if negative and default_value is None: default_value = ''
+                
+                if optional and not a[1]:
+                    a[1] = argument
+                    a[2] = rest
+                    a[3] = negative
+                a[0].append([1, argument, default_value, optional, rest, negative])
+            elif OBL == c:
+                # optional block
+                if len(s): a[0].append([0, s])
+                s = ''
+                stack.append(a)
+                a = [[], None, 0, 0]
+            elif OBR == c:
+                b = a
+                a = stack.pop(-1)
+                if len(s): b[0].append([0, s])
+                s = ''
+                a[0].append([-1, b[1], b[2], b[3], b[0]])
+            else:
+                s += c
+        
+        if len(s): a[0].append([0, s])
+        return a[0]
+
+    defaultDelims = ['<','>','[',']','?','*','!','|']
+    
+    def __init__(self, tpl='', delims=None):
+        self.id = None
+        self.tpl = None
+        self.tpl = GrammTpl.multisplit( tpl, delims if delims else GrammTpl.defaultDelims )
+
+    def __del__(self):
+        self.dispose()
+        
+    def dispose(self):
+        self.id = None
+        self.tpl = None
+        return self
+    
+    def render(self, args=None):
+        if None == args: args = { }
+        tpl = self.tpl
+        l = len(tpl)
+        stack = []
+        rarg = None
+        ri = 0
+        out = ''
+        i = 0
         while i < l:
             t = tpl[ i ]
             tt = t[ 0 ]
             s = t[ 1 ]
-            if 1 == tt:
-                out += s
-            elif -1 == tt:
+            
+            if -1 == tt:
                 # optional block
-                if (0 == t[2] and (s in args)) or (1 == t[2] and (s not in args)):
-                    stack.append([tpl, i+1, l])
-                    tpl = t[ 3 ]
-                    i = 0
-                    l = len(tpl)
-                    continue
-            else:
+                if (0 == t[ 3 ] and (s in args)) or (1 == t[ 3 ] and (s not in args)):
+                    if 1 == t[ 3 ] or 0 == t[ 2 ] or (is_array(args[s]) and len(args[s]) > 1):
+                        stack.append([tpl, i+1, l, rarg, ri])
+                        tpl = t[ 4 ]
+                        i = 0
+                        l = len(tpl)
+                        if (not t[ 3 ]) and t[ 2 ]:
+                            rarg = s
+                            for ri in range(2, len(args[s])): stack.append([tpl, 0, l, rarg, ri])
+                            ri = 1
+                        else:
+                            rarg = None
+                            ri = 0
+                        continue
+            
+            elif 1 == tt:
                 # default value if missing
-                out += str(t[ 2 ]) if (s not in args) and len(t) > 1 and t[ 2 ] else str(args[ s ])
+                out += str(t[2]) if (s not in args) and t[ 2 ] is not None else (str(args[s][ri] if s == rarg else args[s][0]) if is_array(args[ s ]) else str(args[s]))
+            
+            else: #if 0 == tt
+                out += s
+            
             i += 1
             if i >= l and len(stack):
                 p = stack.pop(-1)
                 tpl = p[0]
                 i = p[1]
                 l = p[2]
+                rarg = p[3]
+                ri = p[4]
         
         return out
+
 
 class Ref:
 
@@ -453,10 +513,11 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.4.0'
+    VERSION = '0.5.0'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
+    GrammTpl = GrammTpl
     Ref = Ref
 
     dialect = {
@@ -472,13 +533,13 @@ class Dialect:
         # http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
          'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
         ,'clauses'      : {
-         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+         'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+        ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+        ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+        ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+        ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+        ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         }
     }
     ,'postgre'          : {
@@ -489,13 +550,13 @@ class Dialect:
         # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
          'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
         ,'clauses'      : {
-         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+         'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+        ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+        ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+        ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+        ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+        ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         }
     }
     ,'sqlserver'        : {
@@ -512,13 +573,13 @@ class Dialect:
         # http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         ,'clauses'      : {
-         'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-        ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-        ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-        ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}{?\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(order_conditions){?{?\nORDER BY 1\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(!order_conditions)"
-        ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-        ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-        ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+         'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+        ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+        ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+        ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+        ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+        ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
         }
     }
     }
@@ -593,8 +654,8 @@ class Dialect:
         self.tbls = { }
         self.cols = { }
         self.clau = clause
-        if not isinstance(self.clauses[ self.clau ], Tpl):
-            self.clauses[ self.clau ] = Tpl( self.clauses[ self.clau ], True )
+        if not isinstance(self.clauses[ self.clau ], GrammTpl):
+            self.clauses[ self.clau ] = GrammTpl( self.clauses[ self.clau ] )
         return self
     
     def clear( self ):
@@ -1055,7 +1116,6 @@ class Dialect:
     def limit( self, count, offset=0 ):
         self.clus['count'] = int(count,10) if is_string(count) else count
         self.clus['offset'] = int(offset,10) if is_string(offset) else offset
-        self.clus['limit'] = 1
         return self
     
     def page( self, page, perpage ):

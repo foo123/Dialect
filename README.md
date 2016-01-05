@@ -33,7 +33,57 @@ Dialect
 3. `Sql Server`
 
 
-**Methods:**
+**Grammar Templates**
+
+`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept `grammar templates` to configure an `sql` dialect,
+which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
+
+`Dialect` uses a similar *grammar-like* template format, as a *generation* tool to produce `sql code` output relevant to a specific `sql dialect`.
+
+For example the `SELECT` clause of `MySql` can be modeled / described as follows:
+
+```sql
+SELECT <select_columns>[,<*select_columns>]
+\nFROM <from_tables>[,<*from_tables>]
+[\n<?join_clauses>[\n<*join_clauses>]]
+[\nWHERE <?where_conditions>]
+[\nGROUP BY <?group_conditions>[,<*group_conditions>]]
+[\nHAVING <?having_conditions>]
+[\nORDER BY <?order_conditions>[,<*order_conditions>]]
+[\nLIMIT <offset|0>,<?count>]
+```
+
+The `SELECT` clause for `SQL Server` with `LIMIT` clause emulation can be described as follows:
+
+```sql
+SELECT <select_columns>[,<*select_columns>]
+\nFROM <from_tables>[,<*from_tables>]
+[\n<?join_clauses>[\n<*join_clauses>]]
+[\nWHERE <?where_conditions>]
+[\nGROUP BY <?group_conditions>[,<*group_conditions>]]
+[\nHAVING <?having_conditions>]
+[\nORDER BY <?order_conditions>[,<*order_conditions>]
+[\nOFFSET <offset|0> ROWS
+\nFETCH NEXT <?count> ROWS ONLY]]
+[<?!order_conditions>
+[\nORDER BY 1
+\nOFFSET <offset|0> ROWS
+\nFETCH NEXT <?count> ROWS ONLY]]
+```
+
+where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables.
+The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists.
+Then, that block (and any nested blocks it might contain) is outputed, else bypassed.
+
+Dialect will parse this into a (fast) `grammar` template and generate appropriate sql output depending on the parameters given automaticaly.
+
+
+It is very easy, intuitive and powerful to use dialect in this way to produce `sql code` for an arbitrary `SQL` provider,
+by defining the `grammar` of `sql clauses` (sometimes even directly from the `SQL` documentation page, or with only minor adjustments).
+
+
+
+**API Methods:**
 
 ```javascript
 

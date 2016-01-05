@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.4.0
+*   @version: 0.5.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -33,7 +33,7 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty',
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
     NULL_CHAR = String.fromCharCode( 0 ),
-    Tpl, Ref, Dialect
+    Tpl, GrammTpl, Ref, Dialect
 ;
 function F( a, c )
 {
@@ -211,93 +211,14 @@ Tpl = function Tpl( tpl, replacements, compiled ) {
     if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
     self.id = null;
     self._renderer = null;
-    if ( true === replacements )
-    {
-        // grammar template
-        self.tpl = Tpl.multisplit_gram( tpl||'' );
-    }
-    else
-    {
-        // ordinary template
-        replacements = replacements || Tpl.defaultArgs;
-        self.tpl = replacements instanceof RegExp 
-            ? Tpl.multisplit_re(tpl||'', replacements) 
-            : Tpl.multisplit( tpl||'', replacements );
-        if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
-        self.fixRenderer( );
-    }
+    replacements = replacements || Tpl.defaultArgs;
+    self.tpl = replacements instanceof RegExp 
+        ? Tpl.multisplit_re(tpl||'', replacements) 
+        : Tpl.multisplit( tpl||'', replacements );
+    if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
+    self.fixRenderer( );
 };
 Tpl.defaultArgs = /\$(-?[0-9]+)/g;
-Tpl.multisplit_gram = function multisplit_gram( tpl ) {
-    var SEPL = '{', SEPR = '}',
-        default_value = null, negative = 0,
-        argument, p, stack,
-        c, a, b, s, l = tpl.length, i;
-    i = 0; a = []; stack = []; s = '';
-    while( i < l )
-    {
-        c = tpl[CHAR](i++);
-        if ( SEPL === c )
-        {
-            if ( s.length ) a.push([1, s]);
-            s = '';
-            
-            if ( i < l && '?' === tpl[CHAR](i) )
-            {
-                // optional block
-                stack.push( a );
-                a = [];
-                i += 1;
-            }
-            // else argument
-        }
-        else if ( SEPR === c )
-        {
-            if ( stack.length && '?' === tpl[CHAR](i-2) && '(' === tpl[CHAR](i) )
-            {
-                s = s.slice(0,-1);
-                // optional block end
-                argument = tpl.slice(i+1, p=tpl.indexOf(')',i+1));
-                if ( '!' === argument[CHAR](0) )
-                {
-                    negative = 1;
-                    argument = argument.slice(1);
-                }
-                else
-                {
-                    negative = 0;
-                }
-                b = a; a = stack.pop( );
-                if ( s.length ) b.push([1, s]);
-                s = '';
-                a.push([-1, argument, negative, b]);
-                i = p+1;
-            }
-            else
-            {
-                // argument
-                argument = s;
-                s = '';
-                if ( -1 < (p=argument.indexOf('|')) )
-                {
-                    default_value = argument.slice( p+1 );
-                    argument = argument.slice( 0, p );
-                }
-                else
-                {
-                    default_value = null;
-                }
-                a.push([0, argument, default_value]);
-            }
-        }
-        else
-        {
-            s += c;
-        }
-    }
-    if ( s.length ) a.push([1, s]);
-    return a;
-};
 Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
     var r, sr, s, i, j, a, b, c, al, bl;
     as_array = !!as_array;
@@ -422,41 +343,179 @@ Tpl[PROTO] = {
     ,render: function( args ) {
         args = args || [ ];
         //if ( this._renderer ) return this._renderer( args );
+        var tpl = this.tpl, l = tpl.length,
+            argslen = args.length, i, t, s, out = ''
+        ;
+        for(i=0; i<l; i++)
+        {
+            t = tpl[ i ];
+            if ( 1 === t[ 0 ] )
+            {
+                out += t[ 1 ];
+            }
+            else
+            {
+                s = t[ 1 ];
+                if ( (+s === s) && s < 0 ) s = argslen+s;
+                out += args[ s ];
+            }
+        }
+        return out;
+    }
+};
+
+GrammTpl = function GrammTpl( tpl, delims ) {
+    var self = this;
+    if ( !(self instanceof GrammTpl) ) return new GrammTpl(tpl, delims);
+    self.id = null;
+    self.tpl = GrammTpl.multisplit( tpl||'', delims||GrammTpl.defaultDelims );
+};
+GrammTpl.defaultDelims = ['<','>','[',']','?','*','!','|'];
+GrammTpl.multisplit = function multisplit( tpl, delims ) {
+    var IDL = delims[0], IDR = delims[1], OBL = delims[2], OBR = delims[3],
+        OPT = delims[4], OPTR = delims[5], NEG = delims[6], DEF = delims[7],
+        default_value = null, negative = 0, optional = 0, rest = 0,
+        argument, p, stack, c, a, b, s, l = tpl.length, i;
+    i = 0; a = [[], null, 0, 0]; stack = []; s = '';
+    while( i < l )
+    {
+        c = tpl[CHAR](i++);
+        if ( IDL === c )
+        {
+            if ( s.length ) a[0].push([0, s]);
+            s = '';
+        }
+        else if ( IDR === c )
+        {
+            // argument
+            argument = s; s = '';
+            if ( -1 < (p=argument.indexOf(DEF)) )
+            {
+                default_value = argument.slice( p+1 );
+                argument = argument.slice( 0, p );
+            }
+            else
+            {
+                default_value = null;
+            }
+            c = argument[CHAR](0);
+            if ( OPT === c || OPTR === c )
+            {
+                optional = 1; rest = OPTR === c ? 1 : 0;
+                argument = argument.slice(1);
+                if ( NEG === argument[CHAR](0) )
+                {
+                    negative = 1;
+                    argument = argument.slice(1);
+                }
+                else
+                {
+                    negative = 0;
+                }
+            }
+            else
+            {
+                optional = 0; rest = 0; negative = 0;
+            }
+            if ( negative && null === default_value ) default_value = '';
+            
+            if ( optional && !a[1] )
+            {
+                a[1] = argument; a[2] = rest; a[3] = negative;
+            }
+            a[0].push([1, argument, default_value, optional, rest, negative]);
+        }
+        else if ( OBL === c )
+        {
+            // optional block
+            if ( s.length ) a[0].push([0, s]);
+            s = '';
+            stack.push(a);
+            a = [[], null, 0, 0];
+        }
+        else if ( OBR === c )
+        {
+            b = a; a = stack.pop( );
+            if ( s.length ) b[0].push([0, s]);
+            s = '';
+            a[0].push([-1, b[1], b[2], b[3], b[0]]);
+        }
+        else
+        {
+            s += c;
+        }
+    }
+    if ( s.length ) a[0].push([0, s]);
+    return a[0];
+};
+GrammTpl[PROTO] = {
+    constructor: GrammTpl
+    
+    ,id: null
+    ,tpl: null
+    
+    ,dispose: function( ) {
+        this.id = null;
+        this.tpl = null;
+        return this;
+    }
+    ,render: function( args ) {
+        args = args || { };
         var tpl = this.tpl, l = tpl.length, stack = [], p,
-            argslen = args.length, i, t, tt, s, out = ''
+            i, t, tt, s, rarg = null, ri = 0, rl, out = ''
         ;
         i = 0;
         while ( i < l )
         {
             t = tpl[ i ]; tt = t[ 0 ]; s = t[ 1 ];
-            if ( 1 === tt )
-            {
-                out += s;
-            }
-            else if ( -1 === tt )
+            if ( -1 === tt )
             {
                 // optional block
-                if ( (0 === t[2] && args[HAS]( s )) ||
-                    (1 === t[2] && !args[HAS]( s ))
+                if ( (0 === t[ 3 ] && args[HAS](s)) ||
+                    (1 === t[ 3 ] && !args[HAS](s))
                 )
                 {
-                    stack.push([tpl, i+1, l]);
-                    tpl = t[ 3 ];
-                    i = 0; l = tpl.length;
-                    continue;
+                    if ( 1 === t[ 3 ] || 0 === t[ 2 ] || (is_array(args[s]) && args[s].length > 1) )
+                    {
+                        stack.push([tpl, i+1, l, rarg, ri]);
+                        tpl = t[ 4 ]; i = 0; l = tpl.length;
+                        if ( !t[ 3 ] && t[ 2 ] )
+                        {
+                            rarg = s;
+                            for(ri=2,rl=args[s].length; ri<rl; ri++) stack.push([tpl, 0, l, rarg, ri]);
+                            ri = 1;
+                        }
+                        else
+                        {
+                            rarg = null;
+                            ri = 0;
+                        }
+                        continue;
+                    }
                 }
             }
-            else
+            else if ( 1 === tt )
             {
-                if ( (+s === s) && s < 0 ) s = argslen+s;
                 // default value if missing
-                out += !args[HAS](s) && null != t[ 2 ] ? t[ 2 ] : args[ s ];
+                out += !args[HAS](s) && null !== t[ 2 ]
+                    ? t[ 2 ]
+                    : (is_array(args[ s ])
+                    ? (s === rarg
+                    ? args[s][ri]
+                    : args[s][0])
+                    : args[s])
+                ;
+            }
+            else /*if ( 0 === tt )*/
+            {
+                out += s;
             }
             i++;
             if ( i >= l && stack.length )
             {
                 p = stack.pop( );
                 tpl = p[0]; i = p[1]; l = p[2];
+                rarg = p[3]||null; ri = p[4]||0;
             }
         }
         return out;
@@ -557,13 +616,13 @@ var dialect = {
     // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
      'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
     ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
     }
 }
 ,'postgre'          : {
@@ -574,13 +633,13 @@ var dialect = {
     // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
      'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
     ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
     }
 }
 ,'sqlserver'        : {
@@ -600,13 +659,13 @@ var dialect = {
      */
      'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
     ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        : "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         : "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       : "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}{?\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(order_conditions){?{?\nORDER BY 1\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(!order_conditions)"
-    ,'insert'       : "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       : "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-    ,'delete'       : "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
     }
 }
 };
@@ -632,9 +691,10 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialect[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialect[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.4.0";
+Dialect.VERSION = "0.5.0";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialect = dialect;
+Dialect.GrammTpl = GrammTpl;
 Dialect.Tpl = Tpl;
 Dialect.Ref = Ref;
 Dialect[PROTO] = {
@@ -718,8 +778,8 @@ Dialect[PROTO] = {
         self.tbls = { };
         self.cols = { };
         self.clau = clause;
-        if ( !(self.clauses[ self.clau ] instanceof Tpl) )
-            self.clauses[ self.clau ] = new Tpl( self.clauses[ self.clau ], true );
+        if ( !(self.clauses[ self.clau ] instanceof GrammTpl) )
+            self.clauses[ self.clau ] = new GrammTpl( self.clauses[ self.clau ] );
         return self;
     }
     
@@ -1401,7 +1461,6 @@ Dialect[PROTO] = {
         var self = this;
         self.clus.count = int(count);
         self.clus.offset = int(offset);
-        self.clus.limit = 1;
         return self;
     }
     

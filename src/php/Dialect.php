@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.4.0
+*   @version: 0.5.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -14,79 +14,6 @@ if ( !class_exists('Dialect') )
 {
 class DialectTpl
 {    
-    public static function multisplit_gram( $tpl )
-    {
-        $SEPL = '{'; $SEPR = '}';
-        $default_value = null;
-        $l = strlen($tpl);
-        $i = 0; $a = array(); $stack = array(); $s = '';
-        while( $i < $l )
-        {
-            $c = $tpl[$i++];
-            if ( $SEPL === $c )
-            {
-                if ( strlen($s) ) $a[] = array(1, $s);
-                $s = '';
-                
-                if ( $i < $l && '?' === $tpl[$i] )
-                {
-                    // optional block
-                    $stack[] = $a;
-                    $a = array();
-                    $i += 1;
-                }
-                // else argument
-            }
-            elseif ( $SEPR === $c )
-            {
-                if ( !empty($stack) && '?' === $tpl[$i-2] && '(' === $tpl[$i] )
-                {
-                    $s = substr($s, 0, -1);
-                    // optional block end
-                    $p = strpos($tpl, ')', $i+1);
-                    $argument = substr($tpl, $i+1, $p-$i-1);
-                    if ( '!' === $argument[0] )
-                    {
-                        $negative = 1;
-                        $argument = substr($argument,1);
-                    }
-                    else
-                    {
-                        $negative = 0;
-                    }
-                    $b = $a; $a = array_pop($stack);
-                    if ( strlen($s) ) $b[] = array(1, $s);
-                    $s = '';
-                    $a[] = array(-1, $argument, $negative, $b);
-                    $i = $p+1;
-                }
-                else
-                {
-                    // argument
-                    $argument = $s;
-                    $s = '';
-                    $p = strpos($argument, '|');
-                    if ( false !== $p )
-                    {
-                        $default_value = substr($argument, $p+1);
-                        $argument = substr($argument, 0, $p);
-                    }
-                    else
-                    {
-                        $default_value = null;
-                    }
-                    $a[] = array(0, $argument, $default_value);
-                }
-            }
-            else
-            {
-                $s .= $c;
-            }
-        }
-        if ( strlen($s) ) $a[] = array(1, $s);
-        return $a;
-    }
-    
     public static function multisplit($tpl, $reps, $as_array=false)
     {
         $a = array( array(1, $tpl) );
@@ -207,20 +134,11 @@ class DialectTpl
     {
         $this->id = null;
         $this->_renderer = null;
-        
-        if ( true === $replacements )
-        {
-            // grammar template
-            $this->tpl = self::multisplit_gram( $tpl );
-        }
-        else
-        {
-            if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
-            $this->tpl = is_string($replacements)
-                    ? self::multisplit_re( $tpl, $replacements)
-                    : self::multisplit( $tpl, (array)$replacements);
-            if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
-        }
+        if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
+        $this->tpl = is_string($replacements)
+                ? self::multisplit_re( $tpl, $replacements)
+                : self::multisplit( $tpl, (array)$replacements);
+        if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
     }
 
     public function __destruct()
@@ -246,42 +164,187 @@ class DialectTpl
             return $f( $args );
         }
         
-        $out = ''; $stack = array();
-        $tpl = $this->tpl; $l = count($tpl); $i = 0;
-        
-        while ( $i < $l )
+        $out = ''; $argslen = count($args);
+        foreach($this->tpl as $t)
         {
-            $t = $tpl[ $i ]; $tt = $t[ 0 ]; $s = $t[ 1 ];
-            if ( 1 === $tt )
+            if ( 1 === $t[ 0 ] )
             {
-                $out .= $s;
-            }
-            elseif ( -1 === $tt )
-            {
-                // optional block
-                if ( (0 === $t[2] && isset($args[$s])) ||
-                    (1 === $t[2] && !isset($args[$s]))
-                )
-                {
-                    $stack[] = array($tpl, $i+1, $l);
-                    $tpl = $t[ 3 ];
-                    $i = 0; $l = count($tpl);
-                    continue;
-                }
+                $out .= $t[ 1 ];
             }
             else
             {
-                // default value if missing
-                if ( !isset($args[$s]) )
-                    $out .= isset($t[ 2 ]) ? $t[ 2 ] : 'null';
+                $s = $t[ 1 ];
+                if ( is_int($s) && 0 > $s ) $s += $argslen;
+                $out .= $args[ $s ];
+            }
+        }
+        return $out;
+    }
+}    
+class DialectGrammTpl
+{    
+    public static function multisplit( $tpl, $delims )
+    {
+        $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
+        $OPT = $delims[4]; $OPTR = $delims[5]; $NEG = $delims[6]; $DEF = $delims[7];
+        $default_value = null; $negative = 0; $optional = 0; $rest = 0;
+        $l = strlen($tpl);
+        $i = 0; $a = array(array(), null, 0, 0); $stack = array(); $s = '';
+        while( $i < $l )
+        {
+            $c = $tpl[$i++];
+            if ( $IDL === $c )
+            {
+                if ( strlen($s) ) $a[0][] = array(0, $s);
+                $s = '';
+            }
+            elseif ( $IDR === $c )
+            {
+                // argument
+                $argument = $s; $s = '';
+                $p = strpos($argument, $DEF);
+                if ( false !== $p )
+                {
+                    $default_value = substr($argument, $p+1);
+                    $argument = substr($argument, 0, $p);
+                }
                 else
-                    $out .= $args[ $s ];
+                {
+                    $default_value = null;
+                }
+                $c = $argument[0];
+                if ( $OPT === $c || $OPTR === $c )
+                {
+                    $optional = 1; $rest = $OPTR === $c ? 1 : 0;
+                    $argument = substr($argument,1);
+                    if ( $NEG === $argument[0] )
+                    {
+                        $negative = 1;
+                        $argument = substr($argument,1);
+                    }
+                    else
+                    {
+                        $negative = 0;
+                    }
+                }
+                else
+                {
+                    $optional = 0; $rest = 0; $negative = 0;
+                }
+                if ( $negative && null === $default_value ) $default_value = '';
+                
+                if ( $optional && !$a[1] )
+                {
+                    $a[1] = $argument; $a[2] = $rest; $a[3] = $negative;
+                }
+                $a[0][] = array(1, $argument, $default_value, $optional, $rest, $negative);
+            }
+            elseif ( $OBL === $c )
+            {
+                // optional block
+                if ( strlen($s) ) $a[0][] = array(0, $s);
+                $s = '';
+                $stack[] = $a;
+                $a = array(array(), null, 0, 0);
+            }
+            elseif ( $OBR === $c )
+            {
+                $b = $a; $a = array_pop($stack);
+                if ( strlen($s) ) $b[0][] = array(0, $s);
+                $s = '';
+                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[0]);
+            }
+            else
+            {
+                $s .= $c;
+            }
+        }
+        if ( strlen($s) ) $a[0][] = array(0, $s);
+        return $a[0];
+    }
+    
+    public static $defaultDelims = array('<','>','[',']','?','*','!','|');
+    
+    public $id = null;
+    public $tpl = null;
+    
+    public function __construct($tpl='', $delims=null)
+    {
+        $this->id = null;
+        if ( empty($delims) ) $delims = self::$defaultDelims;
+        $this->tpl = self::multisplit( $tpl, $delims );
+    }
+
+    public function __destruct()
+    {
+        $this->dispose();
+    }
+    
+    public function dispose()
+    {
+        $this->id = null;
+        $this->tpl = null;
+        return $this;
+    }
+    
+    public function render($args=null)
+    {
+        if ( null === $args ) $args = array();
+        
+        $tpl = $this->tpl; $l = count($tpl); $stack = array();
+        $rarg = null; $ri = 0; $out = '';
+        $i = 0;
+        while ( $i < $l )
+        {
+            $t = $tpl[ $i ]; $tt = $t[ 0 ]; $s = $t[ 1 ];
+            if ( -1 === $tt )
+            {
+                // optional block
+                if ( (0 === $t[ 3 ] && isset($args[$s])) ||
+                    (1 === $t[ 3 ] && !isset($args[$s]))
+                )
+                {
+                    if ( 1 === $t[ 3 ] || 0 === $t[ 2 ] || (is_array($args[$s]) && count($args[$s]) > 1) )
+                    {
+                        $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                        $tpl = $t[ 4 ]; $i = 0; $l = count($tpl);
+                        if ( !$t[ 3 ] && $t[ 2 ] )
+                        {
+                            $rarg = $s;
+                            for($ri=2,$rl=count($args[$s]); $ri<$rl; $ri++) $stack[] = array($tpl, 0, $l, $rarg, $ri);
+                            $ri = 1;
+                        }
+                        else
+                        {
+                            $rarg = null;
+                            $ri = 0;
+                        }
+                        continue;
+                    }
+                }
+            }
+            else if ( 1 === $tt )
+            {
+                // default value if missing
+                $out .= !isset($args[$s]) && null !== $t[ 2 ]
+                    ? $t[ 2 ]
+                    : (is_array($args[ $s ])
+                    ? ($s === $rarg
+                    ? $args[$s][$ri]
+                    : $args[$s][0])
+                    : $args[$s])
+                ;
+            }
+            else /*if ( 0 === $tt )*/
+            {
+                $out .= $s;
             }
             $i++;
             if ( $i >= $l && !empty($stack) )
             {
                 $p = array_pop($stack);
                 $tpl = $p[0]; $i = $p[1]; $l = $p[2];
+                $rarg = $p[3]; $ri = $p[4];
             }
         }
         return $out;
@@ -376,7 +439,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.4.0";
+    const VERSION = "0.5.0";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialect = array(
@@ -392,13 +455,13 @@ class Dialect
     // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
      'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
     ,'clauses'       => array(
-     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-    ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
-    ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {offset|0},{count}?}(count)"
+     'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         )
     )
     ,'postgre'          => array(
@@ -409,13 +472,13 @@ class Dialect
     // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
      'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
     ,'clauses'       => array(
-     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-    ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
-    ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions){?\nLIMIT {count} OFFSET {offset|0}?}(count)"
+     'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         )
     )
     ,'sqlserver'          => array(
@@ -432,13 +495,13 @@ class Dialect
     // http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
      'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
     ,'clauses'       => array(
-     'create'       => "CREATE TABLE IF NOT EXISTS {create_table}\n({create_defs}){?{create_opts}?}(create_opts)"
-    ,'alter'        => "ALTER TABLE {alter_table}\n{alter_defs}{?{alter_opts}?}(alter_opts)"
-    ,'drop'         => "DROP TABLE IF EXISTS {drop_tables}"
-    ,'select'       => "SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}{?\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(order_conditions){?{?\nORDER BY 1\nOFFSET {offset|0} ROWS\nFETCH NEXT {count} ROWS ONLY?}(limit)?}(!order_conditions)"
-    ,'insert'       => "INSERT INTO {insert_tables} ({insert_columns})\nVALUES {values_values}"
-    ,'update'       => "UPDATE {update_tables}\nSET {set_values}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
-    ,'delete'       => "DELETE \nFROM {from_tables}{?\nWHERE {where_conditions}?}(where_conditions){?\nORDER BY {order_conditions}?}(order_conditions)"
+     'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+    ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
         )
     )
     );
@@ -549,8 +612,8 @@ class Dialect
         $this->cols = array( );
         $this->clau = $clause;
         
-        if ( !($this->clauses[ $this->clau ] instanceof DialectTpl) )
-            $this->clauses[ $this->clau ] = new DialectTpl( $this->clauses[ $this->clau ], true );
+        if ( !($this->clauses[ $this->clau ] instanceof DialectGrammTpl) )
+            $this->clauses[ $this->clau ] = new DialectGrammTpl( $this->clauses[ $this->clau ] );
         return $this;
     }
     
@@ -1228,7 +1291,6 @@ class Dialect
     {
         $this->clus['count'] = intval($count,10);
         $this->clus['offset'] = intval($offset,10);
-        $this->clus['limit'] = 1;
         return $this;
     }
     

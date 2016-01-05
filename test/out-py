@@ -1,4 +1,4 @@
-Dialect.VERSION = 0.4.0
+Dialect.VERSION = 0.5.0
 
 SQL dialect = postgre
 
@@ -10,6 +10,7 @@ WHERE ("t"."f1" = E'2')
 SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
 FROM "t"
 WHERE ("t"."f1" = 12)
+LIMIT 100 OFFSET 100
 
 SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
 FROM "t"

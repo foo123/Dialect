@@ -17,6 +17,7 @@ dialect
     .from('t')
     .join('t2',{'t.id':'t2.id'},'inner')
     .where({f1:'2'})
+    .limit(100,100)
     .make_view('my_view')
 ;
 

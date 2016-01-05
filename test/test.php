@@ -30,6 +30,7 @@ $dialect
     ->where(array(
         'f1'=>array('eq'=>'%d:id%','type'=>'raw')
     ))
+    ->limit(100,100)
     ->prepare_tpl('prepared_query')
 ;
 

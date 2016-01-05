@@ -43,7 +43,7 @@ dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').join('t2',{'t.id'
 
 dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').where({
     'f1':{'eq':'%d:id%','type':'raw'}
-}).prepare_tpl('prepared_query')
+}).limit(100,100).prepare_tpl('prepared_query')
 
 dialect.prepare_tpl('prepared_query2', dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').where({
     'f1':{'eq':'%d:id%','type':'raw'}
