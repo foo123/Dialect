@@ -39,7 +39,9 @@ Dialect
 
 `Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: `grammar templates`, to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
 
-`Dialect` uses a similar *grammar-like* template format, as a *generation* tool to produce `sql code` output relevant to a specific `sql dialect`.
+
+`Dialect` uses a similar *grammar-like* template format, as a **description and generation** tool to produce `sql code` output relevant to a specific `sql` dialect.
+
 
 For example the `SELECT` clause of `MySql` can be modeled / described as follows:
 
@@ -54,7 +56,7 @@ FROM <from_tables> [, <*from_tables> ]
 [ LIMIT <offset|0>, <?count> ]
 ```
 
-The `SELECT` clause for `SQL Server 2012+` with `LIMIT` clause emulation can be described as follows:
+The `SELECT` clause for `SQL Server (2012+)` with `LIMIT` clause emulation can be described as follows:
 
 ```text
 SELECT <select_columns> [, <*select_columns> ]
@@ -63,16 +65,11 @@ FROM <from_tables> [, <*from_tables> ]
 [ WHERE <?where_conditions> ]
 [ GROUP BY <?group_conditions> [, <*group_conditions> ] ]
 [ HAVING <?having_conditions> ]
-[ ORDER BY <?order_conditions> [, <*order_conditions> ]
-[ OFFSET <offset|0> ROWS
- FETCH NEXT <?count> ROWS ONLY ] ]
-[<?!order_conditions>
-[ ORDER BY 1
-OFFSET <offset|0> ROWS
-FETCH NEXT <?count> ROWS ONLY ] ]
+[ ORDER BY <?order_conditions> [, <*order_conditions> ][ OFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY ] ]
+[<?!order_conditions>[ ORDER BY 1 OFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY ] ]
 ```
 
-The `DELETE` clause for `SQLite` with `ORDER BY` and `LIMIT` clause emulation can be described as follows:
+The `DELETE` clause for `SQLite` with `ORDER BY` and `LIMIT` clause emulation can be described as follows (note how the grammar template is *polymorphic* depending on whether `ORDER BY` and/or `LIMIT` are to be used, else defaults to the simplest `sql` output):
 
 ```text
 [<?!order_conditions>[<?!count>
@@ -93,11 +90,18 @@ SELECT rowid FROM <from_tables> [, <*from_tables> ]
 where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables (i.e `non-terminals`).
 The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists. Then, that block (and any nested blocks it might contain) is output, else bypassed.
 
+
+*(for various methods to emulate `LIMIT/OFFSET` clauses see, for example, [here](http://search.cpan.org/~davebaird/SQL-Abstract-Limit-0.12/lib/SQL/Abstract/Limit.pm) and a reasonable critic, mixed with lame advertising self-righteousness, [here](http://blog.jooq.org/2014/06/09/stop-trying-to-emulate-sql-offset-pagination-with-your-in-house-db-framework/))*
+
+
 `Dialect` will parse this into a (fast) `grammar` template and generate appropriate `sql` output depending on the parameters given automaticaly.
 
 
 It is very easy, intuitive and powerful to produce `sql code` for an arbitrary `SQL` provider,
 by defining the `grammar` of `sql clauses` (sometimes even directly from the `SQL` documentation page, or with only minor adjustments).
+
+
+The whole point of `Dialect` from the start was to use intuitive configuration to describe `sql` clauses and `sql` normalisation instead of those being hidden behind deep, kludgy and/or cryptic source code abstractions and extensions (plus avoid loading multiple files through interfaces to get the right `sql` emulator). **You** build you own descriptions for `SQL` dialects (and choice of emulations, optimisations, normalisations to use) and **not** the other way around. The library will just try to ease the burden off (some, at least for now) boilerplate code and automate trivial tasks, letting you focus on the important stuff.
 
 
 
