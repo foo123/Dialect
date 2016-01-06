@@ -325,15 +325,17 @@ class GrammTpl:
         rest = 0
         l = len(tpl)
         i = 0
-        a = [[], None, 0, 0]
+        a = [[], None, 0, 0, 0]
         stack = []
         s = ''
         while i < l:
             c = tpl[i]
             i += 1
+            
             if IDL == c:
                 if len(s): a[0].append([0, s])
                 s = ''
+            
             elif IDR == c:
                 # argument
                 argument = s
@@ -361,17 +363,25 @@ class GrammTpl:
                 
                 if negative and default_value is None: default_value = ''
                 
-                if optional and not a[1]:
+                if optional and not a[4]:
                     a[1] = argument
                     a[2] = rest
                     a[3] = negative
+                    a[4] = optional
+                elif (not optional) and (a[1] is None):
+                    a[1] = argument
+                    a[2] = 0
+                    a[3] = negative
+                    a[4] = 0
                 a[0].append([1, argument, default_value, optional, rest, negative])
+            
             elif OBL == c:
                 # optional block
                 if len(s): a[0].append([0, s])
                 s = ''
                 stack.append(a)
-                a = [[], None, 0, 0]
+                a = [[], None, 0, 0, 0]
+            
             elif OBR == c:
                 b = a
                 a = stack.pop(-1)
@@ -408,7 +418,16 @@ class GrammTpl:
         ri = 0
         out = ''
         i = 0
-        while i < l:
+        while i < l or len(stack):
+            if i >= l:
+                p = stack.pop(-1)
+                tpl = p[0]
+                i = p[1]
+                l = p[2]
+                rarg = p[3]
+                ri = p[4]
+                continue
+            
             t = tpl[ i ]
             tt = t[ 0 ]
             s = t[ 1 ]
@@ -431,6 +450,7 @@ class GrammTpl:
                         continue
             
             elif 1 == tt:
+                #TODO: handle nested/structured/deep arguments
                 # default value if missing
                 out += str(t[2]) if (s not in args) and t[ 2 ] is not None else (str(args[s][ri] if s == rarg else args[s][0]) if is_array(args[ s ]) else str(args[s]))
             
@@ -438,13 +458,13 @@ class GrammTpl:
                 out += s
             
             i += 1
-            if i >= l and len(stack):
-                p = stack.pop(-1)
-                tpl = p[0]
-                i = p[1]
-                l = p[2]
-                rarg = p[3]
-                ri = p[4]
+            #if i >= l and len(stack):
+            #    p = stack.pop(-1)
+            #    tpl = p[0]
+            #    i = p[1]
+            #    l = p[2]
+            #    rarg = p[3]
+            #    ri = p[4]
         
         return out
 
@@ -520,7 +540,7 @@ class Dialect:
     GrammTpl = GrammTpl
     Ref = Ref
 
-    dialect = {
+    dialects = {
      'mysql'            : {
         # https://dev.mysql.com/doc/refman/5.0/en/select.html
         # https://dev.mysql.com/doc/refman/5.0/en/join.html
@@ -585,6 +605,9 @@ class Dialect:
     }
     
     def __init__( self, type='mysql' ):
+        if (not type) or (type not in Dialect.dialects) or ('clauses' not in Dialect.dialects[ type ]):
+            raise ValueError('Dialect: SQL dialect does not exist for "'+type+'"')
+        
         self.clau = None
         self.clus = None
         self.tbls = None
@@ -597,10 +620,10 @@ class Dialect:
         self.p = '';
         
         self.type = type
-        self.clauses = Dialect.dialect[ self.type ][ 'clauses' ]
-        self.q = Dialect.dialect[ self.type ][ 'quotes' ][ 0 ]
-        self.qn = Dialect.dialect[ self.type ][ 'quotes' ][ 1 ]
-        self.e = Dialect.dialect[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialect[ self.type ][ 'quotes' ]) else ['','']
+        self.clauses = Dialect.dialects[ self.type ][ 'clauses' ]
+        self.q = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ]
+        self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ]
+        self.e = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialects[ self.type ][ 'quotes' ]) else ['','']
     
     def __del__( self ):
         self.dispose()

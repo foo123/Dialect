@@ -53,7 +53,7 @@ SELECT <select_columns>[,<*select_columns>]
 [\nLIMIT <offset|0>,<?count>]
 ```
 
-The `SELECT` clause for `SQL Server` with `LIMIT` clause emulation can be described as follows:
+The `SELECT` clause for `SQL Server 2012+` with `LIMIT` clause emulation can be described as follows:
 
 ```sql
 SELECT <select_columns>[,<*select_columns>]
@@ -75,10 +75,10 @@ where `[..]` describe an optional block of `sql code` (depending on passed param
 The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists.
 Then, that block (and any nested blocks it might contain) is outputed, else bypassed.
 
-Dialect will parse this into a (fast) `grammar` template and generate appropriate sql output depending on the parameters given automaticaly.
+`Dialect` will parse this into a (fast) `grammar` template and generate appropriate `sql` output depending on the parameters given automaticaly.
 
 
-It is very easy, intuitive and powerful to use dialect in this way to produce `sql code` for an arbitrary `SQL` provider,
+It is very easy, intuitive and powerful to produce `sql code` for an arbitrary `SQL` provider,
 by defining the `grammar` of `sql clauses` (sometimes even directly from the `SQL` documentation page, or with only minor adjustments).
 
 

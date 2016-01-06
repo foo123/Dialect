@@ -189,7 +189,7 @@ class DialectGrammTpl
         $OPT = $delims[4]; $OPTR = $delims[5]; $NEG = $delims[6]; $DEF = $delims[7];
         $default_value = null; $negative = 0; $optional = 0; $rest = 0;
         $l = strlen($tpl);
-        $i = 0; $a = array(array(), null, 0, 0); $stack = array(); $s = '';
+        $i = 0; $a = array(array(), null, 0, 0, 0); $stack = array(); $s = '';
         while( $i < $l )
         {
             $c = $tpl[$i++];
@@ -233,9 +233,13 @@ class DialectGrammTpl
                 }
                 if ( $negative && null === $default_value ) $default_value = '';
                 
-                if ( $optional && !$a[1] )
+                if ( $optional && !$a[4] )
                 {
-                    $a[1] = $argument; $a[2] = $rest; $a[3] = $negative;
+                    $a[1] = $argument; $a[2] = $rest; $a[3] = $negative; $a[4] = $optional;
+                }
+                elseif ( !$optional && (null === $a[1]) )
+                {
+                    $a[1] = $argument; $a[2] = 0; $a[3] = $negative; $a[4] = 0;
                 }
                 $a[0][] = array(1, $argument, $default_value, $optional, $rest, $negative);
             }
@@ -245,7 +249,7 @@ class DialectGrammTpl
                 if ( strlen($s) ) $a[0][] = array(0, $s);
                 $s = '';
                 $stack[] = $a;
-                $a = array(array(), null, 0, 0);
+                $a = array(array(), null, 0, 0, 0);
             }
             elseif ( $OBR === $c )
             {
@@ -294,8 +298,16 @@ class DialectGrammTpl
         $tpl = $this->tpl; $l = count($tpl); $stack = array();
         $rarg = null; $ri = 0; $out = '';
         $i = 0;
-        while ( $i < $l )
+        while ( $i < $l || !empty($stack) )
         {
+            if ( $i >= $l )
+            {
+                $p = array_pop($stack);
+                $tpl = $p[0]; $i = $p[1]; $l = $p[2];
+                $rarg = $p[3]; $ri = $p[4];
+                continue;
+            }
+            
             $t = $tpl[ $i ]; $tt = $t[ 0 ]; $s = $t[ 1 ];
             if ( -1 === $tt )
             {
@@ -325,6 +337,7 @@ class DialectGrammTpl
             }
             else if ( 1 === $tt )
             {
+                //TODO: handle nested/structured/deep arguments
                 // default value if missing
                 $out .= !isset($args[$s]) && null !== $t[ 2 ]
                     ? $t[ 2 ]
@@ -340,12 +353,12 @@ class DialectGrammTpl
                 $out .= $s;
             }
             $i++;
-            if ( $i >= $l && !empty($stack) )
+            /*if ( $i >= $l && !empty($stack) )
             {
                 $p = array_pop($stack);
                 $tpl = $p[0]; $i = $p[1]; $l = $p[2];
                 $rarg = $p[3]; $ri = $p[4];
-            }
+            }*/
         }
         return $out;
     }
@@ -442,7 +455,7 @@ class Dialect
     const VERSION = "0.5.0";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
-    public static $dialect = array(
+    public static $dialects = array(
     'mysql'            => array(
     // https://dev.mysql.com/doc/refman/5.0/en/select.html
     // https://dev.mysql.com/doc/refman/5.0/en/join.html
@@ -525,6 +538,11 @@ class Dialect
     
     public function __construct( $type='mysql' )
     {
+        if ( empty($type) || empty(self::$dialects[ $type ]) || empty(self::$dialects[ $type ][ 'clauses' ]) )
+        {
+            throw new InvalidArgumentException('Dialect: SQL dialect does not exist for "'.$type.'"');
+        }
+        
         $this->clau = null;
         $this->clus = null;
         $this->tbls = null;
@@ -537,10 +555,10 @@ class Dialect
         $this->p = '';
         
         $this->type = $type;
-        $this->clauses =& self::$dialect[ $this->type ][ 'clauses' ];
-        $this->q = self::$dialect[ $this->type ][ 'quotes' ][ 0 ];
-        $this->qn = self::$dialect[ $this->type ][ 'quotes' ][ 1 ];
-        $this->e = isset(self::$dialect[ $this->type ][ 'quotes' ][ 2 ]) ? self::$dialect[ $this->type ][ 'quotes' ][ 2 ] : array('','');
+        $this->clauses =& self::$dialects[ $this->type ][ 'clauses' ];
+        $this->q = self::$dialects[ $this->type ][ 'quotes' ][ 0 ];
+        $this->qn = self::$dialects[ $this->type ][ 'quotes' ][ 1 ];
+        $this->e = isset(self::$dialects[ $this->type ][ 'quotes' ][ 2 ]) ? self::$dialects[ $this->type ][ 'quotes' ][ 2 ] : array('','');
     }
     
     public function dispose( )

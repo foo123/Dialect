@@ -376,7 +376,7 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
         OPT = delims[4], OPTR = delims[5], NEG = delims[6], DEF = delims[7],
         default_value = null, negative = 0, optional = 0, rest = 0,
         argument, p, stack, c, a, b, s, l = tpl.length, i;
-    i = 0; a = [[], null, 0, 0]; stack = []; s = '';
+    i = 0; a = [[], null, 0, 0, 0]; stack = []; s = '';
     while( i < l )
     {
         c = tpl[CHAR](i++);
@@ -419,9 +419,13 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
             }
             if ( negative && null === default_value ) default_value = '';
             
-            if ( optional && !a[1] )
+            if ( optional && !a[4] )
             {
-                a[1] = argument; a[2] = rest; a[3] = negative;
+                a[1] = argument; a[2] = rest; a[3] = negative; a[4] = optional;
+            }
+            else if ( !optional && (null === a[1]) )
+            {
+                a[1] = argument; a[2] = 0; a[3] = negative; a[4] = 0;
             }
             a[0].push([1, argument, default_value, optional, rest, negative]);
         }
@@ -431,7 +435,7 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
             if ( s.length ) a[0].push([0, s]);
             s = '';
             stack.push(a);
-            a = [[], null, 0, 0];
+            a = [[], null, 0, 0, 0];
         }
         else if ( OBR === c )
         {
@@ -465,8 +469,16 @@ GrammTpl[PROTO] = {
             i, t, tt, s, rarg = null, ri = 0, rl, out = ''
         ;
         i = 0;
-        while ( i < l )
+        while ( i < l || stack.length )
         {
+            if ( i >= l )
+            {
+                p = stack.pop( );
+                tpl = p[0]; i = p[1]; l = p[2];
+                rarg = p[3]||null; ri = p[4]||0;
+                continue;
+            }
+            
             t = tpl[ i ]; tt = t[ 0 ]; s = t[ 1 ];
             if ( -1 === tt )
             {
@@ -496,6 +508,7 @@ GrammTpl[PROTO] = {
             }
             else if ( 1 === tt )
             {
+                //TODO: handle nested/structured/deep arguments
                 // default value if missing
                 out += !args[HAS](s) && null !== t[ 2 ]
                     ? t[ 2 ]
@@ -511,12 +524,12 @@ GrammTpl[PROTO] = {
                 out += s;
             }
             i++;
-            if ( i >= l && stack.length )
+            /*if ( i >= l && stack.length )
             {
                 p = stack.pop( );
                 tpl = p[0]; i = p[1]; l = p[2];
                 rarg = p[3]||null; ri = p[4]||0;
-            }
+            }*/
         }
         return out;
     }
@@ -603,7 +616,7 @@ Ref[PROTO] = {
     }
 };
 
-var dialect = {
+var dialects = {
  'mysql'            : {
     // https://dev.mysql.com/doc/refman/5.0/en/select.html
     // https://dev.mysql.com/doc/refman/5.0/en/join.html
@@ -673,6 +686,12 @@ var dialect = {
 Dialect = function Dialect( type ) {
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
+    if ( !arguments.length ) type = 'mysql';
+    
+    if ( !type || !Dialect.dialects[ type ] || !Dialect.dialects[ type ][ 'clauses' ] )
+    {
+        throw new TypeError('Dialect: SQL dialect does not exist for "'+type+'"');
+    }
     
     self.clau = null;
     self.clus = null;
@@ -685,15 +704,15 @@ Dialect = function Dialect( type ) {
     self.escdb = null;
     self.p = '';
     
-    self.type = type || 'mysql';
-    self.clauses = Dialect.dialect[ self.type ][ 'clauses' ];
-    self.q  = Dialect.dialect[ self.type ][ 'quotes' ][ 0 ];
-    self.qn = Dialect.dialect[ self.type ][ 'quotes' ][ 1 ];
-    self.e  = Dialect.dialect[ self.type ][ 'quotes' ][ 2 ] || ['',''];
+    self.type = type;
+    self.clauses = Dialect.dialects[ self.type ][ 'clauses' ];
+    self.q  = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ];
+    self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
+    self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
 Dialect.VERSION = "0.5.0";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
-Dialect.dialect = dialect;
+Dialect.dialects = dialects;
 Dialect.GrammTpl = GrammTpl;
 Dialect.Tpl = Tpl;
 Dialect.Ref = Ref;
