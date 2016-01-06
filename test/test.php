@@ -8,7 +8,7 @@ function echo_($s='')
 echo_('Dialect.VERSION = ' . Dialect::VERSION);
 echo_();
 
-$dialect = new Dialect( 'mysql' );
+$dialect = new Dialect( 'sqlite' );
 
 $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),

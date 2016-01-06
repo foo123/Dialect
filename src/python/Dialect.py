@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.5.0
+#   @version: 0.5.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -533,7 +533,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.5.0'
+    VERSION = '0.5.1'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -600,6 +600,25 @@ class Dialect:
         ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
         ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+        }
+    }
+    ,'sqlite'           : {
+        # https://www.sqlite.org/lang_createtable.html
+        # https://www.sqlite.org/lang_select.html
+        # https://www.sqlite.org/lang_insert.html
+        # https://www.sqlite.org/lang_update.html
+        # https://www.sqlite.org/lang_delete.html
+        # https://www.sqlite.org/lang_expr.html
+        # https://www.sqlite.org/lang_keywords.html
+         'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
+        ,'clauses'      : {
+         'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+        ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+        ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+        ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+        ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
+        ,'delete'       : "[<?!order_conditions>[<?!count>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]]][DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions>[,<*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>[DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
         }
     }
     }

@@ -6,7 +6,7 @@ Dialect
 
 **Requirements:**
 
-* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `SQL Server`, `Oracle` )
+* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `SQL Server`, `SQLite`, `Oracle` )
 * Easily extended to new DBs ( prefereably through a config setting )
 * Flexible and Intuitive API
 * Light-weight ( one class/file per implementation if possible )
@@ -28,52 +28,70 @@ Dialect
 
 **DB vendor sql support**
 
-1. `MySQL`
-2. `Postgre`
-3. `Sql Server`
+1. [`MySQL`](http://dev.mysql.com/doc/refman/5.7/en/)
+2. [`Postgre`](http://www.postgresql.org/docs/9.1/static/reference.html)
+3. [`Sql Server`](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
+4. [`SQLite`](https://www.sqlite.org/lang.html)
+5. `Oracle` [TODO]
 
 
 **Grammar Templates**
 
-`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept `grammar templates` to configure an `sql` dialect,
-which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
+`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: `grammar templates`, to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
 
 `Dialect` uses a similar *grammar-like* template format, as a *generation* tool to produce `sql code` output relevant to a specific `sql dialect`.
 
 For example the `SELECT` clause of `MySql` can be modeled / described as follows:
 
-```sql
-SELECT <select_columns>[,<*select_columns>]
-\nFROM <from_tables>[,<*from_tables>]
-[\n<?join_clauses>[\n<*join_clauses>]]
-[\nWHERE <?where_conditions>]
-[\nGROUP BY <?group_conditions>[,<*group_conditions>]]
-[\nHAVING <?having_conditions>]
-[\nORDER BY <?order_conditions>[,<*order_conditions>]]
-[\nLIMIT <offset|0>,<?count>]
+```text
+SELECT <select_columns> [, <*select_columns> ]
+FROM <from_tables> [, <*from_tables> ]
+[ <?join_clauses> [\n <*join_clauses> ] ]
+[ WHERE <?where_conditions> ]
+[ GROUP BY <?group_conditions> [, <*group_conditions> ] ]
+[ HAVING <?having_conditions> ]
+[ ORDER BY <?order_conditions> [, <*order_conditions> ] ]
+[ LIMIT <offset|0>, <?count> ]
 ```
 
 The `SELECT` clause for `SQL Server 2012+` with `LIMIT` clause emulation can be described as follows:
 
-```sql
-SELECT <select_columns>[,<*select_columns>]
-\nFROM <from_tables>[,<*from_tables>]
-[\n<?join_clauses>[\n<*join_clauses>]]
-[\nWHERE <?where_conditions>]
-[\nGROUP BY <?group_conditions>[,<*group_conditions>]]
-[\nHAVING <?having_conditions>]
-[\nORDER BY <?order_conditions>[,<*order_conditions>]
-[\nOFFSET <offset|0> ROWS
-\nFETCH NEXT <?count> ROWS ONLY]]
+```text
+SELECT <select_columns> [, <*select_columns> ]
+FROM <from_tables> [, <*from_tables> ]
+[ <?join_clauses> [\n <*join_clauses> ] ]
+[ WHERE <?where_conditions> ]
+[ GROUP BY <?group_conditions> [, <*group_conditions> ] ]
+[ HAVING <?having_conditions> ]
+[ ORDER BY <?order_conditions> [, <*order_conditions> ]
+[ OFFSET <offset|0> ROWS
+ FETCH NEXT <?count> ROWS ONLY ] ]
 [<?!order_conditions>
-[\nORDER BY 1
-\nOFFSET <offset|0> ROWS
-\nFETCH NEXT <?count> ROWS ONLY]]
+[ ORDER BY 1
+OFFSET <offset|0> ROWS
+FETCH NEXT <?count> ROWS ONLY ] ]
 ```
 
-where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables.
-The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists.
-Then, that block (and any nested blocks it might contain) is outputed, else bypassed.
+The `DELETE` clause for `SQLite` with `ORDER BY` and `LIMIT` clause emulation can be described as follows:
+
+```text
+[<?!order_conditions>[<?!count>
+DELETE FROM <from_tables> [, <*from_tables> ] [ WHERE <?where_conditions> ]
+]][
+DELETE FROM <from_tables> [, <*from_tables> ] WHERE rowid IN (
+SELECT rowid FROM <from_tables> [, <*from_tables> ]
+[ WHERE <?where_conditions> ] ORDER BY <?order_conditions> [, <*order_conditions> ] [ LIMIT <?count> OFFSET <offset|0> ]
+)
+][<?!order_conditions>[
+DELETE FROM <from_tables> [, <*from_tables> ] WHERE rowid IN (
+SELECT rowid FROM <from_tables> [, <*from_tables> ]
+[ WHERE <?where_conditions> ] LIMIT <?count> OFFSET <offset|0>
+)
+]]
+```
+
+where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables (i.e `non-terminals`).
+The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists. Then, that block (and any nested blocks it might contain) is output, else bypassed.
 
 `Dialect` will parse this into a (fast) `grammar` template and generate appropriate `sql` output depending on the parameters given automaticaly.
 

@@ -1,4 +1,4 @@
-Dialect.VERSION = 0.5.0
+Dialect.VERSION = 0.5.1
 
 SQL dialect = sqlserver
 
