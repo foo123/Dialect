@@ -187,9 +187,10 @@ class DialectGrammTpl
     {
         $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
         $OPT = $delims[4]; $OPTR = $delims[5]; $NEG = $delims[6]; $DEF = $delims[7];
-        $default_value = null; $negative = 0; $optional = 0; $rest = 0;
+        $REPL = $delims[8]; $REPR = $delims[9];
+        $default_value = null; $negative = 0; $optional = 0; $start_i = 0; $end_i = 0;
         $l = strlen($tpl);
-        $i = 0; $a = array(array(), null, 0, 0, 0); $stack = array(); $s = '';
+        $i = 0; $a = array(array(), null, 0, 0, 0, 0); $stack = array(); $s = '';
         while( $i < $l )
         {
             $c = $tpl[$i++];
@@ -215,7 +216,17 @@ class DialectGrammTpl
                 $c = $argument[0];
                 if ( $OPT === $c || $OPTR === $c )
                 {
-                    $optional = 1; $rest = $OPTR === $c ? 1 : 0;
+                    $optional = 1;
+                    if ( $OPTR === $c )
+                    {
+                        $start_i = 1;
+                        $end_i = -1;
+                    }
+                    else
+                    {
+                        $start_i = 0;
+                        $end_i = 0;
+                    }
                     $argument = substr($argument,1);
                     if ( $NEG === $argument[0] )
                     {
@@ -227,21 +238,59 @@ class DialectGrammTpl
                         $negative = 0;
                     }
                 }
+                elseif ( $REPL === $c )
+                {
+                    $s = ''; $j = 1; $jl = strlen($argument);
+                    while ( $j < $jl && $REPR !== $argument[$j] ) $s .= $argument[$j++];
+                    $argument = substr($argument, $j+1);
+                    $s = explode(',', $s);
+                    if ( count($s) > 1 )
+                    {
+                        $start_i = trim($s[0]);
+                        $start_i = strlen($start_i) ? intval($start_i,10) : 0;
+                        if ( is_nan($start_i) ) $start_i = 0;
+                        $end_i = trim($s[1]);
+                        $end_i = strlen($end_i) ? intval($end_i,10) : -1;
+                        if ( is_nan($end_i) ) $end_i = 0;
+                        $optional = 1;
+                    }
+                    else
+                    {
+                        $start_i = trim($s[0]);
+                        $start_i = strlen($start_i) ? intval($start_i,10) : 0;
+                        if ( is_nan($start_i) ) $start_i = 0;
+                        $end_i = $start_i;
+                        $optional = 0;
+                    }
+                    $s = '';
+                    $negative = 0;
+                }
                 else
                 {
-                    $optional = 0; $rest = 0; $negative = 0;
+                    $optional = 0;
+                    $negative = 0;
+                    $start_i = 0;
+                    $end_i = 0;
                 }
                 if ( $negative && null === $default_value ) $default_value = '';
                 
-                if ( $optional && !$a[4] )
+                if ( $optional && !$a[2] )
                 {
-                    $a[1] = $argument; $a[2] = $rest; $a[3] = $negative; $a[4] = $optional;
+                    $a[1] = $argument;
+                    $a[2] = $optional;
+                    $a[3] = $negative;
+                    $a[4] = $start_i;
+                    $a[5] = $end_i;
                 }
                 elseif ( !$optional && (null === $a[1]) )
                 {
-                    $a[1] = $argument; $a[2] = 0; $a[3] = $negative; $a[4] = 0;
+                    $a[1] = $argument;
+                    $a[2] = 0;
+                    $a[3] = $negative;
+                    $a[4] = $start_i;
+                    $a[5] = $end_i;
                 }
-                $a[0][] = array(1, $argument, $default_value, $optional, $rest, $negative);
+                $a[0][] = array(1, $argument, $default_value, $optional, $negative, $start_i, $end_i);
             }
             elseif ( $OBL === $c )
             {
@@ -249,14 +298,14 @@ class DialectGrammTpl
                 if ( strlen($s) ) $a[0][] = array(0, $s);
                 $s = '';
                 $stack[] = $a;
-                $a = array(array(), null, 0, 0, 0);
+                $a = array(array(), null, 0, 0, 0, 0);
             }
             elseif ( $OBR === $c )
             {
                 $b = $a; $a = array_pop($stack);
                 if ( strlen($s) ) $b[0][] = array(0, $s);
                 $s = '';
-                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[0]);
+                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[4], $b[5], $b[0]);
             }
             else
             {
@@ -267,7 +316,7 @@ class DialectGrammTpl
         return $a[0];
     }
     
-    public static $defaultDelims = array('<','>','[',']','?','*','!','|');
+    public static $defaultDelims = array('<','>','[',']','?','*','!','|','{','}');
     
     public $id = null;
     public $tpl = null;
@@ -316,22 +365,37 @@ class DialectGrammTpl
                     (1 === $t[ 3 ] && !isset($args[$s]))
                 )
                 {
-                    if ( 1 === $t[ 3 ] || 0 === $t[ 2 ] || (is_array($args[$s]) && count($args[$s]) > 1) )
+                    if ( 1 === $t[ 3 ] )
                     {
                         $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                        $tpl = $t[ 4 ]; $i = 0; $l = count($tpl);
-                        if ( !$t[ 3 ] && $t[ 2 ] )
-                        {
-                            $rarg = $s;
-                            for($ri=2,$rl=count($args[$s]); $ri<$rl; $ri++) $stack[] = array($tpl, 0, $l, $rarg, $ri);
-                            $ri = 1;
-                        }
-                        else
-                        {
-                            $rarg = null;
-                            $ri = 0;
-                        }
+                        $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
+                        $rarg = null; $ri = 0;
                         continue;
+                    }
+                    else
+                    {
+                        $arr = is_array( $args[$s] );
+                        if ( $arr && ($t[4] !== $t[5]) && count($args[$s]) > $t[ 4 ] )
+                        {
+                            $rs = $t[ 4 ];
+                            $re = -1 === $t[ 5 ] ? count($args[$s])-1 : min($t[ 5 ], count($args[$s])-1);
+                            if ( $re >= $rs )
+                            {
+                                $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                                $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
+                                $rarg = $s;
+                                for($ri=$re; $ri>$rs; $ri--) $stack[] = array($tpl, 0, $l, $rarg, $ri);
+                                $ri = $rs;
+                                continue;
+                            }
+                        }
+                        else if ( !$arr && ($t[4] === $t[5]) )
+                        {
+                            $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                            $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
+                            $rarg = $s; $ri = 0;
+                            continue;
+                        }
                     }
                 }
             }
@@ -343,8 +407,8 @@ class DialectGrammTpl
                     ? $t[ 2 ]
                     : (is_array($args[ $s ])
                     ? ($s === $rarg
-                    ? $args[$s][$ri]
-                    : $args[$s][0])
+                    ? $args[$s][$t[5]===$t[6]?$t[5]:$ri]
+                    : $args[$s][$t[5]])
                     : $args[$s])
                 ;
             }
@@ -370,18 +434,42 @@ class DialectRef
     {
         $r = explode( ' AS ', trim( $r ) );
         $col = explode( '.', $r[ 0 ] );
-        $tbl = count($col) < 2 ? null : trim($col[ 0 ]);
-        $col = $tbl ? trim($col[ 1 ]) : trim($col[ 0 ]);
-        $col_q = $d->quote_name( $col );
-        if ( $tbl )
+        $l = count($col);
+        if ( 3 <= $l )
         {
+            $dtb = trim($col[ 0 ]);
+            $tbl = trim($col[ 1 ]);
+            $col = trim($col[ 2 ]);
+        }
+        elseif ( 2 === $l )
+        {
+            $dtb = null;
+            $tbl = trim($col[ 0 ]);
+            $col = trim($col[ 1 ]);
+        }
+        else
+        {
+            $dtb = null; $tbl = null;
+            $col = trim($col[ 0 ]);
+        }
+        $col_q = $d->quote_name( $col );
+        if ( null !== $dtb )
+        {
+            $dtb_q = $d->quote_name( $dtb );
+            $tbl_q = $d->quote_name( $tbl );
+            $tbl_col = $dtb . '.' . $tbl . '.' . $col;
+            $tbl_col_q = $dtb_q . '.' . $tbl_q . '.' . $col_q;
+        }
+        elseif ( null !== $tbl )
+        {
+            $dtb_q = null;
             $tbl_q = $d->quote_name( $tbl );
             $tbl_col = $tbl . '.' . $col;
             $tbl_col_q = $tbl_q . '.' . $col_q;
         }
         else
         {
-            $tbl_q = null;
+            $dtb_q = null; $tbl_q = null;
             $tbl_col = $col;
             $tbl_col_q = $col_q;
         }
@@ -399,7 +487,7 @@ class DialectRef
             $tbl_col_alias = $tbl_col . ' AS ' . $alias;
             $tbl_col_alias_q = $tbl_col_q . ' AS ' . $alias_q;
         }
-        return new self( $col, $col_q, $tbl, $tbl_q, $alias, $alias_q, 
+        return new self( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, 
                     $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q );
     }
     
@@ -407,6 +495,8 @@ class DialectRef
     public $col_q = null;
     public $tbl = null;
     public $tbl_q = null;
+    public $dtb = null;
+    public $dtb_q = null;
     public $alias = null;
     public $alias_q = null;
     public $tbl_col = null;
@@ -414,13 +504,15 @@ class DialectRef
     public $tbl_col_alias = null;
     public $tbl_col_alias_q = null;
     
-    public function __construct( $col, $col_q, $tbl, $tbl_q, $alias, $alias_q, 
+    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, 
                                 $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q ) 
     {
         $this->col = $col;
         $this->col_q = $col_q;
         $this->tbl = $tbl;
         $this->tbl_q = $tbl_q;
+        $this->dtb = $dtb;
+        $this->dtb_q = $dtb_q;
         $this->alias = $alias;
         $this->alias_q = $alias_q;
         $this->tbl_col = $tbl_col;
@@ -440,6 +532,8 @@ class DialectRef
         $this->col_q = null;
         $this->tbl = null;
         $this->tbl_q = null;
+        $this->dtb = null;
+        $this->dtb_q = null;
         $this->alias = null;
         $this->alias_q = null;
         $this->tbl_col = null;
@@ -511,7 +605,7 @@ class Dialect
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
     ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
     ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
     ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -644,6 +738,10 @@ class Dialect
     
     public function reset( $clause )
     {
+        if ( empty($clause) || !isset($this->clauses[ $clause ]) )
+        {
+            throw new InvalidArgumentException('Dialect: SQL clause "'.$clause.'" does not exist for dialect "'.$this->type.'"');
+        }
         $this->clus = array( );
         $this->tbls = array( );
         $this->cols = array( );
@@ -956,9 +1054,9 @@ class Dialect
         return $this;
     }
     
-    public function create( $table, $defs, $opts=null, $format=true )
+    public function create( $table, $defs, $opts=null, $format=true, $create_clause='create' )
     {
-        $this->reset('create');
+        $this->reset($create_clause);
         if ( false !== $format )
         {
             $table = $this->refs( $table, $this->tbls );
@@ -977,9 +1075,9 @@ class Dialect
         return $this;
     }
     
-    public function alter( $table, $defs, $opts=null, $format=true )
+    public function alter( $table, $defs, $opts=null, $format=true, $alter_clause='alter' )
     {
-        $this->reset('alter');
+        $this->reset($alter_clause);
         if ( false !== $format )
         {
             $table = $this->refs( $table, $this->tbls );
@@ -998,9 +1096,9 @@ class Dialect
         return $this;
     }
     
-    public function drop( $tables, $format=true )
+    public function drop( $tables, $format=true, $drop_clause='drop' )
     {
-        $this->reset('drop');
+        $this->reset($drop_clause);
         if ( empty($tables) || '*' === $tables ) 
         {
             $tables = '*';
@@ -1024,9 +1122,9 @@ class Dialect
         return $this;
     }
     
-    public function select( $cols='*', $format=true )
+    public function select( $cols='*', $format=true, $select_clause='select' )
     {
-        $this->reset('select');
+        $this->reset($select_clause);
         if ( !$cols || empty($cols) || '*' === $cols ) 
         {
             $columns = '*';
@@ -1050,9 +1148,9 @@ class Dialect
         return $this;
     }
     
-    public function insert( $tbls, $cols, $format=true )
+    public function insert( $tbls, $cols, $format=true, $insert_clause='insert' )
     {
-        $this->reset('insert');
+        $this->reset($insert_clause);
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
         if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
@@ -1132,9 +1230,9 @@ class Dialect
         return $this;
     }
     
-    public function update( $tbls, $format=true )
+    public function update( $tbls, $format=true, $update_clause='update' )
     {
-        $this->reset('update');
+        $this->reset($update_clause);
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
         if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
@@ -1206,9 +1304,9 @@ class Dialect
         return $this;
     }
     
-    public function del( )
+    public function del( $delete_clause='delete' )
     {
-        $this->reset('delete');
+        $this->reset($delete_clause);
         return $this;
     }
     

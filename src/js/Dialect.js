@@ -370,13 +370,14 @@ GrammTpl = function GrammTpl( tpl, delims ) {
     self.id = null;
     self.tpl = GrammTpl.multisplit( tpl||'', delims||GrammTpl.defaultDelims );
 };
-GrammTpl.defaultDelims = ['<','>','[',']','?','*','!','|'];
+GrammTpl.defaultDelims = ['<','>','[',']','?','*','!','|','{','}'];
 GrammTpl.multisplit = function multisplit( tpl, delims ) {
     var IDL = delims[0], IDR = delims[1], OBL = delims[2], OBR = delims[3],
         OPT = delims[4], OPTR = delims[5], NEG = delims[6], DEF = delims[7],
-        default_value = null, negative = 0, optional = 0, rest = 0,
-        argument, p, stack, c, a, b, s, l = tpl.length, i;
-    i = 0; a = [[], null, 0, 0, 0]; stack = []; s = '';
+        REPL = delims[8], REPR = delims[9],
+        default_value = null, negative = 0, optional = 0, start_i, end_i,
+        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl;
+    i = 0; a = [[], null, 0, 0, 0, 0]; stack = []; s = '';
     while( i < l )
     {
         c = tpl[CHAR](i++);
@@ -401,7 +402,17 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
             c = argument[CHAR](0);
             if ( OPT === c || OPTR === c )
             {
-                optional = 1; rest = OPTR === c ? 1 : 0;
+                optional = 1;
+                if ( OPTR === c )
+                {
+                    start_i = 1;
+                    end_i = -1;
+                }
+                else
+                {
+                    start_i = 0;
+                    end_i = 0;
+                }
                 argument = argument.slice(1);
                 if ( NEG === argument[CHAR](0) )
                 {
@@ -413,21 +424,56 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
                     negative = 0;
                 }
             }
+            else if ( REPL === c )
+            {
+                s = ''; j = 1; jl = argument.length;
+                while ( j < jl && REPR !== argument[CHAR](j) ) s += argument[CHAR](j++);
+                argument = argument.slice( j+1 );
+                s = s.split(',');
+                if ( s.length > 1 )
+                {
+                    start_i = trim(s[0]);
+                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    end_i = trim(s[1]);
+                    end_i = end_i.length ? parseInt(end_i,10)||0 : -1;
+                    optional = 1;
+                }
+                else
+                {
+                    start_i = trim(s[0]);
+                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    end_i = start_i;
+                    optional = 0;
+                }
+                s = '';
+                negative = 0;
+            }
             else
             {
-                optional = 0; rest = 0; negative = 0;
+                optional = 0;
+                negative = 0;
+                start_i = 0;
+                end_i = 0;
             }
             if ( negative && null === default_value ) default_value = '';
             
-            if ( optional && !a[4] )
+            if ( optional && !a[2] )
             {
-                a[1] = argument; a[2] = rest; a[3] = negative; a[4] = optional;
+                a[1] = argument;
+                a[2] = optional;
+                a[3] = negative;
+                a[4] = start_i;
+                a[5] = end_i;
             }
             else if ( !optional && (null === a[1]) )
             {
-                a[1] = argument; a[2] = 0; a[3] = negative; a[4] = 0;
+                a[1] = argument;
+                a[2] = 0;
+                a[3] = negative;
+                a[4] = start_i;
+                a[5] = end_i;
             }
-            a[0].push([1, argument, default_value, optional, rest, negative]);
+            a[0].push([1, argument, default_value, optional, negative, start_i, end_i]);
         }
         else if ( OBL === c )
         {
@@ -435,14 +481,14 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
             if ( s.length ) a[0].push([0, s]);
             s = '';
             stack.push(a);
-            a = [[], null, 0, 0, 0];
+            a = [[], null, 0, 0, 0, 0];
         }
         else if ( OBR === c )
         {
             b = a; a = stack.pop( );
             if ( s.length ) b[0].push([0, s]);
             s = '';
-            a[0].push([-1, b[1], b[2], b[3], b[0]]);
+            a[0].push([-1, b[1], b[2], b[3], b[4], b[5], b[0]]);
         }
         else
         {
@@ -465,8 +511,8 @@ GrammTpl[PROTO] = {
     }
     ,render: function( args ) {
         args = args || { };
-        var tpl = this.tpl, l = tpl.length, stack = [], p,
-            i, t, tt, s, rarg = null, ri = 0, rl, out = ''
+        var tpl = this.tpl, l = tpl.length, stack = [], p, arr, MIN = Math.min,
+            i, t, tt, s, rarg = null, ri = 0, rs, re, out = ''
         ;
         i = 0;
         while ( i < l || stack.length )
@@ -487,22 +533,37 @@ GrammTpl[PROTO] = {
                     (1 === t[ 3 ] && !args[HAS](s))
                 )
                 {
-                    if ( 1 === t[ 3 ] || 0 === t[ 2 ] || (is_array(args[s]) && args[s].length > 1) )
+                    if ( 1 === t[ 3 ] )
                     {
                         stack.push([tpl, i+1, l, rarg, ri]);
-                        tpl = t[ 4 ]; i = 0; l = tpl.length;
-                        if ( !t[ 3 ] && t[ 2 ] )
-                        {
-                            rarg = s;
-                            for(ri=2,rl=args[s].length; ri<rl; ri++) stack.push([tpl, 0, l, rarg, ri]);
-                            ri = 1;
-                        }
-                        else
-                        {
-                            rarg = null;
-                            ri = 0;
-                        }
+                        tpl = t[ 6 ]; i = 0; l = tpl.length;
+                        rarg = null; ri = 0;
                         continue;
+                    }
+                    else
+                    {
+                        arr = is_array( args[s] );
+                        if ( arr && (t[4] !== t[5]) && args[s].length > t[ 4 ] )
+                        {
+                            rs = t[ 4 ];
+                            re = -1 === t[ 5 ] ? args[s].length-1 : MIN(t[ 5 ], args[s].length-1);
+                            if ( re >= rs )
+                            {
+                                stack.push([tpl, i+1, l, rarg, ri]);
+                                tpl = t[ 6 ]; i = 0; l = tpl.length;
+                                rarg = s;
+                                for(ri=re; ri>rs; ri--) stack.push([tpl, 0, l, rarg, ri]);
+                                ri = rs;
+                                continue;
+                            }
+                        }
+                        else if ( !arr && (t[4] === t[5]) )
+                        {
+                            stack.push([tpl, i+1, l, rarg, ri]);
+                            tpl = t[ 6 ]; i = 0; l = tpl.length;
+                            rarg = s; ri = 0;
+                            continue;
+                        }
                     }
                 }
             }
@@ -514,8 +575,8 @@ GrammTpl[PROTO] = {
                     ? t[ 2 ]
                     : (is_array(args[ s ])
                     ? (s === rarg
-                    ? args[s][ri]
-                    : args[s][0])
+                    ? args[s][t[5]===t[6]?t[5]:ri]
+                    : args[s][t[5]])
                     : args[s])
                 ;
             }
@@ -535,13 +596,15 @@ GrammTpl[PROTO] = {
     }
 };
 
-Ref = function( col, col_q, tbl, tbl_q, alias, alias_q, 
+Ref = function( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
                 tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ) {
     var self = this;
     self.col = col;
     self.col_q = col_q;
     self.tbl = tbl;
     self.tbl_q = tbl_q;
+    self.dtb = dtb;
+    self.dtb_q = dtb_q;
     self.alias = alias;
     self.alias_q = alias_q;
     self.tbl_col = tbl_col;
@@ -550,22 +613,45 @@ Ref = function( col, col_q, tbl, tbl_q, alias, alias_q,
     self.tbl_col_alias_q = tbl_col_alias_q;
 };
 Ref.parse = function( r, d ) {
-    var col, col_q, tbl, tbl_q, alias, alias_q, 
+    var col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
         tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q;
     r = trim( r ).split(' AS ');
     col = r[ 0 ].split( '.' );
-    tbl = col.length < 2 ? null : trim(col[ 0 ]);
-    col = tbl ? trim(col[ 1 ]) : trim(col[ 0 ]);
-    col_q = d.quote_name( col );
-    if ( tbl )
+    if ( 3 <= col.length )
     {
+        dtb = trim(col[ 0 ]);
+        tbl = trim(col[ 1 ]);
+        col = trim(col[ 2 ]);
+    }
+    else if ( 2 === col.length )
+    {
+        dtb = null;
+        tbl = trim(col[ 0 ]);
+        col = trim(col[ 1 ]);
+    }
+    else
+    {
+        dtb = null; tbl = null;
+        col = trim(col[ 0 ]);
+    }
+    col_q = d.quote_name( col );
+    if ( null !== dtb )
+    {
+        dtb_q = d.quote_name( dtb );
+        tbl_q = d.quote_name( tbl );
+        tbl_col = dtb + '.' + tbl + '.' + col;
+        tbl_col_q = dtb_q + '.' + tbl_q + '.' + col_q;
+    }
+    else if ( null !== tbl )
+    {
+        dtb_q = null;
         tbl_q = d.quote_name( tbl );
         tbl_col = tbl + '.' + col;
         tbl_col_q = tbl_q + '.' + col_q;
     }
     else
     {
-        tbl_q = null;
+        dtb_q = null; tbl_q = null;
         tbl_col = col;
         tbl_col_q = col_q;
     }
@@ -583,7 +669,7 @@ Ref.parse = function( r, d ) {
         tbl_col_alias = tbl_col + ' AS ' + alias;
         tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q;
     }
-    return new Ref( col, col_q, tbl, tbl_q, alias, alias_q, 
+    return new Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
                 tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q );
 };
 Ref[PROTO] = {
@@ -593,6 +679,8 @@ Ref[PROTO] = {
     ,col_q: null
     ,tbl: null
     ,tbl_q: null
+    ,dtb: null
+    ,dtb_q: null
     ,alias: null
     ,alias_q: null
     ,tbl_col: null
@@ -606,6 +694,8 @@ Ref[PROTO] = {
         self.col_q = null;
         self.tbl = null;
         self.tbl_q = null;
+        self.dtb = null;
+        self.dtb_q = null;
         self.alias = null;
         self.alias_q = null;
         self.tbl_col = null;
@@ -675,7 +765,7 @@ var dialects = {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
     ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
     ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
     ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -813,6 +903,10 @@ Dialect[PROTO] = {
     
     ,reset: function( clause ) {
         var self = this, i, l, c;
+        if ( !clause || !self.clauses[HAS](clause) )
+        {
+            throw new TypeError('Dialect: SQL clause "'+clause+'" does not exist for dialect "'+self.type+'"');
+        }
         self.clus = { };
         self.tbls = { };
         self.cols = { };
@@ -1127,9 +1221,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,create: function( table, defs, opts, format ) {
+    ,create: function( table, defs, opts, format, create_clause ) {
         var self = this;
-        self.reset('create');
+        self.reset(create_clause||'create');
         if ( false !== format )
         {
             table = self.refs( table, self.tbls )[0].tbl_col_q;
@@ -1147,9 +1241,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,alter: function( table, defs, opts, format ) {
+    ,alter: function( table, defs, opts, format, alter_clause ) {
         var self = this;
-        self.reset('alter');
+        self.reset(alter_clause||'alter');
         if ( false !== format )
         {
             table = self.refs( table, self.tbls )[0].tbl_col_q;
@@ -1167,9 +1261,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,drop: function( tables, format ) {
+    ,drop: function( tables, format, drop_clause ) {
         var self = this, i, l, tbls;
-        self.reset('drop');
+        self.reset(drop_clause||'drop');
         if ( !tables || !tables.length || '*' === tables ) 
         {
             tables = '*';
@@ -1193,9 +1287,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,select: function( cols, format ) {
+    ,select: function( cols, format, select_clause ) {
         var self = this, i, l, columns;
-        self.reset('select');
+        self.reset(select_clause||'select');
         if ( !cols || !cols.length || '*' === cols ) 
         {
             columns = '*';
@@ -1219,9 +1313,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,insert: function( tbls, cols, format ) {
+    ,insert: function( tbls, cols, format, insert_clause ) {
         var self = this, i, l, view, tables, columns;
-        self.reset('insert');
+        self.reset(insert_clause||'insert');
         view = is_array( tbls ) ? tbls[0] : tbls;
         if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
         {
@@ -1303,9 +1397,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,update: function( tbls, format ) {
+    ,update: function( tbls, format, update_clause ) {
         var self = this, i, l, view, tables;
-        self.reset('update');
+        self.reset(update_clause||'update');
         view = is_array( tbls ) ? tbls[0] : tbls;
         if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
         {
@@ -1380,9 +1474,9 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,del: function( ) {
+    ,del: function( delete_clause ) {
         var self = this;
-        self.reset('delete');
+        self.reset(delete_clause||'delete');
         return self;
     }
     

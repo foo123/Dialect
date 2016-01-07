@@ -319,13 +319,15 @@ class GrammTpl:
         OPTR = delims[5]
         NEG = delims[6]
         DEF = delims[7]
+        REPL = delims[8]
+        REPR = delims[9]
         default_value = None
         negative = 0
         optional = 0
         rest = 0
         l = len(tpl)
         i = 0
-        a = [[], None, 0, 0, 0]
+        a = [[], None, 0, 0, 0, 0]
         stack = []
         s = ''
         while i < l:
@@ -340,7 +342,7 @@ class GrammTpl:
                 # argument
                 argument = s
                 s = ''
-                p = argument.find(DEF);
+                p = argument.find(DEF)
                 if -1 < p:
                     default_value = argument[p+1:]
                     argument = argument[0:p]
@@ -349,52 +351,81 @@ class GrammTpl:
                 c = argument[0]
                 if OPT == c or OPTR == c:
                     optional = 1
-                    rest = 1 if OPTR == c else 0
+                    if OPTR == c:
+                        start_i = 1
+                        end_i = -1
+                    else:
+                        start_i = 0
+                        end_i = 0
                     argument = argument[1:]
                     if NEG == argument[0]:
                         negative = 1
                         argument = argument[1:]
                     else:
                         negative = 0
+                elif REPL == c:
+                    s = ''
+                    j = 1
+                    jl = len(argument)
+                    while j < jl and REPR != argument[j]:
+                        s += argument[j]
+                        j += 1
+                    argument = argument[j+1:]
+                    s = s.split(',')
+                    if len(s) > 1:
+                        start_i = s[0].strip()
+                        start_i = int(start_i,10) if len(start_i) else 0
+                        end_i = s[1].strip()
+                        end_i = int(end_i,10) if len(end_i) else -1
+                        optional = 1
+                    else:
+                        start_i = s[0].strip()
+                        start_i = int(start_i,10) if len(start_i) else 0
+                        end_i = start_i
+                        optional = 0
+                    s = ''
+                    negative = 0
                 else:
                     optional = 0
-                    rest = 0
                     negative = 0
-                
+                    start_i = 0
+                    end_i = 0
                 if negative and default_value is None: default_value = ''
                 
-                if optional and not a[4]:
+                if optional and not a[2]:
                     a[1] = argument
-                    a[2] = rest
+                    a[2] = optional
                     a[3] = negative
-                    a[4] = optional
+                    a[4] = start_i
+                    a[5] = end_i
                 elif (not optional) and (a[1] is None):
                     a[1] = argument
                     a[2] = 0
                     a[3] = negative
-                    a[4] = 0
-                a[0].append([1, argument, default_value, optional, rest, negative])
+                    a[4] = start_i
+                    a[5] = end_i
+                a[0].append([1, argument, default_value, optional, negative, start_i, end_i])
             
             elif OBL == c:
                 # optional block
                 if len(s): a[0].append([0, s])
                 s = ''
                 stack.append(a)
-                a = [[], None, 0, 0, 0]
+                a = [[], None, 0, 0, 0, 0]
             
             elif OBR == c:
                 b = a
                 a = stack.pop(-1)
                 if len(s): b[0].append([0, s])
                 s = ''
-                a[0].append([-1, b[1], b[2], b[3], b[0]])
+                a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[0]])
             else:
                 s += c
         
         if len(s): a[0].append([0, s])
         return a[0]
 
-    defaultDelims = ['<','>','[',']','?','*','!','|']
+    defaultDelims = ['<','>','[',']','?','*','!','|','{','}']
     
     def __init__(self, tpl='', delims=None):
         self.id = None
@@ -435,24 +466,44 @@ class GrammTpl:
             if -1 == tt:
                 # optional block
                 if (0 == t[ 3 ] and (s in args)) or (1 == t[ 3 ] and (s not in args)):
-                    if 1 == t[ 3 ] or 0 == t[ 2 ] or (is_array(args[s]) and len(args[s]) > 1):
+                    
+                    if 1 == t[ 3 ]:
                         stack.append([tpl, i+1, l, rarg, ri])
-                        tpl = t[ 4 ]
+                        tpl = t[ 6 ]
                         i = 0
                         l = len(tpl)
-                        if (not t[ 3 ]) and t[ 2 ]:
-                            rarg = s
-                            for ri in range(2, len(args[s])): stack.append([tpl, 0, l, rarg, ri])
-                            ri = 1
-                        else:
-                            rarg = None
-                            ri = 0
+                        rarg = None
+                        ri = 0
                         continue
+                    
+                    else:
+                        arr = is_array( args[s] )
+                        if arr and (t[4] != t[5]) and len(args[s]) > t[ 4 ]:
+                            rs = t[ 4 ]
+                            re = len(args[s])-1 if -1 == t[ 5 ] else min(t[ 5 ], len(args[s])-1)
+                            if re >= rs:
+                                stack.append([tpl, i+1, l, rarg, ri])
+                                tpl = t[ 6 ]
+                                i = 0
+                                l = len(tpl)
+                                rarg = s
+                                for ri in range(re,rs,-1): stack.append([tpl, 0, l, rarg, ri])
+                                ri = rs
+                                continue
+                                
+                        elif (not arr) and (t[4] == t[5]):
+                            stack.append([tpl, i+1, l, rarg, ri])
+                            tpl = t[ 6 ]
+                            i = 0
+                            l = len(tpl)
+                            rarg = s
+                            ri = 0
+                            continue
             
             elif 1 == tt:
                 #TODO: handle nested/structured/deep arguments
                 # default value if missing
-                out += str(t[2]) if (s not in args) and t[ 2 ] is not None else (str(args[s][ri] if s == rarg else args[s][0]) if is_array(args[ s ]) else str(args[s]))
+                out += str(t[2]) if (s not in args) and t[ 2 ] is not None else (str(args[s][(t[5] if t[5]==t[6] else ri)] if s == rarg else args[s][t[5]]) if is_array(args[ s ]) else str(args[s]))
             
             else: #if 0 == tt
                 out += s
@@ -474,14 +525,33 @@ class Ref:
     def parse( r, d ):
         r = r.strip( ).split(' AS ')
         col = r[ 0 ].split( '.' )
-        tbl = None if len(col) < 2 else col[ 0 ].strip( )
-        col = col[ 1 ].strip( ) if tbl else col[ 0 ].strip( )
+        l = len(col)
+        if 3 <= l:
+            dtb = col[ 0 ].strip( )
+            tbl = col[ 1 ].strip( )
+            col = col[ 2 ].strip( )
+        elif 2 == l:
+            dtb = None
+            tbl = col[ 0 ].strip( )
+            col = col[ 1 ].strip( )
+        else:
+            dtb = None
+            tbl = None
+            col = col[ 0 ].strip( )
+            
         col_q = d.quote_name( col )
-        if tbl:
+        if dtb is not None:
+            dtb_q = d.quote_name( dtb )
+            tbl_q = d.quote_name( tbl )
+            tbl_col = dtb + '.' + tbl + '.' + col
+            tbl_col_q = dtb_q + '.' + tbl_q + '.' + col_q
+        elif tbl is not None:
+            dtb_q = None
             tbl_q = d.quote_name( tbl )
             tbl_col = tbl + '.' + col
             tbl_col_q = tbl_q + '.' + col_q
         else:
+            dtb_q = None
             tbl_q = None
             tbl_col = col
             tbl_col_q = col_q
@@ -495,14 +565,16 @@ class Ref:
             alias_q = d.quote_name( alias )
             tbl_col_alias = tbl_col + ' AS ' + alias
             tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q
-        return Ref( col, col_q, tbl, tbl_q, alias, alias_q, 
+        return Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
                     tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q )
 
-    def __init__( self, col, col_q, tbl, tbl_q, alias, alias_q, tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ):
+    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ):
         self.col = col
         self.col_q = col_q
         self.tbl = tbl
         self.tbl_q = tbl_q
+        self.dtb = dtb
+        self.dtb_q = dtb_q
         self.alias = alias
         self.alias_q = alias_q
         self.tbl_col = tbl_col
@@ -518,6 +590,8 @@ class Ref:
         self.col_q = None
         self.tbl = None
         self.tbl_q = None
+        self.dtb = None
+        self.dtb_q = None
         self.alias = None
         self.alias_q = None
         self.tbl_col = None
@@ -596,7 +670,7 @@ class Dialect:
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
         ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS\nFETCH NEXT <?count> ROWS ONLY]]"
+        ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
         ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
         ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -692,6 +766,8 @@ class Dialect:
         return self.p
     
     def reset( self, clause ):
+        if not clause or (clause not in self.clauses):
+            raise ValueError('Dialect: SQL clause "'+str(clause)+'" does not exist for dialect "'+self.type+'"')
         self.clus = { }
         self.tbls = { }
         self.cols = { }
@@ -910,8 +986,8 @@ class Dialect:
            del self.tpls[ tpl ]
         return self
     
-    def create( self, table, defs, opts=None, format=True ):
-        self.reset('create')
+    def create( self, table, defs, opts=None, format=True, create_clause='create' ):
+        self.reset(create_clause)
         if format is not False:
             table = self.refs( table, self.tbls )[0].tbl_col_q
         self.clus['create_table'] = table
@@ -924,8 +1000,8 @@ class Dialect:
             self.clus['create_opts'] = opts
         return self
     
-    def alter( self, table, defs, opts=None, format=True ):
-        self.reset('alter')
+    def alter( self, table, defs, opts=None, format=True, alter_clause='alter' ):
+        self.reset(alter_clause)
         if format is not False:
             table = self.refs( table, self.tbls )[0].tbl_col_q
         self.clus['alter_table'] = table
@@ -938,8 +1014,8 @@ class Dialect:
             self.clus['alter_opts'] = opts
         return self
     
-    def drop( self, tables, format=True ):
-        self.reset('drop')
+    def drop( self, tables, format=True, drop_clause='drop' ):
+        self.reset(drop_clause)
         if not tables or not len(tables) or '*' == tables: 
             tables = '*'
         else:
@@ -954,8 +1030,8 @@ class Dialect:
         self.clus['drop_tables'] = tables
         return self
     
-    def select( self, cols='*', format=True ):
-        self.reset('select')
+    def select( self, cols='*', format=True, select_clause='select' ):
+        self.reset(select_clause)
         if not cols or not len(cols) or '*' == cols: 
             columns = '*';
         else:
@@ -970,8 +1046,8 @@ class Dialect:
         self.clus['select_columns'] = columns
         return self
     
-    def insert( self, tbls, cols, format=True ):
-        self.reset('insert');
+    def insert( self, tbls, cols, format=True, insert_clause='insert' ):
+        self.reset(insert_clause);
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
@@ -1024,8 +1100,8 @@ class Dialect:
         self.clus['values_values'] = insert_values
         return self
     
-    def update( self, tbls, format=True ):
-        self.reset('update')
+    def update( self, tbls, format=True, update_clause='update' ):
+        self.reset(update_clause)
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
@@ -1072,8 +1148,8 @@ class Dialect:
         self.clus['set_values'] = set_values
         return self
     
-    def del_( self ):
-        self.reset('delete')
+    def del_( self, delete_clause='delete' ):
+        self.reset(delete_clause)
         return self
     
     def from_( self, tbls, format=True ):
