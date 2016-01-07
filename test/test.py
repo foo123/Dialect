@@ -30,7 +30,7 @@ def echo( s='' ):
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( 'postgre' )
+dialect = Dialect( 'postgres' )
 
 conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},

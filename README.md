@@ -6,7 +6,7 @@ Dialect
 
 **Requirements:**
 
-* Support multiple DB vendors (eg. `MySQL`, `Postgre`, `SQL Server`, `SQLite`, `Oracle` )
+* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQL Server`, `SQLite`, `Oracle` )
 * Easily extended to new DBs ( prefereably through a config setting )
 * Flexible and Intuitive API
 * Light-weight ( one class/file per implementation if possible )
@@ -29,8 +29,8 @@ Dialect
 **DB vendor sql support**
 
 1. [`MySQL`](http://dev.mysql.com/doc/refman/5.7/en/)
-2. [`Postgre`](http://www.postgresql.org/docs/9.1/static/reference.html)
-3. [`Sql Server`](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
+2. [`PostgreSQL`](http://www.postgresql.org/docs/9.1/static/reference.html)
+3. [`MS SQL / Sql Server`](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
 4. [`SQLite`](https://www.sqlite.org/lang.html)
 5. `Oracle` [TODO]
 

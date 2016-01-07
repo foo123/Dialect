@@ -571,7 +571,7 @@ class Dialect
     ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         )
     )
-    ,'postgre'          => array(
+    ,'postgres'          => array(
     // http://www.postgresql.org/docs/
     // http://www.postgresql.org/docs/9.1/static/sql-createtable.html
     // http://www.postgresql.org/docs/9.1/static/sql-droptable.html
