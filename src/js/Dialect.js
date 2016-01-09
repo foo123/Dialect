@@ -1613,14 +1613,14 @@ Dialect[PROTO] = {
             for (j=0,m=r.length; j<m; j++)
             {
                 ref = Ref.parse( r[ j ], self );
-                if ( !lookup[HAS](ref.tbl_col) ) 
+                if ( !lookup[HAS](ref.alias) ) 
                 {
-                    lookup[ ref.tbl_col ] = ref;
-                    if ( ref.tbl_col !== ref.alias ) lookup[ ref.alias ] = ref;
+                    lookup[ ref.alias ] = ref;
+                    if ( ref.tbl_col !== ref.alias && !lookup[HAS](ref.tbl_col) ) lookup[ ref.tbl_col ] = ref;
                 }
                 else
                 {                    
-                    ref = lookup[ ref.tbl_col ];
+                    ref = lookup[ ref.alias ];
                 }
                 refs.push( ref );
             }

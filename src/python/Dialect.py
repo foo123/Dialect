@@ -1286,11 +1286,11 @@ class Dialect:
             r = rs[ i ].split(',')
             for j in range(len(r)):
                 ref = Ref.parse( r[ j ], self )
-                if ref.tbl_col not in lookup:
-                    lookup[ ref.tbl_col ] = ref
-                    if ref.tbl_col != ref.alias: lookup[ ref.alias ] = ref
+                if ref.alias not in lookup:
+                    lookup[ ref.alias ] = ref
+                    if ref.tbl_col != ref.alias and (ref.tbl_col not in lookup): lookup[ ref.tbl_col ] = ref
                 else:
-                    ref = lookup[ ref.tbl_col ]
+                    ref = lookup[ ref.alias ]
                 refs.append( ref )
         return refs
     

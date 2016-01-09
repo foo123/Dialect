@@ -1491,14 +1491,14 @@ class Dialect
             foreach ($r as $ref)
             {
                 $ref = DialectRef::parse( $ref, $this );
-                if ( !isset($lookup[$ref->tbl_col]) ) 
+                if ( !isset($lookup[$ref->alias]) ) 
                 {
-                    $lookup[$ref->tbl_col] = $ref;
-                    if ( $ref->tbl_col !== $ref->alias ) $lookup[ $ref->alias ] = $ref;
+                    $lookup[$ref->alias] = $ref;
+                    if ( $ref->tbl_col !== $ref->alias && !isset($lookup[ $ref->tbl_col ]) ) $lookup[ $ref->tbl_col ] = $ref;
                 }
                 else
                 {                    
-                    $ref = $lookup[ $ref->tbl_col ];
+                    $ref = $lookup[ $ref->alias ];
                 }
                 $refs[] = $ref;
             }
