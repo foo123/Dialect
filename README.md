@@ -4,15 +4,6 @@ Dialect
 **Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript**
 
 
-**Requirements:**
-
-* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQL Server`, `SQLite`, `Oracle` )
-* Easily extended to new DBs ( prefereably through a config setting )
-* Flexible and Intuitive API
-* Light-weight ( one class/file per implementation if possible )
-* Speed
-
-
 **see also:**  
 
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
@@ -23,17 +14,48 @@ Dialect
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
-* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
+* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
 
-**DB vendor sql support**
+
+###Contents
+
+* [Requirements](#requirements)
+* [DB vendor sql support](#db-vendor-sql-support)
+* [Features](#features)
+* [API Reference](#api-reference)
+* [TODO](#todo)
+* [Performance](#performance)
+
+
+
+
+###Requirements
+
+* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `MS SQL / SQL Server`, `Oracle`, `DB2`, .. )
+* Easily extended to new `DB`s ( prefereably through a, implementation-independent, config setting )
+* Light-weight ( one class/file per implementation if possible )
+* Speed
+* Modularity and implementation-independent transferability
+* Flexible and Intuitive API
+
+
+
+
+###DB vendor sql support
+
+**(partial in some cases, but easy to extend)**
 
 1. [`MySQL`](http://dev.mysql.com/doc/refman/5.7/en/)
 2. [`PostgreSQL`](http://www.postgresql.org/docs/9.1/static/reference.html)
 3. [`MS SQL / Sql Server`](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
 4. [`SQLite`](https://www.sqlite.org/lang.html)
-5. `Oracle` [TODO]
+5. `Oracle`, .. [TODO]
+
+
+
+###Features
 
 
 **Grammar Templates**
@@ -106,7 +128,53 @@ The whole point of `Dialect` from the start was to use intuitive configuration t
 
 
 
-**API Methods:**
+**Multiple variations of a clause**
+
+
+`Dialect` supports using multiple variations of the same `SQL` clause, very easily. 
+
+For example, a main `DELETE` clause for `SQLite` with `LIMIT` emulation and another variation (e.g `'delete_with_limit_clause'`) when `SQLite` is configured to allow `LIMIT` clauses in `DELETE` clauses (which is not a default setting out-of-the-box).
+
+
+User will just pass the clause variation name as parameter to, an otherwise same, `dialect.delete('delete_with_limit_clause')` method call and `Dialect` will take of the rest. Easy and flexible as that.
+
+Coupled with the fact that `Dialect` supports `clause` definition via grammar-templates, which are polymoprhic themselves (see above), this is a very powerful and flexible feature.
+
+
+
+**Custom Soft Views**
+
+**(experimental feature)**
+
+`Dialect` supports defining custom (soft) `views` which can be used (almost, as of now) like usual `SQL` views.
+
+
+Reasons to support `soft views` are:
+
+
+1. `DB` provider does not support `views` by default.
+2. User does not have access to create `views` in DB, or does not want to.
+3. `Views` are dynamic and/or ad-hoc and it would be overhead to create and drop them all the time.
+
+
+
+`Dialect` stores a `sql` definition as a `view` and whenever this soft `view` is used, the actual `sql` definition
+is transparently used underneath (with some care for conflicts and so on). 
+
+Soft `Views` are mostly useful for `SELECT` clauses (e.g selecting from a `wordpress` post with associated `meta fields` as if they are one single custom-made table with custom column aliases, this makes code more concise, modular, safer, cleaner and transferable to other DB configurations where indeed a single table can be used and so on)
+
+
+
+**Prepared Templates**
+
+**(experimental feature)**
+
+see below `API` examples
+
+
+
+###API Reference
+
 
 ```javascript
 
@@ -238,8 +306,13 @@ var query_prepared = dialect.prepared('prepared_query',{id:'12'});
 dialect.clear_tpl('prepared_query');
 ```
 
-**TODO**
+
+###TODO
 
 * add full support for custom soft views [DONE PARTIALY]
 * add full support for sql directives (e.g `create table`, `drop table`, `alter table` ) [DONE PARTIALY]
 * add full support for other sql vendors (e.g `Oracle` )
+
+
+
+###Performance
