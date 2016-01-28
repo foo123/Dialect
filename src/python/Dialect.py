@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.5.1
+#   @version: 0.5.2
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -133,7 +133,7 @@ def array( v ):
     return v if isinstance(v, list) else [v]
 
 def empty( v ):
-    return v == None or (isinstance(v, (list,str,dict)) and 0 == len(v))
+    return v == None or (isinstance(v, (tuple,list,str,dict)) and 0 == len(v))
 
 def addslashes( s, chars=None, esc='\\' ):
     global NULL_CHAR
@@ -315,12 +315,16 @@ class GrammTpl:
         IDR = delims[1]
         OBL = delims[2]
         OBR = delims[3]
-        OPT = delims[4]
-        OPTR = delims[5]
-        NEG = delims[6]
-        DEF = delims[7]
-        REPL = delims[8]
-        REPR = delims[9]
+        lenIDL = len(IDL)
+        lenIDR = len(IDR)
+        lenOBL = len(OBL)
+        lenOBR = len(OBR)
+        OPT = '?'
+        OPTR = '*'
+        NEG = '!'
+        DEF = '|'
+        REPL = '{'
+        REPR = '}'
         default_value = None
         negative = 0
         optional = 0
@@ -331,14 +335,14 @@ class GrammTpl:
         stack = []
         s = ''
         while i < l:
-            c = tpl[i]
-            i += 1
             
-            if IDL == c:
+            if IDL == tpl[i:i+lenIDL]:
+                i += lenIDL
                 if len(s): a[0].append([0, s])
                 s = ''
             
-            elif IDR == c:
+            elif IDR == tpl[i:i+lenIDR]:
+                i += lenIDR
                 # argument
                 argument = s
                 s = ''
@@ -406,26 +410,30 @@ class GrammTpl:
                     a[5] = end_i
                 a[0].append([1, argument, default_value, optional, negative, start_i, end_i])
             
-            elif OBL == c:
+            elif OBL == tpl[i:i+lenOBL]:
+                i += lenOBL
                 # optional block
                 if len(s): a[0].append([0, s])
                 s = ''
                 stack.append(a)
                 a = [[], None, 0, 0, 0, 0]
             
-            elif OBR == c:
+            elif OBR == tpl[i:i+lenOBR]:
+                i += lenOBR
                 b = a
                 a = stack.pop(-1)
                 if len(s): b[0].append([0, s])
                 s = ''
                 a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[0]])
             else:
-                s += c
+                s += tpl[i]
+                i += 1
         
         if len(s): a[0].append([0, s])
         return a[0]
 
-    defaultDelims = ['<','>','[',']','?','*','!','|','{','}']
+    #defaultDelims = ['<','>','[',']','?','*','!','|','{','}']
+    defaultDelims = ['<','>','[',']']
     
     def __init__(self, tpl='', delims=None):
         self.id = None
@@ -607,7 +615,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.5.1'
+    VERSION = '0.5.2'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl

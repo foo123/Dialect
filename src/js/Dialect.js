@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.1
+*   @version: 0.5.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -370,24 +370,25 @@ GrammTpl = function GrammTpl( tpl, delims ) {
     self.id = null;
     self.tpl = GrammTpl.multisplit( tpl||'', delims||GrammTpl.defaultDelims );
 };
-GrammTpl.defaultDelims = ['<','>','[',']','?','*','!','|','{','}'];
+GrammTpl.defaultDelims = ['<','>','[',']'/*,'?','*','!','|','{','}'*/];
 GrammTpl.multisplit = function multisplit( tpl, delims ) {
     var IDL = delims[0], IDR = delims[1], OBL = delims[2], OBR = delims[3],
-        OPT = delims[4], OPTR = delims[5], NEG = delims[6], DEF = delims[7],
-        REPL = delims[8], REPR = delims[9],
+        lenIDL = IDL.length, lenIDR = IDR.length, lenOBL = OBL.length, lenOBR = OBR.length,
+        OPT = '?', OPTR = '*', NEG = '!', DEF = '|', REPL = '{', REPR = '}',
         default_value = null, negative = 0, optional = 0, start_i, end_i,
         argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl;
     i = 0; a = [[], null, 0, 0, 0, 0]; stack = []; s = '';
     while( i < l )
     {
-        c = tpl[CHAR](i++);
-        if ( IDL === c )
+        if ( IDL === tpl.substr(i,lenIDL) )
         {
+            i += lenIDL;
             if ( s.length ) a[0].push([0, s]);
             s = '';
         }
-        else if ( IDR === c )
+        else if ( IDR === tpl.substr(i,lenIDR) )
         {
+            i += lenIDR;
             // argument
             argument = s; s = '';
             if ( -1 < (p=argument.indexOf(DEF)) )
@@ -475,16 +476,18 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
             }
             a[0].push([1, argument, default_value, optional, negative, start_i, end_i]);
         }
-        else if ( OBL === c )
+        else if ( OBL === tpl.substr(i,lenOBL) )
         {
+            i += lenOBL;
             // optional block
             if ( s.length ) a[0].push([0, s]);
             s = '';
             stack.push(a);
             a = [[], null, 0, 0, 0, 0];
         }
-        else if ( OBR === c )
+        else if ( OBR === tpl.substr(i,lenOBR) )
         {
+            i += lenOBR;
             b = a; a = stack.pop( );
             if ( s.length ) b[0].push([0, s]);
             s = '';
@@ -492,7 +495,7 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
         }
         else
         {
-            s += c;
+            s += tpl[CHAR](i++);
         }
     }
     if ( s.length ) a[0].push([0, s]);
@@ -820,7 +823,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.5.1";
+Dialect.VERSION = "0.5.2";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.GrammTpl = GrammTpl;

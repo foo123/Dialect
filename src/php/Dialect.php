@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.1
+*   @version: 0.5.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -186,21 +186,22 @@ class DialectGrammTpl
     public static function multisplit( $tpl, $delims )
     {
         $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
-        $OPT = $delims[4]; $OPTR = $delims[5]; $NEG = $delims[6]; $DEF = $delims[7];
-        $REPL = $delims[8]; $REPR = $delims[9];
+        $lenIDL = strlen($IDL); $lenIDR = strlen($IDR); $lenOBL = strlen($OBL); $lenOBR = strlen($OBR);
+        $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $REPL = '{'; $REPR = '}';
         $default_value = null; $negative = 0; $optional = 0; $start_i = 0; $end_i = 0;
         $l = strlen($tpl);
         $i = 0; $a = array(array(), null, 0, 0, 0, 0); $stack = array(); $s = '';
         while( $i < $l )
         {
-            $c = $tpl[$i++];
-            if ( $IDL === $c )
+            if ( $IDL === substr($tpl,$i,$lenIDL) )
             {
+                $i += $lenIDL;
                 if ( strlen($s) ) $a[0][] = array(0, $s);
                 $s = '';
             }
-            elseif ( $IDR === $c )
+            elseif ( $IDR === substr($tpl,$i,$lenIDR) )
             {
+                $i += $lenIDR;
                 // argument
                 $argument = $s; $s = '';
                 $p = strpos($argument, $DEF);
@@ -292,16 +293,18 @@ class DialectGrammTpl
                 }
                 $a[0][] = array(1, $argument, $default_value, $optional, $negative, $start_i, $end_i);
             }
-            elseif ( $OBL === $c )
+            elseif ( $OBL === substr($tpl,$i,$lenOBL) )
             {
+                $i += $lenOBL;
                 // optional block
                 if ( strlen($s) ) $a[0][] = array(0, $s);
                 $s = '';
                 $stack[] = $a;
                 $a = array(array(), null, 0, 0, 0, 0);
             }
-            elseif ( $OBR === $c )
+            elseif ( $OBR === substr($tpl,$i,$lenOBR) )
             {
+                $i += $lenOBR;
                 $b = $a; $a = array_pop($stack);
                 if ( strlen($s) ) $b[0][] = array(0, $s);
                 $s = '';
@@ -309,14 +312,14 @@ class DialectGrammTpl
             }
             else
             {
-                $s .= $c;
+                $s .= $tpl[$i++];
             }
         }
         if ( strlen($s) ) $a[0][] = array(0, $s);
         return $a[0];
     }
     
-    public static $defaultDelims = array('<','>','[',']','?','*','!','|','{','}');
+    public static $defaultDelims = array('<','>','[',']'/*,'?','*','!','|','{','}'*/);
     
     public $id = null;
     public $tpl = null;
@@ -546,7 +549,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.5.1";
+    const VERSION = "0.5.2";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
