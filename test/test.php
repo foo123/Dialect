@@ -21,6 +21,8 @@ $dialect
     ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     ->from('t')
     ->join('t2',array('t.id'=>'t2.id'),'inner')
+    ->where(array('f1'=>'2'))
+    ->limit(100,100)
     ->make_view('my_view')
 ;
 
@@ -47,7 +49,7 @@ $dialect->prepare_tpl(
 $query_soft_view = $dialect
         ->select()
         ->from('my_view')
-        ->where(array('f1'=>'2'))
+        ->where(array('f2'=>'3'), 'OR')
         ->sql()
     ;
     

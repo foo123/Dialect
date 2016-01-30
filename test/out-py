@@ -1,11 +1,12 @@
-Dialect.VERSION = 0.5.2
+Dialect.VERSION = 0.5.3
 
 SQL dialect = postgres
 
 SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
 FROM "t"
 INNER JOIN "t2" ON ("t"."id" = "t2"."id")
-WHERE ("t"."f1" = E'2')
+WHERE ("t"."f1" = E'2') AND ("t"."f2" = E'3')
+LIMIT 100 OFFSET 100
 
 SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
 FROM "t"

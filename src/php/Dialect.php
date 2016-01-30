@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.2
+*   @version: 0.5.3
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -549,7 +549,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.5.2";
+    const VERSION = "0.5.3";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -568,10 +568,10 @@ class Dialect
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
     ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions_required> [AND <?having_conditions>]][<?!having_conditions_required>[\nHAVING <?having_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
     ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
-    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         )
     )
     ,'postgres'          => array(
@@ -585,10 +585,10 @@ class Dialect
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
     ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions_required> [AND <?having_conditions>]][<?!having_conditions_required>[\nHAVING <?having_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
     ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
-    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         )
     )
     ,'sqlserver'        => array(
@@ -608,10 +608,10 @@ class Dialect
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
     ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions_required> [AND <?having_conditions>]][<?!having_conditions_required>[\nHAVING <?having_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
     ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
-    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    ,'delete'       => "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
         )
     )
     ,'sqlite'           => array(
@@ -627,10 +627,10 @@ class Dialect
          'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
         ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-        ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+        ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions_required> [AND <?having_conditions>]][<?!having_conditions_required>[\nHAVING <?having_conditions>]][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-        ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
-        ,'delete'       => "[<?!order_conditions>[<?!count>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]]][DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions>[,<*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>[DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+        ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]]"
+        ,'delete'       => "[<?!order_conditions>[<?!count>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]]]][DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]]\nORDER BY <?order_conditions>[,<*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>[DELETE \nFROM <from_tables>[,<*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions_required> [AND <?where_conditions>]][<?!where_conditions_required>[\nWHERE <?where_conditions>]]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
         )
     )
     );
@@ -877,6 +877,19 @@ class Dialect
                 'tbls'=>$this->tbls,
                 'cols'=>$this->cols
             );
+            // make existing where / having conditions required
+            if ( isset($this->vews[ $view ]->clus[ 'where_conditions' ]) )
+            {
+                if ( !empty($this->vews[ $view ]->clus[ 'where_conditions' ]) )
+                    $this->vews[ $view ]->clus[ 'where_conditions_required' ] = $this->vews[ $view ]->clus[ 'where_conditions' ];
+                unset($this->vews[ $view ]->clus[ 'where_conditions' ]);
+            }
+            if ( isset($this->vews[ $view ]->clus[ 'having_conditions' ]) )
+            {
+                if ( !empty($this->vews[ $view ]->clus[ 'having_conditions' ]) )
+                    $this->vews[ $view ]->clus[ 'having_conditions_required' ] = $this->vews[ $view ]->clus[ 'having_conditions' ];
+                unset($this->vews[ $view ]->clus[ 'having_conditions' ]);
+            }
             $this->clear( );
         }
         return $this;
