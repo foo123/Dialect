@@ -50,6 +50,7 @@ $query_soft_view = $dialect
         ->select()
         ->from('my_view')
         ->where(array('f2'=>'3'), 'OR')
+        ->where(array('f2'=>'1'), 'OR')
         ->sql()
     ;
     

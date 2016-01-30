@@ -44,6 +44,7 @@ var query_soft_view = dialect
         .select()
         .from('my_view')
         .where({f2:'3'}, 'OR')
+        .where({f2:'1'}, 'OR')
         .sql()
     ;
     
