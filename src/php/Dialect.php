@@ -1629,7 +1629,7 @@ class Dialect
                     $op = isset($value['gt']) ? "gt" : "gte";
                     $v = $value[ $op ];
                     
-                    if ( 'raw' === type )
+                    if ( 'raw' === $type )
                     {
                         // raw, do nothing
                     }
