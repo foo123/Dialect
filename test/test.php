@@ -18,7 +18,7 @@ $conditions = array(
 );
 
 $dialect
-    ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    ->select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3', false)
     ->from('t')
     ->join('t2',array('t.id'=>'t2.id'),'inner')
     ->where(array('f1'=>'2'))
@@ -47,7 +47,7 @@ $dialect->prepare_tpl(
 );
 
 $query_soft_view = $dialect
-        ->select()
+        ->select('f0,f1 AS f11')
         ->from('my_view')
         ->where(array('f2'=>'3'), 'OR')
         ->where(array('f2'=>'1'), 'OR')

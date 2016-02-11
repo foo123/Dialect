@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.3
+*   @version: 0.5.4
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -599,8 +599,7 @@ GrammTpl[PROTO] = {
     }
 };
 
-Ref = function( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
-                tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ) {
+Ref = function( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q ) {
     var self = this;
     self.col = col;
     self.col_q = col_q;
@@ -612,12 +611,21 @@ Ref = function( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q,
     self.alias_q = alias_q;
     self.tbl_col = tbl_col;
     self.tbl_col_q = tbl_col_q;
-    self.tbl_col_alias = tbl_col_alias;
-    self.tbl_col_alias_q = tbl_col_alias_q;
+    if ( self.tbl_col_q !== self.alias_q )
+    {
+        self.tbl_col_alias = self.tbl_col + ' AS ' + self.alias;
+        self.tbl_col_alias_q = self.tbl_col_q + ' AS ' + self.alias_q;
+    }
+    else
+    {
+        self.tbl_col_alias = self.tbl_col;
+        self.tbl_col_alias_q = self.tbl_col_q;
+    }
 };
-Ref.parse = function( r, d ) {
+Ref.parse = function( r, d, q ) {
     var col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
-        tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q;
+        tbl_col, tbl_col_q;
+    q = false !== q;
     r = trim( r ).split(' AS ');
     col = r[ 0 ].split( '.' );
     if ( 3 <= col.length )
@@ -637,18 +645,18 @@ Ref.parse = function( r, d ) {
         dtb = null; tbl = null;
         col = trim(col[ 0 ]);
     }
-    col_q = d.quote_name( col );
+    col_q = q ? d.quote_name( col ) : col;
     if ( null !== dtb )
     {
-        dtb_q = d.quote_name( dtb );
-        tbl_q = d.quote_name( tbl );
+        dtb_q = q ? d.quote_name( dtb ) : dtb;
+        tbl_q = q ? d.quote_name( tbl ) : tbl;
         tbl_col = dtb + '.' + tbl + '.' + col;
         tbl_col_q = dtb_q + '.' + tbl_q + '.' + col_q;
     }
     else if ( null !== tbl )
     {
         dtb_q = null;
-        tbl_q = d.quote_name( tbl );
+        tbl_q = q ? d.quote_name( tbl ) : tbl;
         tbl_col = tbl + '.' + col;
         tbl_col_q = tbl_q + '.' + col_q;
     }
@@ -662,18 +670,13 @@ Ref.parse = function( r, d ) {
     {
         alias = tbl_col;
         alias_q = tbl_col_q;
-        tbl_col_alias = tbl_col;
-        tbl_col_alias_q = tbl_col_q;
     }
     else
     {
         alias = trim( r[1] );
-        alias_q = d.quote_name( alias );
-        tbl_col_alias = tbl_col + ' AS ' + alias;
-        tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q;
+        alias_q = q ? d.quote_name( alias ) : alias;
     }
-    return new Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
-                tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q );
+    return new Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q );
 };
 Ref[PROTO] = {
      constructor: Ref
@@ -690,6 +693,21 @@ Ref[PROTO] = {
     ,tbl_col_q: null
     ,tbl_col_alias: null
     ,tbl_col_alias_q: null
+    
+    ,cloned: function( alias, alias_q ) {
+        var self = this;
+        if ( !arguments.length )
+        {
+            alias = self.alias;
+            alias_q = self.alias_q;
+        }
+        else
+        {
+            alias_q = alias_q || alias;
+        }
+        return new Ref( self.col, self.col_q, self.tbl, self.tbl_q, self.dtb, self.dtb_q, alias, alias_q, 
+                self.tbl_col, self.tbl_col_q );
+    }
     
     ,dispose: function( ) {
         var self = this;
@@ -823,7 +841,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.5.3";
+Dialect.VERSION = "0.5.4";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.GrammTpl = GrammTpl;
@@ -1240,10 +1258,7 @@ Dialect[PROTO] = {
     ,create: function( table, defs, opts, format, create_clause ) {
         var self = this;
         self.reset(create_clause||'create');
-        if ( false !== format )
-        {
-            table = self.refs( table, self.tbls )[0].tbl_col_q;
-        }
+        table = self.refs( table, self.tbls, false !== format )[0].tbl_col_q;
         self.clus.create_table = table;
         if ( !!self.clus.create_defs )
             defs = self.clus.create_defs + ',' + defs;
@@ -1260,10 +1275,7 @@ Dialect[PROTO] = {
     ,alter: function( table, defs, opts, format, alter_clause ) {
         var self = this;
         self.reset(alter_clause||'alter');
-        if ( false !== format )
-        {
-            table = self.refs( table, self.tbls )[0].tbl_col_q;
-        }
+        table = self.refs( table, self.tbls, false !== format )[0].tbl_col_q;
         self.clus.alter_table = table;
         if ( !!self.clus.alter_defs )
             defs = self.clus.alter_defs + ',' + defs;
@@ -1286,16 +1298,9 @@ Dialect[PROTO] = {
         }
         else
         {            
-            if ( false !== format )
-            {
-                tbls = self.refs( tables, self.tbls );
-                tables = tbls[ 0 ].tbl_col_q;
-                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_q;
-            }
-            else
-            {
-                tables = array( tables ).join(',');
-            }
+            tbls = self.refs( tables, self.tbls, false !== format );
+            tables = tbls[ 0 ].tbl_col_q;
+            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_q;
         }
         if ( !!self.clus.drop_tables )
             tables = self.clus.drop_tables + ',' + tables;
@@ -1312,16 +1317,9 @@ Dialect[PROTO] = {
         }
         else
         {            
-            if ( false !== format )
-            {
-                cols = self.refs( cols, self.cols );
-                columns = cols[ 0 ].tbl_col_alias_q;
-                for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_alias_q;
-            }
-            else
-            {
-                columns = array( cols ).join(',');
-            }
+            cols = self.refs( cols, self.cols, false !== format );
+            columns = cols[ 0 ].tbl_col_alias_q;
+            for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_alias_q;
         }
         if ( !!self.clus.select_columns )
             columns = self.clus.select_columns + ',' + columns;
@@ -1343,20 +1341,12 @@ Dialect[PROTO] = {
         }
         else
         {
-            if ( false !== format )
-            {
-                tbls = self.refs( tbls, self.tbls );
-                cols = self.refs( cols, self.cols );
-                tables = tbls[ 0 ].tbl_col_alias_q;
-                columns = cols[ 0 ].tbl_col_q;
-                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
-                for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_q;
-            }
-            else
-            {
-                tables = array( tbls ).join(',');
-                columns = array( cols ).join(',');
-            }
+            tbls = self.refs( tbls, self.tbls, false !== format );
+            cols = self.refs( cols, self.cols, false !== format );
+            tables = tbls[ 0 ].tbl_col_alias_q;
+            columns = cols[ 0 ].tbl_col_q;
+            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
+            for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].tbl_col_q;
             if ( !!self.clus.insert_tables )
                 tables = self.clus.insert_tables + ',' + tables;
             if ( !!self.clus.insert_columns )
@@ -1427,16 +1417,9 @@ Dialect[PROTO] = {
         }
         else
         {
-            if ( false !== format )
-            {
-                tbls = self.refs( tbls, self.tbls );
-                tables = tbls[ 0 ].tbl_col_alias_q;
-                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
-            }
-            else
-            {
-                tables = array( tbls ).join(',');
-            }
+            tbls = self.refs( tbls, self.tbls, false !== format );
+            tables = tbls[ 0 ].tbl_col_alias_q;
+            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
             if ( !!self.clus.update_tables )
                 tables = self.clus.update_tables + ',' + tables;
             self.clus.update_tables = tables;
@@ -1497,29 +1480,34 @@ Dialect[PROTO] = {
     }
     
     ,from: function( tbls, format ) {
-        var self = this, i, l, view, tables;
+        var self = this, i, l, view, tables, selected_columns, select_columns;
         if ( empty(tbls) ) return self;
         view = is_array( tbls ) ? tbls[0] : tbls;
         if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
         {
+            selected_columns = !empty(self.clus['select_columns'])&&('*'!=self.clus['select_columns']) ? self.refs( self.clus['select_columns'], {}, false ) : null;
+            
             // using custom 'soft' view
             view = self.vews[ view ];
             self.clus = defaults( self.clus, view.clus, true );
             self.tbls = defaults( {}, view.tbls, true );
             self.cols = defaults( {}, view.cols, true );
+            
+            // handle recursive aliasing in views
+            if ( selected_columns )
+            {
+                selected_columns = self.refs2( selected_columns, self.cols );
+                select_columns = selected_columns[0].tbl_col_alias_q;
+                for(i=1,l=selected_columns.length; i<l; i++)
+                    select_columns += ',' + selected_columns[i].tbl_col_alias_q;
+                self.clus['select_columns'] = select_columns;
+            }
         }
         else
         {
-            if ( false !== format )
-            {
-                tbls = self.refs( tbls, self.tbls );
-                tables = tbls[ 0 ].tbl_col_alias_q;
-                for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
-            }
-            else
-            {
-                tables = array( tbls ).join(',');
-            }
+            tbls = self.refs( tbls, self.tbls, false !== format );
+            tables = tbls[ 0 ].tbl_col_alias_q;
+            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].tbl_col_alias_q;
             if ( !!self.clus.from_tables )
                 tables = self.clus.from_tables + ',' + tables;
             self.clus.from_tables = tables;
@@ -1619,8 +1607,9 @@ Dialect[PROTO] = {
         return self.limit( perpage, page*perpage );
     }
     
-    ,refs: function( refs, lookup ) {
-        var self = this, i, l, j, m, r, rs, ref;
+    ,refs: function( refs, lookup, q ) {
+        var self = this, i, l, j, m, r, rs, ref, alias_q, tbl_col_q;
+        q = false !== q;
         rs = array( refs );
         refs = [ ];
         for (i=0,l=rs.length; i<l; i++)
@@ -1628,17 +1617,72 @@ Dialect[PROTO] = {
             r = rs[ i ].split(',');
             for (j=0,m=r.length; j<m; j++)
             {
-                ref = Ref.parse( r[ j ], self );
-                if ( !lookup[HAS](ref.alias) ) 
+                ref = Ref.parse( r[ j ], self, q );
+                if ( q )
                 {
-                    lookup[ ref.alias ] = ref;
-                    if ( ref.tbl_col !== ref.alias && !lookup[HAS](ref.tbl_col) ) lookup[ ref.tbl_col ] = ref;
+                    alias_q = ref.alias_q;
+                    tbl_col_q = ref.tbl_col_q;
+                }
+                else
+                {
+                    alias_q = self.quote_name( ref.alias_q );
+                    tbl_col_q = self.quote_name( ref.tbl_col_q );
+                }
+                if ( !lookup[HAS](alias_q) ) 
+                {
+                    lookup[ alias_q ] = ref;
+                    if ( (tbl_col_q !== alias_q) && !lookup[HAS](tbl_col_q) )
+                        lookup[ tbl_col_q ] = ref;
                 }
                 else
                 {                    
-                    ref = lookup[ ref.alias ];
+                    ref = lookup[ alias_q ];
                 }
                 refs.push( ref );
+            }
+        }
+        return refs;
+    }
+    
+    ,refs2: function( refs, lookup ) {
+        var self = this, i, l, ref, ref2, alias_q, tbl_col_q, alias2_q, tbl_col2_q;
+        for (i=0,l=refs.length; i<l; i++)
+        {
+            ref = refs[ i ];
+            alias_q = self.quote_name( ref.alias_q );
+            tbl_col_q = self.quote_name( ref.tbl_col_q );
+            
+            if ( !lookup[HAS]( alias_q ) )
+            {
+                if ( lookup[HAS]( tbl_col_q ) )
+                {
+                    ref2 = lookup[ tbl_col_q ];
+                    alias2_q = self.quote_name( ref2.alias_q );
+                    tbl_col2_q = self.quote_name( ref2.tbl_col_q );
+                    
+                    if ( (tbl_col2_q !== tbl_col_q) && (alias2_q !== alias_q) && (alias2_q === tbl_col_q) )
+                    {
+                        // handle recursive aliasing
+                        if ( (tbl_col2_q !== alias2_q) && lookup[HAS]( alias2_q ) )
+                            delete lookup[ alias2_q ];
+                        
+                        ref2 = ref2.cloned( ref.alias_q );
+                        refs[i] = lookup[ tbl_col2_q ] = ref2;
+                        
+                        if ( (alias_q !== tbl_col2_q) && !lookup[HAS]( alias_q ) )
+                            lookup[ alias_q ] = ref2;
+                    }
+                }
+                else
+                {
+                    lookup[ alias_q ] = ref;
+                    if ( (alias_q !== tbl_col_q) && !lookup[HAS]( tbl_col_q ) )
+                        lookup[ tbl_col_q ] = ref;
+                }
+            }
+            else
+            {
+                refs[i] = lookup[ alias_q ];
             }
         }
         return refs;
@@ -1918,8 +1962,8 @@ Dialect[PROTO] = {
     ,quote_name: function( f ) {
         var self = this, qn = self.qn;
         return is_array( f )
-        ? fmap(f, function( f ){ return '*' === f ? f : qn[0] + f + qn[1]; })
-        : ('*' === f ? f : qn[0] + f + qn[1])
+        ? fmap(f, function( f ){ return '*' === f ? f : ((qn[0]==f.slice(0,qn[0].length)?'':qn[0]) + f + (qn[1]==f.slice(-qn[1].length)?'':qn[1])); })
+        : ('*' === f ? f : ((qn[0]==f.slice(0,qn[0].length)?'':qn[0]) + f + (qn[1]==f.slice(-qn[1].length)?'':qn[1])))
         ;
     }
     

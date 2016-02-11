@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.5.3
+#   @version: 0.5.4
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -530,7 +530,8 @@ class GrammTpl:
 
 class Ref:
 
-    def parse( r, d ):
+    def parse( r, d, q=True ):
+        q = q is not False
         r = r.strip( ).split(' AS ')
         col = r[ 0 ].split( '.' )
         l = len(col)
@@ -547,15 +548,15 @@ class Ref:
             tbl = None
             col = col[ 0 ].strip( )
             
-        col_q = d.quote_name( col )
+        col_q = d.quote_name( col ) if q else col
         if dtb is not None:
-            dtb_q = d.quote_name( dtb )
-            tbl_q = d.quote_name( tbl )
+            dtb_q = d.quote_name( dtb ) if q else dtb
+            tbl_q = d.quote_name( tbl ) if q else tbl
             tbl_col = dtb + '.' + tbl + '.' + col
             tbl_col_q = dtb_q + '.' + tbl_q + '.' + col_q
         elif tbl is not None:
             dtb_q = None
-            tbl_q = d.quote_name( tbl )
+            tbl_q = d.quote_name( tbl ) if q else tbl
             tbl_col = tbl + '.' + col
             tbl_col_q = tbl_q + '.' + col_q
         else:
@@ -566,17 +567,12 @@ class Ref:
         if len(r) < 2:
             alias = tbl_col
             alias_q = tbl_col_q
-            tbl_col_alias = tbl_col
-            tbl_col_alias_q = tbl_col_q
         else:
             alias = r[1].strip( )
-            alias_q = d.quote_name( alias )
-            tbl_col_alias = tbl_col + ' AS ' + alias
-            tbl_col_alias_q = tbl_col_q + ' AS ' + alias_q
-        return Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, 
-                    tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q )
+            alias_q = d.quote_name( alias ) if q else alias
+        return Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q )
 
-    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, tbl_col_alias, tbl_col_alias_q ):
+    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q ):
         self.col = col
         self.col_q = col_q
         self.tbl = tbl
@@ -587,9 +583,22 @@ class Ref:
         self.alias_q = alias_q
         self.tbl_col = tbl_col
         self.tbl_col_q = tbl_col_q
-        self.tbl_col_alias = tbl_col_alias
-        self.tbl_col_alias_q = tbl_col_alias_q
+        if self.tbl_col_q != self.alias_q:
+            self.tbl_col_alias = self.tbl_col + ' AS ' + self.alias
+            self.tbl_col_alias_q = self.tbl_col_q + ' AS ' + self.alias_q
+        else:
+            self.tbl_col_alias = self.tbl_col
+            self.tbl_col_alias_q = self.tbl_col_q
 
+    def cloned( self, alias=None, alias_q=None ):
+        if alias is None and alais_q is None:
+            alias = self.alias
+            alias_q = self.alias_q
+        elif alias is not None:
+            alias_q = alias if alias_q is None else alias_q
+        return Ref( self.col, self.col_q, self.tbl, self.tbl_q, self.dtb, self.dtb_q, alias, alias_q, 
+                    self.tbl_col, self.tbl_col_q )
+    
     def __del__( self ):
         self.dispose( )
         
@@ -615,7 +624,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.5.3'
+    VERSION = '0.5.4'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -1005,8 +1014,7 @@ class Dialect:
     
     def create( self, table, defs, opts=None, format=True, create_clause='create' ):
         self.reset(create_clause)
-        if format is not False:
-            table = self.refs( table, self.tbls )[0].tbl_col_q
+        table = self.refs( table, self.tbls, format is not False )[0].tbl_col_q
         self.clus['create_table'] = table
         if 'create_defs' in self.clus and len(self.clus['create_defs']) > 0:
             defs = self.clus['create_defs'] + ',' + defs
@@ -1019,8 +1027,7 @@ class Dialect:
     
     def alter( self, table, defs, opts=None, format=True, alter_clause='alter' ):
         self.reset(alter_clause)
-        if format is not False:
-            table = self.refs( table, self.tbls )[0].tbl_col_q
+        table = self.refs( table, self.tbls, format is not False )[0].tbl_col_q
         self.clus['alter_table'] = table
         if 'alter_defs' in self.clus and len(self.clus['alter_defs']) > 0:
             defs = self.clus['alter_defs'] + ',' + defs
@@ -1036,12 +1043,9 @@ class Dialect:
         if not tables or not len(tables) or '*' == tables: 
             tables = '*'
         else:
-            if format is not False:
-                tbls = self.refs( tables, self.tbls )
-                tables = tbls[ 0 ].tbl_col_q
-                for i in range(1,len(cols)): tables += ',' + tbls[ i ].tbl_col_q
-            else:
-                tables = ','.join(array( tables ))
+            tbls = self.refs( tables, self.tbls, format is not False )
+            tables = tbls[ 0 ].tbl_col_q
+            for i in range(1,len(cols)): tables += ',' + tbls[ i ].tbl_col_q
         if 'drop_tables' in self.clus and len(self.clus['drop_tables']) > 0:
             tables = self.clus['drop_tables'] + ',' + tables
         self.clus['drop_tables'] = tables
@@ -1052,12 +1056,9 @@ class Dialect:
         if not cols or not len(cols) or '*' == cols: 
             columns = '*';
         else:
-            if format is not False:
-                cols = self.refs( cols, self.cols )
-                columns = cols[ 0 ].tbl_col_alias_q
-                for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_alias_q
-            else:
-                columns = ','.join(array( cols ))
+            cols = self.refs( cols, self.cols, format is not False )
+            columns = cols[ 0 ].tbl_col_alias_q
+            for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_alias_q
         if 'select_columns' in self.clus and len(self.clus['select_columns']) > 0:
             columns = self.clus['select_columns'] + ',' + columns
         self.clus['select_columns'] = columns
@@ -1073,16 +1074,12 @@ class Dialect:
             self.tbls = defaults( {}, view['tbls'], True )
             self.cols = defaults( {}, view['cols'], True )
         else:
-            if format is not False:
-                tbls = self.refs( tbls, self.tbls )
-                cols = self.refs( cols, self.cols )
-                tables = tbls[ 0 ].tbl_col_alias_q 
-                columns = cols[ 0 ].tbl_col_q
-                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
-                for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_q
-            else:
-                tables = ','.join(array( tbls ))
-                columns = ','.join(array( cols ))
+            tbls = self.refs( tbls, self.tbls, format is not False )
+            cols = self.refs( cols, self.cols, format is not False )
+            tables = tbls[ 0 ].tbl_col_alias_q 
+            columns = cols[ 0 ].tbl_col_q
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+            for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_q
             if 'insert_tables' in self.clus and len(self.clus['insert_tables']) > 0:
                 tables = self.clus['insert_tables'] + ',' + tables
             if 'insert_columns' in self.clus and len(self.clus['insert_columns']) > 0:
@@ -1127,12 +1124,9 @@ class Dialect:
             self.tbls = defaults( {}, view['tbls'], True )
             self.cols = defaults( {}, view['cols'], True )
         else:
-            if format is not False:
-                tbls = self.refs( tbls, self.tbls )
-                tables = tbls[ 0 ].tbl_col_alias_q 
-                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
-            else:
-                tables = ','.join(array( tbls ))
+            tbls = self.refs( tbls, self.tbls, format is not False )
+            tables = tbls[ 0 ].tbl_col_alias_q 
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
             if 'update_tables' in self.clus and len(self.clus['update_tables']) > 0:
                 tables = self.clus['update_tables'] + ',' + tables
             self.clus['update_tables'] = tables
@@ -1173,18 +1167,25 @@ class Dialect:
         if empty(tbls): return self
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
+            selected_columns = self.refs( self.clus['select_columns'], {}, False ) if (not empty(self.clus['select_columns'])) and ('*'!=self.clus['select_columns']) else None
+            
             # using custom 'soft' view
             view = self.vews[ view ]
             self.clus = defaults( self.clus, view['clus'], True )
             self.tbls = defaults( {}, view['tbls'], True )
             self.cols = defaults( {}, view['cols'], True )
+            
+            # handle recursive aliasing in views
+            if selected_columns:
+                selected_columns = self.refs2( selected_columns, self.cols )
+                select_columns = selected_columns[0].tbl_col_alias_q
+                for i in range(1,len(selected_columns)):
+                    select_columns += ',' + selected_columns[i].tbl_col_alias_q
+                self.clus['select_columns'] = select_columns
         else:
-            if format is not False:
-                tbls = self.refs( tbls, self.tbls )
-                tables = tbls[ 0 ].tbl_col_alias_q 
-                for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
-            else:
-                tables = ','.join(array( tbls ))
+            tbls = self.refs( tbls, self.tbls, format is not False )
+            tables = tbls[ 0 ].tbl_col_alias_q 
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
             if 'from_tables' in self.clus and len(self.clus['from_tables']) > 0:
                 tables = self.clus['from_tables'] + ',' + tables
             self.clus['from_tables'] = tables
@@ -1296,19 +1297,67 @@ class Dialect:
             del conditions[f]
         return self
     
-    def refs( self, refs, lookup ):
+    def refs( self, refs, lookup, q=True ):
         rs = array( refs )
         refs = [ ]
         for i in range(len(rs)):
             r = rs[ i ].split(',')
             for j in range(len(r)):
-                ref = Ref.parse( r[ j ], self )
-                if ref.alias not in lookup:
-                    lookup[ ref.alias ] = ref
-                    if ref.tbl_col != ref.alias and (ref.tbl_col not in lookup): lookup[ ref.tbl_col ] = ref
+                ref = Ref.parse( r[ j ], self, q )
+                if q:
+                    alias_q = ref.alias_q
+                    tbl_col_q = ref.tbl_col_q
                 else:
-                    ref = lookup[ ref.alias ]
+                    alias_q = self.quote_name( ref.alias_q )
+                    tbl_col_q = self.quote_name( ref.tbl_col_q )
+                if alias_q not in lookup:
+                    lookup[ alias_q ] = ref
+                    if (tbl_col_q != alias_q) and (tbl_col_q not in lookup):
+                        lookup[ tbl_col_q ] = ref
+                else:
+                    ref = lookup[ alias_q ]
                 refs.append( ref )
+        return refs
+    
+    def refs2( self, refs, lookup ):
+        i = 0
+        for ref in refs:
+            alias_q = self.quote_name( ref.alias_q )
+            tbl_col_q = self.quote_name( ref.tbl_col_q )
+            
+            if alias_q not in lookup:
+                
+                if tbl_col_q in lookup:
+                    
+                    ref2 = lookup[ tbl_col_q ]
+                    alias2_q = self.quote_name( ref2.alias_q )
+                    tbl_col2_q = self.quote_name( ref2.tbl_col_q )
+                    
+                    if (tbl_col2_q != tbl_col_q) and (alias2_q != alias_q) and (alias2_q == tbl_col_q):
+                        
+                        # handle recursive aliasing
+                        if (tbl_col2_q != alias2_q) and (alias2_q in lookup):
+                            del lookup[ alias2_q ]
+                        
+                        ref2 = ref2.cloned( ref.alias_q )
+                        refs[i] = lookup[ tbl_col2_q ] = ref2
+                        
+                        if (alias_q != tbl_col2_q) and (alias_q not in lookup):
+                            lookup[ alias_q ] = ref2
+                
+                else:
+                    
+                    lookup[ alias_q ] = ref
+                    
+                    if (alias_q != tbl_col_q) and (tbl_col_q not in lookup):
+                        lookup[ tbl_col_q ] = ref
+            
+            else:
+                
+                refs[i] = lookup[ alias_q ]
+            
+            i += 1
+        
         return refs
     
     def conditions( self, conditions, can_use_alias=False ):
@@ -1457,7 +1506,7 @@ class Dialect:
     
     def quote_name( self, f ):
         qn = self.qn
-        return list(map(lambda f: f if '*' == f else qn[0] + f + qn[1], f)) if is_array( f ) else (f if '*' == f else qn[0] + f + qn[1])
+        return list(map(lambda f: f if '*' == f else (('' if qn[0] == f[0:len(qn[0])] else qn[0]) + f + ('' if qn[1] == f[-len(qn[1]):] else qn[1])), f)) if is_array( f ) else (f if '*' == f else (('' if qn[0] == f[0:len(qn[0])] else qn[0]) + f + ('' if qn[1] == f[-len(qn[1]):] else qn[1])))
     
     def quote( self, v ):
         q = self.q

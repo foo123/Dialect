@@ -39,7 +39,7 @@ conditions = {
     'main.project': {'in':[1,2,3],'type':'integer'}
 }
 
-dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').join('t2',{'t.id':'t2.id'},'inner').where({'f1':'2'}).limit(100,100).make_view('my_view')
+dialect.select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3', False).from_('t').join('t2',{'t.id':'t2.id'},'inner').where({'f1':'2'}).limit(100,100).make_view('my_view')
 
 dialect.select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3').from_('t').where({
     'f1':{'eq':'%d:id%','type':'raw'}
@@ -49,7 +49,7 @@ dialect.prepare_tpl('prepared_query2', dialect.select('t.f1 AS f1,t.f2 AS f2,t2.
     'f1':{'eq':'%d:id%','type':'raw'}
 }).sql( ))
 
-query_soft_view = dialect.select().from_('my_view').where({'f2':'3'}, 'OR').where({'f2':'1'}, 'OR').sql()
+query_soft_view = dialect.select('f0,f1 AS f11').from_('my_view').where({'f2':'3'}, 'OR').where({'f2':'1'}, 'OR').sql()
     
 query_prepared = dialect.prepared('prepared_query',{'id':'12'})
 query_prepared2 = dialect.prepared('prepared_query2',{'id':'12'})

@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.3
+*   @version: 0.5.4
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -433,8 +433,9 @@ class DialectGrammTpl
 
 class DialectRef
 {
-    public static function parse( $r, $d ) 
+    public static function parse( $r, $d, $q=true ) 
     {
+        $q = false !== $q;
         $r = explode( ' AS ', trim( $r ) );
         $col = explode( '.', $r[ 0 ] );
         $l = count($col);
@@ -455,18 +456,18 @@ class DialectRef
             $dtb = null; $tbl = null;
             $col = trim($col[ 0 ]);
         }
-        $col_q = $d->quote_name( $col );
+        $col_q = $q ? $d->quote_name( $col ) : $col;
         if ( null !== $dtb )
         {
-            $dtb_q = $d->quote_name( $dtb );
-            $tbl_q = $d->quote_name( $tbl );
+            $dtb_q = $q ? $d->quote_name( $dtb ) : $dtb;
+            $tbl_q = $q ? $d->quote_name( $tbl ) : $tbl;
             $tbl_col = $dtb . '.' . $tbl . '.' . $col;
             $tbl_col_q = $dtb_q . '.' . $tbl_q . '.' . $col_q;
         }
         elseif ( null !== $tbl )
         {
             $dtb_q = null;
-            $tbl_q = $d->quote_name( $tbl );
+            $tbl_q = $q ? $d->quote_name( $tbl ) : $tbl;
             $tbl_col = $tbl . '.' . $col;
             $tbl_col_q = $tbl_q . '.' . $col_q;
         }
@@ -480,18 +481,13 @@ class DialectRef
         {
             $alias = $tbl_col;
             $alias_q = $tbl_col_q;
-            $tbl_col_alias = $tbl_col;
-            $tbl_col_alias_q = $tbl_col_q;
         }
         else
         {
             $alias = trim( $r[1] );
-            $alias_q = $d->quote_name( $alias );
-            $tbl_col_alias = $tbl_col . ' AS ' . $alias;
-            $tbl_col_alias_q = $tbl_col_q . ' AS ' . $alias_q;
+            $alias_q = $q ? $d->quote_name( $alias ) : $alias;
         }
-        return new self( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, 
-                    $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q );
+        return new self( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q );
     }
     
     public $col = null;
@@ -507,8 +503,7 @@ class DialectRef
     public $tbl_col_alias = null;
     public $tbl_col_alias_q = null;
     
-    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, 
-                                $tbl_col, $tbl_col_q, $tbl_col_alias, $tbl_col_alias_q ) 
+    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q ) 
     {
         $this->col = $col;
         $this->col_q = $col_q;
@@ -520,8 +515,31 @@ class DialectRef
         $this->alias_q = $alias_q;
         $this->tbl_col = $tbl_col;
         $this->tbl_col_q = $tbl_col_q;
-        $this->tbl_col_alias = $tbl_col_alias;
-        $this->tbl_col_alias_q = $tbl_col_alias_q;
+        if ( $this->tbl_col_q !== $this->alias_q )
+        {
+            $this->tbl_col_alias = $this->tbl_col . ' AS ' . $this->alias;
+            $this->tbl_col_alias_q = $this->tbl_col_q . ' AS ' . $this->alias_q;
+        }
+        else
+        {
+            $this->tbl_col_alias = $this->tbl_col;
+            $this->tbl_col_alias_q = $this->tbl_col_q;
+        }
+    }
+    
+    public function cloned( $alias=null, $alias_q=null)
+    {
+        if ( null === $alias && null === $alias_q )
+        {
+            $alias = $this->alias;
+            $alias_q = $this->alias_q;
+        }
+        elseif ( null !== $alias )
+        {
+            $alias_q = null === $alias_q ? $alias : $alias_q;
+        }
+        return new self( $this->col, $this->col_q, $this->tbl, $this->tbl_q, $this->dtb, $this->dtb_q, $alias, $alias_q, 
+                    $this->tbl_col, $this->tbl_col_q );
     }
     
     public function __destruct()
@@ -549,7 +567,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.5.3";
+    const VERSION = "0.5.4";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -1073,11 +1091,8 @@ class Dialect
     public function create( $table, $defs, $opts=null, $format=true, $create_clause='create' )
     {
         $this->reset($create_clause);
-        if ( false !== $format )
-        {
-            $table = $this->refs( $table, $this->tbls );
-            $table = $table[0]->tbl_col_q;
-        }
+        $table = $this->refs( $table, $this->tbls, false !== $format );
+        $table = $table[0]->tbl_col_q;
         $this->clus['create_table'] = $table;
         if ( !empty($this->clus['create_defs']) )
             $defs = $this->clus['create_defs'] . ',' . $defs;
@@ -1094,11 +1109,8 @@ class Dialect
     public function alter( $table, $defs, $opts=null, $format=true, $alter_clause='alter' )
     {
         $this->reset($alter_clause);
-        if ( false !== $format )
-        {
-            $table = $this->refs( $table, $this->tbls );
-            $table = $table[0]->tbl_col_q;
-        }
+        $table = $this->refs( $table, $this->tbls, false !== $format );
+        $table = $table[0]->tbl_col_q;
         $this->clus['alter_table'] = $table;
         if ( !empty($this->clus['alter_defs']) )
             $defs = $this->clus['alter_defs'] . ',' . $defs;
@@ -1121,16 +1133,9 @@ class Dialect
         }
         else
         {            
-            if ( false !== $format )
-            {
-                $tbls = $this->refs( $tables, $this->tbls );
-                $tables = $tbls[ 0 ]->tbl_col_q;
-                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_q;
-            }
-            else
-            {
-                $tables = implode(',', (array)$tables);
-            }
+            $tbls = $this->refs( $tables, $this->tbls, false !== $format );
+            $tables = $tbls[ 0 ]->tbl_col_q;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_q;
         }
         if ( !empty($this->clus['drop_tables']) )
             $tables = $this->clus['drop_tables'] . ',' . $tables;
@@ -1147,16 +1152,9 @@ class Dialect
         }
         else
         {
-            if ( false !== $format )
-            {
-                $cols = $this->refs( $cols, $this->cols );
-                $columns = $cols[ 0 ]->tbl_col_alias_q;
-                for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_alias_q;
-            }
-            else
-            {
-                $columns = implode( ',', (array)$cols );
-            }
+            $cols = $this->refs( $cols, $this->cols, false !== $format );
+            $columns = $cols[ 0 ]->tbl_col_alias_q;
+            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_alias_q;
         }
         if ( !empty($this->clus['select_columns']) )
             $columns = $this->clus['select_columns'] . ',' . $columns;
@@ -1178,20 +1176,12 @@ class Dialect
         }
         else
         {
-            if ( false !== $format )
-            {
-                $tbls = $this->refs( $tbls, $this->tbls );
-                $cols = $this->refs( $cols, $this->cols );
-                $tables = $tbls[ 0 ]->tbl_col_alias_q;
-                $columns = $cols[ 0 ]->tbl_col_q;
-                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
-                for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_q;
-            }
-            else
-            {
-                $tables = implode( ',', (array)$tbls );
-                $columns = implode( ',', (array)$cols );
-            }
+            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
+            $cols = $this->refs( $cols, $this->cols, false !== $format );
+            $tables = $tbls[ 0 ]->tbl_col_alias_q;
+            $columns = $cols[ 0 ]->tbl_col_q;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_q;
             if ( !empty($this->clus['insert_tables']) )
                 $tables = $this->clus['insert_tables'] . ',' . $tables;
             if ( !empty($this->clus['insert_columns']) )
@@ -1260,16 +1250,9 @@ class Dialect
         }
         else
         {
-            if ( false !== $format )
-            {
-                $tbls = $this->refs( $tbls, $this->tbls );
-                $tables = $tbls[ 0 ]->tbl_col_alias_q;
-                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
-            }
-            else
-            {
-                $tables = implode( ',', (array)$tbls );
-            }
+            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
+            $tables = $tbls[ 0 ]->tbl_col_alias_q;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
             if ( !empty($this->clus['update_tables']) )
                 $tables = $this->clus['update_tables'] . ',' . $tables;
             $this->clus['update_tables'] = $tables;
@@ -1332,24 +1315,29 @@ class Dialect
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
         if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
+            $selected_columns = !empty($this->clus['select_columns'])&&('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $r=array(), false ) : null;
+            
             // using custom 'soft' view
             $view = $this->vews[ $view ];
             $this->clus = self::defaults( $this->clus, $view->clus, true );
             $this->tbls = self::defaults( array(), $view->tbls, true );
             $this->cols = self::defaults( array(), $view->cols, true );
+            
+            // handle recursive aliasing in views
+            if ( $selected_columns )
+            {
+                $selected_columns = $this->refs2( $selected_columns, $this->cols );
+                $select_columns = $selected_columns[0]->tbl_col_alias_q;
+                for($i=1,$l=count($selected_columns); $i<$l; $i++)
+                    $select_columns .= ',' . $selected_columns[$i]->tbl_col_alias_q;
+                $this->clus['select_columns'] = $select_columns;
+            }
         }
         else
         {
-            if ( false !== $format )
-            {
-                $tbls = $this->refs( $tbls, $this->tbls );
-                $tables = $tbls[ 0 ]->tbl_col_alias_q;
-                for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
-            }
-            else
-            {
-                $tables = implode( ',', (array)$tbls );
-            }
+            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
+            $tables = $tbls[ 0 ]->tbl_col_alias_q;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
             if ( !empty($this->clus['from_tables']) )
                 $tables = $this->clus['from_tables'] . ',' . $tables;
             $this->clus['from_tables'] = $tables;
@@ -1497,7 +1485,7 @@ class Dialect
         return $this;
     }
     
-    public function refs( $refs, &$lookup ) 
+    public function refs( $refs, &$lookup, $q=true ) 
     {
         $rs = (array)$refs;
         $refs = array( );
@@ -1506,17 +1494,71 @@ class Dialect
             $r = explode( ',', $r );
             foreach ($r as $ref)
             {
-                $ref = DialectRef::parse( $ref, $this );
-                if ( !isset($lookup[$ref->alias]) ) 
+                $ref = DialectRef::parse( $ref, $this, $q );
+                if ( $q )
                 {
-                    $lookup[$ref->alias] = $ref;
-                    if ( $ref->tbl_col !== $ref->alias && !isset($lookup[ $ref->tbl_col ]) ) $lookup[ $ref->tbl_col ] = $ref;
+                    $alias_q = $ref->alias_q;
+                    $tbl_col_q = $ref->tbl_col_q;
+                }
+                else
+                {
+                    $alias_q = $this->quote_name( $ref->alias_q );
+                    $tbl_col_q = $this->quote_name( $ref->tbl_col_q );
+                }
+                if ( !isset($lookup[ $alias_q ]) ) 
+                {
+                    $lookup[ $alias_q ] = $ref;
+                    if ( ($tbl_col_q !== $alias_q) && !isset($lookup[ $tbl_col_q ]) )
+                        $lookup[ $tbl_col_q ] = $ref;
                 }
                 else
                 {                    
-                    $ref = $lookup[ $ref->alias ];
+                    $ref = $lookup[ $alias_q ];
                 }
                 $refs[] = $ref;
+            }
+        }
+        return $refs;
+    }
+    
+    public function refs2( $refs, &$lookup )
+    {
+        foreach ($refs as $i=>$ref)
+        {
+            $alias_q = $this->quote_name( $ref->alias_q );
+            $tbl_col_q = $this->quote_name( $ref->tbl_col_q );
+            
+            if ( !isset($lookup[ $alias_q ]) )
+            {
+                if ( isset($lookup[ $tbl_col_q ]) )
+                {
+                    $ref2 = $lookup[ $tbl_col_q ];
+                    $alias2_q = $this->quote_name( $ref2->alias_q );
+                    $tbl_col2_q = $this->quote_name( $ref2->tbl_col_q );
+                    
+                    if ( ($tbl_col2_q !== $tbl_col_q) && ($alias2_q !== $alias_q) && ($alias2_q === $tbl_col_q) )
+                    {
+                        // handle recursive aliasing
+                        if ( ($tbl_col2_q !== $alias2_q) && isset($lookup[ $alias2_q ]) )
+                            unset($lookup[ $alias2_q ]);
+                        
+                        $ref2 = $ref2->cloned( $ref->alias_q );
+                        $refs[$i] = $lookup[ $tbl_col2_q ] = $ref2;
+                        
+                        if ( ($alias_q !== $tbl_col2_q) && !isset($lookup[ $alias_q ]) )
+                            $lookup[ $alias_q ] = $ref2;
+                    }
+                }
+                else
+                {
+                    $lookup[ $alias_q ] = $ref;
+                    if ( ($alias_q !== $tbl_col_q) && !isset($lookup[ $tbl_col_q ]) )
+                        $lookup[ $tbl_col_q ] = $ref;
+                }
+            }
+            else
+            {
+                $refs[$i] = $lookup[ $alias_q ];
             }
         }
         return $refs;
@@ -1745,7 +1787,7 @@ class Dialect
     {
         return is_array( $f )
         ? array_map( array($this, 'quote_name'), $f )
-        : ('*' === $f ? $f : $this->qn[0] . $f . $this->qn[1]);
+        : ('*' === $f ? $f : ($this->qn[0] == substr($f,0,strlen($this->qn[0])) ? '' : $this->qn[0]) . $f . ($this->qn[1] == substr($f,-strlen($this->qn[1])) ? '' : $this->qn[1]));
     }
     
     public function quote( $v )
