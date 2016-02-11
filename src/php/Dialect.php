@@ -1315,7 +1315,8 @@ class Dialect
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
         if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
-            $selected_columns = !empty($this->clus['select_columns'])&&('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $r=array(), false ) : null;
+            $_ = array();
+            $selected_columns = !empty($this->clus['select_columns']) && ('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $_, false ) : null;
             
             // using custom 'soft' view
             $view = $this->vews[ $view ];
