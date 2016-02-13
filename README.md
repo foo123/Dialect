@@ -111,7 +111,7 @@ SELECT rowid FROM <from_tables> [, <*from_tables> ]
 ```
 
 where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables (i.e `non-terminals`).
-The optional block of code depends on whether the (first) optional parameter defined inside (with `<?..>` or `<*..>` for rest parameters) exists. Then, that block (and any nested blocks it might contain) is output, else bypassed.
+The optional block of code depends on whether <del>the (first)</del> **all** optional parameters defined inside (with `<?..>` or `<*..>` for rest parameters) exist. Then, that block (and any nested blocks it might contain) is output, else bypassed.
 
 
 *(for various methods to emulate `LIMIT/OFFSET` clauses see, for example, [here](http://search.cpan.org/~davebaird/SQL-Abstract-Limit-0.12/lib/SQL/Abstract/Limit.pm) and a reasonable critic, mixed with lame advertising self-righteousness, [here](http://blog.jooq.org/2014/06/09/stop-trying-to-emulate-sql-offset-pagination-with-your-in-house-db-framework/))*
