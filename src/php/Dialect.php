@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.5.4
+*   @version: 0.6.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -190,7 +190,7 @@ class DialectGrammTpl
         $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $REPL = '{'; $REPR = '}';
         $default_value = null; $negative = 0; $optional = 0; $start_i = 0; $end_i = 0;
         $l = strlen($tpl);
-        $i = 0; $a = array(array(), null, 0, 0, 0, 0); $stack = array(); $s = '';
+        $i = 0; $a = array(array(), null, 0, 0, 0, 0, null); $stack = array(); $s = '';
         while( $i < $l )
         {
             if ( $IDL === substr($tpl,$i,$lenIDL) )
@@ -273,7 +273,7 @@ class DialectGrammTpl
                     $start_i = 0;
                     $end_i = 0;
                 }
-                if ( $negative && null === $default_value ) $default_value = '';
+                if ( $negative && (null === $default_value) ) $default_value = '';
                 
                 if ( $optional && !$a[2] )
                 {
@@ -282,6 +282,13 @@ class DialectGrammTpl
                     $a[3] = $negative;
                     $a[4] = $start_i;
                     $a[5] = $end_i;
+                    // handle multiple optional arguments for same optional block
+                    $a[6] = array(array($argument,$negative,$start_i,$end_i));
+                }
+                elseif( $optional )
+                {
+                    // handle multiple optional arguments for same optional block
+                    $a[6][] = array($argument,$negative,$start_i,$end_i);
                 }
                 elseif ( !$optional && (null === $a[1]) )
                 {
@@ -290,6 +297,7 @@ class DialectGrammTpl
                     $a[3] = $negative;
                     $a[4] = $start_i;
                     $a[5] = $end_i;
+                    $a[6] = array(array($argument,$negative,$start_i,$end_i));
                 }
                 $a[0][] = array(1, $argument, $default_value, $optional, $negative, $start_i, $end_i);
             }
@@ -300,7 +308,7 @@ class DialectGrammTpl
                 if ( strlen($s) ) $a[0][] = array(0, $s);
                 $s = '';
                 $stack[] = $a;
-                $a = array(array(), null, 0, 0, 0, 0);
+                $a = array(array(), null, 0, 0, 0, 0, null);
             }
             elseif ( $OBR === substr($tpl,$i,$lenOBR) )
             {
@@ -308,7 +316,7 @@ class DialectGrammTpl
                 $b = $a; $a = array_pop($stack);
                 if ( strlen($s) ) $b[0][] = array(0, $s);
                 $s = '';
-                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[4], $b[5], $b[0]);
+                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[4], $b[5], $b[6], $b[0]);
             }
             else
             {
@@ -364,40 +372,53 @@ class DialectGrammTpl
             if ( -1 === $tt )
             {
                 // optional block
-                if ( (0 === $t[ 3 ] && isset($args[$s])) ||
-                    (1 === $t[ 3 ] && !isset($args[$s]))
-                )
+                $opts_vars = $t[ 6 ];
+                if ( !empty($opts_vars) )
                 {
-                    if ( 1 === $t[ 3 ] )
+                    $render = true;
+                    foreach($opts_vars as $opt_v)
                     {
-                        $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                        $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
-                        $rarg = null; $ri = 0;
-                        continue;
-                    }
-                    else
-                    {
-                        $arr = is_array( $args[$s] );
-                        if ( $arr && ($t[4] !== $t[5]) && count($args[$s]) > $t[ 4 ] )
+                        if ( (0 === $opt_v[1] && !isset($args[$opt_v[0]])) ||
+                            (1 === $opt_v[1] && isset($args[$opt_v[0]]))
+                        )
                         {
-                            $rs = $t[ 4 ];
-                            $re = -1 === $t[ 5 ] ? count($args[$s])-1 : min($t[ 5 ], count($args[$s])-1);
-                            if ( $re >= $rs )
-                            {
-                                $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                                $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
-                                $rarg = $s;
-                                for($ri=$re; $ri>$rs; $ri--) $stack[] = array($tpl, 0, $l, $rarg, $ri);
-                                $ri = $rs;
-                                continue;
-                            }
+                            $render = false;
+                            break;
                         }
-                        else if ( !$arr && ($t[4] === $t[5]) )
+                    }
+                    if ( $render )
+                    {
+                        if ( 1 === $t[ 3 ] )
                         {
                             $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                            $tpl = $t[ 6 ]; $i = 0; $l = count($tpl);
-                            $rarg = $s; $ri = 0;
+                            $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
+                            $rarg = null; $ri = 0;
                             continue;
+                        }
+                        else
+                        {
+                            $arr = is_array( $args[$s] ); $arr_len = $arr ? count($args[$s]) : 1;
+                            if ( $arr && ($t[4] !== $t[5]) && ($arr_len > $t[ 4 ]) )
+                            {
+                                $rs = $t[ 4 ];
+                                $re = -1 === $t[ 5 ] ? $arr_len-1 : min($t[ 5 ], $arr_len-1);
+                                if ( $re >= $rs )
+                                {
+                                    $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                                    $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
+                                    $rarg = $s;
+                                    for($ri=$re; $ri>$rs; $ri--) $stack[] = array($tpl, 0, $l, $rarg, $ri);
+                                    $ri = $rs;
+                                    continue;
+                                }
+                            }
+                            else if ( !$arr && ($t[4] === $t[5]) )
+                            {
+                                $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                                $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
+                                $rarg = $s; $ri = 0;
+                                continue;
+                            }
                         }
                     }
                 }
@@ -433,61 +454,243 @@ class DialectGrammTpl
 
 class DialectRef
 {
-    public static function parse( $r, $d, $q=true ) 
+    public static function parse( $r, $d ) 
     {
-        $q = false !== $q;
-        $r = explode( ' AS ', trim( $r ) );
-        $col = explode( '.', $r[ 0 ] );
-        $l = count($col);
-        if ( 3 <= $l )
+        // should handle field formats like:
+        // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+        // and extract alias, dtb, tbl, col identifiers (if present)
+        // and also extract F1,..,Fn function identifiers (if present)
+        $r = trim( $r ); $l = strlen( $r ); $i = 0;
+        $stacks = array(array()); $stack =& $stacks[0];
+        $ids = array(); $funcs = array(); $keywords2 = array('AS');
+        // 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
+        $s = ''; $err = null; $paren = 0; $quote = null;
+        while ( $i < $l )
         {
-            $dtb = trim($col[ 0 ]);
-            $tbl = trim($col[ 1 ]);
-            $col = trim($col[ 2 ]);
+            $ch = $r[$i++];
+            
+            if ( '"' === $ch || '`' === $ch || '\'' === $ch || '[' === $ch || ']' === $ch )
+            {
+                // sql quote
+                if ( !$quote )
+                {
+                    if ( strlen($s) || (']' === $ch) )
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    $quote = '[' === $ch ? ']' : $ch;
+                    continue;
+                }
+                elseif ( $quote === $ch )
+                {
+                    if ( strlen($s) )
+                    {
+                        array_unshift($stack, array(1, $s));
+                        array_unshift($ids, $s);
+                        $s = '';
+                    }
+                    else
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    $quote = null;
+                    continue;
+                }
+                elseif ( $quote )
+                {
+                    $s .= $ch;
+                    continue;
+                }
+            }
+            
+            if ( $quote )
+            {
+                // part of sql-quoted value
+                $s .= $ch;
+                continue;
+            }
+            
+            if ( '*' === $ch )
+            {
+                // placeholder
+                if ( strlen($s) )
+                {
+                    $err = array('invalid',$i);
+                    break;
+                }
+                array_unshift($stack, array(10, '*'));
+                array_unshift($ids, 10);
+            }
+            
+            elseif ( '.' === $ch )
+            {
+                // separator
+                if ( strlen($s) )
+                {
+                    array_unshift($stack, array(1, $s));
+                    array_unshift($ids, $s);
+                    $s = '';
+                }
+                if ( empty($stack) || 1 !== $stack[0][0] )
+                {
+                    // error, mismatched separator
+                    $err = array('invalid',$i);
+                    break;
+                }
+                array_unshift($stack, array(0, '.'));
+                array_unshift($ids, 0);
+            }
+            
+            elseif ( '(' === $ch )
+            {
+                // left paren
+                $paren++;
+                if ( strlen($s) )
+                {
+                    // identifier is function
+                    array_unshift($stack, array(2, $s));
+                    array_unshift($funcs, $s);
+                    $s = '';
+                }
+                if ( empty($stack) || (2 !== $stack[0][0] && 1 !== $stack[0][0]) )
+                {
+                    $err = array('invalid',$i);
+                    break;
+                }
+                if ( 1 === $stack[0][0] )
+                {
+                    $stack[0][0] = 2;
+                    array_unshift($funcs, array_shift($ids));
+                }
+                array_unshift($stacks, array());
+                $stack =& $stacks[0];
+            }
+            
+            elseif ( ')' === $ch )
+            {
+                // right paren
+                $paren--;
+                if ( strlen($s) )
+                {
+                    $keyword = in_array(strtoupper($s), $keywords2);
+                    array_unshift($stack, array($keyword ? 5 : 1, $s));
+                    array_unshift($ids, $keyword ? 5 : $s);
+                    $s = '';
+                }
+                if ( count($stacks) < 2 )
+                {
+                    $err = array('invalid',$i);
+                    break;
+                }
+                // reduce
+                array_unshift($stacks[1], array(100, array_shift($stacks)));
+                $stack =& $stacks[0];
+            }
+            
+            elseif ( preg_match('/\\s/u',$ch) )
+            {
+                // space separator
+                if ( strlen($s) )
+                {
+                    $keyword = in_array(strtoupper($s), $keywords2);
+                    array_unshift($stack, array($keyword ? 5 : 1, $s));
+                    array_unshift($ids, $keyword ? 5 : $s);
+                    $s = '';
+                }
+                continue;
+            }
+            
+            elseif ( preg_match('/[0-9]/ui',$ch) )
+            {
+                if ( !strlen($s) )
+                {
+                    $err = array('invalid',$i);
+                    break;
+                }
+                // identifier
+                $s .= $ch;
+            }
+            
+            elseif ( preg_match('/[a-z_]/ui',$ch) )
+            {
+                // identifier
+                $s .= $ch;
+            }
+            
+            else
+            {
+                $err = array('invalid',$i);
+                break;
+            }
         }
-        elseif ( 2 === $l )
+        if ( strlen($s) )
         {
-            $dtb = null;
-            $tbl = trim($col[ 0 ]);
-            $col = trim($col[ 1 ]);
+            array_unshift($stack, array(1, $s));
+            array_unshift($ids, $s);
+            $s = '';
         }
-        else
+        if ( !$err && $paren ) $err = array('paren', $l);
+        if ( !$err && $quote ) $err = array('quote', $l);
+        if ( !$err && 1 !== count($stacks) ) $err = array('invalid', $l);
+        if ( $err )
         {
-            $dtb = null; $tbl = null;
-            $col = trim($col[ 0 ]);
+            $err_pos = $err[1]-1; $err_type = $err[0];
+            if ( 'paren' == $err_type )
+            {
+                // error, mismatched parentheses
+                throw new InvalidArgumentException('Dialect: Mismatched parentheses "'.$r.'" at position '.$err_pos.'.');
+            }
+            elseif ( 'quote' == $err_type )
+            {
+                // error, mismatched quotes
+                throw new InvalidArgumentException('Dialect: Mismatched quotes "'.$r.'" at position '.$err_pos.'.');
+            }
+            else//if ( 'invalid' == $err_type )
+            {
+                // error, invalid character
+                throw new InvalidArgumentException('Dialect: Invalid character "'.$r.'" at position '.$err_pos.'.');
+            }
         }
-        $col_q = $q ? $d->quote_name( $col ) : $col;
-        if ( null !== $dtb )
+        $alias = null; $alias_q = '';
+        if ( (count($ids) >= 3) && (5 === $ids[1]) && (is_string($ids[0])) )
         {
-            $dtb_q = $q ? $d->quote_name( $dtb ) : $dtb;
-            $tbl_q = $q ? $d->quote_name( $tbl ) : $tbl;
-            $tbl_col = $dtb . '.' . $tbl . '.' . $col;
-            $tbl_col_q = $dtb_q . '.' . $tbl_q . '.' . $col_q;
+            $alias = array_shift($ids);
+            $alias_q = $d->quote_name( $alias );
+            array_shift($ids);
         }
-        elseif ( null !== $tbl )
+        $col = null; $col_q = '';
+        if ( !empty($ids) && (is_string($ids[0]) || 10 === $ids[0]) )
         {
-            $dtb_q = null;
-            $tbl_q = $q ? $d->quote_name( $tbl ) : $tbl;
-            $tbl_col = $tbl . '.' . $col;
-            $tbl_col_q = $tbl_q . '.' . $col_q;
+            if ( 10 === $ids[0] )
+            {
+                array_shift($ids);
+                $col = $col_q = '*';
+            }
+            else
+            {
+                $col = array_shift($ids);
+                $col_q = $d->quote_name( $col );
+            }
         }
-        else
+        $tbl = null; $tbl_q = '';
+        if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
         {
-            $dtb_q = null; $tbl_q = null;
-            $tbl_col = $col;
-            $tbl_col_q = $col_q;
+            array_shift($ids);
+            $tbl = array_shift($ids);
+            $tbl_q = $d->quote_name( $tbl );
         }
-        if ( count($r) < 2 )
+        $dtb = null; $dtb_q = '';
+        if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
         {
-            $alias = $tbl_col;
-            $alias_q = $tbl_col_q;
+            array_shift($ids);
+            $dtb = array_shift($ids);
+            $dtb_q = $d->quote_name( $dtb );
         }
-        else
-        {
-            $alias = trim( $r[1] );
-            $alias_q = $q ? $d->quote_name( $alias ) : $alias;
-        }
-        return new self( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q );
+        $tbl_col = ($dtb ? $dtb.'.' : '') . ($tbl ? $tbl.'.' : '') . ($col ? $col : '');
+        $tbl_col_q = ($dtb ? $dtb_q.'.' : '') . ($tbl ? $tbl_q.'.' : '') . ($col ? $col_q : '');
+        return new self($col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q, $funcs);
     }
     
     public $col = null;
@@ -500,10 +703,11 @@ class DialectRef
     public $alias_q = null;
     public $tbl_col = null;
     public $tbl_col_q = null;
-    public $tbl_col_alias = null;
-    public $tbl_col_alias_q = null;
+    public $func = null;
+    public $full = null;
+    public $aliased = null;
     
-    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q ) 
+    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q, $func=array() ) 
     {
         $this->col = $col;
         $this->col_q = $col_q;
@@ -512,18 +716,23 @@ class DialectRef
         $this->dtb = $dtb;
         $this->dtb_q = $dtb_q;
         $this->alias = $alias;
-        $this->alias_q = $alias_q;
         $this->tbl_col = $tbl_col;
         $this->tbl_col_q = $tbl_col_q;
-        if ( $this->tbl_col_q !== $this->alias_q )
+        $this->full = $this->tbl_col_q;
+        $this->func = (array)$func;
+        if ( !empty($this->func) )
         {
-            $this->tbl_col_alias = $this->tbl_col . ' AS ' . $this->alias;
-            $this->tbl_col_alias_q = $this->tbl_col_q . ' AS ' . $this->alias_q;
+            foreach($this->func as $f) $this->full = $f.'('.$this->full.')';
+        }
+        if ( !empty($this->alias) )
+        {
+            $this->alias_q = $alias_q;
+            $this->aliased = $this->full . ' AS ' . $this->alias_q;
         }
         else
         {
-            $this->tbl_col_alias = $this->tbl_col;
-            $this->tbl_col_alias_q = $this->tbl_col_q;
+            $this->alias_q = $this->full;
+            $this->aliased = $this->full;
         }
     }
     
@@ -539,7 +748,7 @@ class DialectRef
             $alias_q = null === $alias_q ? $alias : $alias_q;
         }
         return new self( $this->col, $this->col_q, $this->tbl, $this->tbl_q, $this->dtb, $this->dtb_q, $alias, $alias_q, 
-                    $this->tbl_col, $this->tbl_col_q );
+                    $this->tbl_col, $this->tbl_col_q, $this->func );
     }
     
     public function __destruct()
@@ -559,15 +768,16 @@ class DialectRef
         $this->alias_q = null;
         $this->tbl_col = null;
         $this->tbl_col_q = null;
-        $this->tbl_col_alias = null;
-        $this->tbl_col_alias_q = null;
+        $this->func = null;
+        $this->full = null;
+        $this->aliased = null;
         return $this;
     }
 }
  
 class Dialect
 {
-    const VERSION = "0.5.4";
+    const VERSION = "0.6.0";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -834,13 +1044,13 @@ class Dialect
                             {
                                 // array of references, e.g fields
                                 $tmp = (array)$args[$param];
-                                $param = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
-                                for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                                $param = DialectRef::parse( $tmp[0], $this )->aliased;
+                                for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->aliased;
                             }
                             else
                             {
                                 // reference, e.g field
-                                $param = DialectRef::parse( $args[$param], $this )->tbl_col_alias_q;
+                                $param = DialectRef::parse( $args[$param], $this )->aliased;
                             }
                             break;
                         
@@ -1035,13 +1245,13 @@ class Dialect
                         {
                             // array of references, e.g fields
                             $tmp = (array)$v;
-                            $params[$k] = DialectRef::parse( $tmp[0], $this )->tbl_col_alias_q;
-                            for ($i=1,$l=count($tmp); $i<$l; $i++) $params[$k] .= ','.DialectRef::parse( $tmp[$i], $this )->tbl_col_alias_q;
+                            $params[$k] = DialectRef::parse( $tmp[0], $this )->aliased;
+                            for ($i=1,$l=count($tmp); $i<$l; $i++) $params[$k] .= ','.DialectRef::parse( $tmp[$i], $this )->aliased;
                         }
                         else
                         {
                             // reference, e.g field
-                            $params[$k] = DialectRef::parse( $v, $this )->tbl_col_alias_q;
+                            $params[$k] = DialectRef::parse( $v, $this )->aliased;
                         }
                         break;
                     
@@ -1088,11 +1298,11 @@ class Dialect
         return $this;
     }
     
-    public function create( $table, $defs, $opts=null, $format=true, $create_clause='create' )
+    public function create( $table, $defs, $opts=null, $create_clause='create' )
     {
         $this->reset($create_clause);
-        $table = $this->refs( $table, $this->tbls, false !== $format );
-        $table = $table[0]->tbl_col_q;
+        $table = $this->refs( $table, $this->tbls );
+        $table = $table[0]->full;
         $this->clus['create_table'] = $table;
         if ( !empty($this->clus['create_defs']) )
             $defs = $this->clus['create_defs'] . ',' . $defs;
@@ -1106,11 +1316,11 @@ class Dialect
         return $this;
     }
     
-    public function alter( $table, $defs, $opts=null, $format=true, $alter_clause='alter' )
+    public function alter( $table, $defs, $opts=null, $alter_clause='alter' )
     {
         $this->reset($alter_clause);
-        $table = $this->refs( $table, $this->tbls, false !== $format );
-        $table = $table[0]->tbl_col_q;
+        $table = $this->refs( $table, $this->tbls );
+        $table = $table[0]->full;
         $this->clus['alter_table'] = $table;
         if ( !empty($this->clus['alter_defs']) )
             $defs = $this->clus['alter_defs'] . ',' . $defs;
@@ -1124,7 +1334,7 @@ class Dialect
         return $this;
     }
     
-    public function drop( $tables, $format=true, $drop_clause='drop' )
+    public function drop( $tables, $drop_clause='drop' )
     {
         $this->reset($drop_clause);
         if ( empty($tables) || '*' === $tables ) 
@@ -1133,9 +1343,9 @@ class Dialect
         }
         else
         {            
-            $tbls = $this->refs( $tables, $this->tbls, false !== $format );
-            $tables = $tbls[ 0 ]->tbl_col_q;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_q;
+            $tbls = $this->refs( $tables, $this->tbls );
+            $tables = $tbls[ 0 ]->full;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->full;
         }
         if ( !empty($this->clus['drop_tables']) )
             $tables = $this->clus['drop_tables'] . ',' . $tables;
@@ -1143,7 +1353,7 @@ class Dialect
         return $this;
     }
     
-    public function select( $cols='*', $format=true, $select_clause='select' )
+    public function select( $cols='*', $select_clause='select' )
     {
         $this->reset($select_clause);
         if ( !$cols || empty($cols) || '*' === $cols ) 
@@ -1152,9 +1362,9 @@ class Dialect
         }
         else
         {
-            $cols = $this->refs( $cols, $this->cols, false !== $format );
-            $columns = $cols[ 0 ]->tbl_col_alias_q;
-            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_alias_q;
+            $cols = $this->refs( $cols, $this->cols );
+            $columns = $cols[ 0 ]->aliased;
+            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->aliased;
         }
         if ( !empty($this->clus['select_columns']) )
             $columns = $this->clus['select_columns'] . ',' . $columns;
@@ -1162,7 +1372,7 @@ class Dialect
         return $this;
     }
     
-    public function insert( $tbls, $cols, $format=true, $insert_clause='insert' )
+    public function insert( $tbls, $cols, $insert_clause='insert' )
     {
         $this->reset($insert_clause);
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
@@ -1176,12 +1386,12 @@ class Dialect
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
-            $cols = $this->refs( $cols, $this->cols, false !== $format );
-            $tables = $tbls[ 0 ]->tbl_col_alias_q;
-            $columns = $cols[ 0 ]->tbl_col_q;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
-            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->tbl_col_q;
+            $tbls = $this->refs( $tbls, $this->tbls );
+            $cols = $this->refs( $cols, $this->cols );
+            $tables = $tbls[ 0 ]->aliased;
+            $columns = $cols[ 0 ]->full;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
+            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->full;
             if ( !empty($this->clus['insert_tables']) )
                 $tables = $this->clus['insert_tables'] . ',' . $tables;
             if ( !empty($this->clus['insert_columns']) )
@@ -1236,7 +1446,7 @@ class Dialect
         return $this;
     }
     
-    public function update( $tbls, $format=true, $update_clause='update' )
+    public function update( $tbls, $update_clause='update' )
     {
         $this->reset($update_clause);
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
@@ -1250,9 +1460,9 @@ class Dialect
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
-            $tables = $tbls[ 0 ]->tbl_col_alias_q;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+            $tbls = $this->refs( $tbls, $this->tbls );
+            $tables = $tbls[ 0 ]->aliased;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
             if ( !empty($this->clus['update_tables']) )
                 $tables = $this->clus['update_tables'] . ',' . $tables;
             $this->clus['update_tables'] = $tables;
@@ -1267,7 +1477,7 @@ class Dialect
         foreach ($fields_values as $f=>$value)
         {
             $field = $this->refs( $f, $this->cols );
-            $field = $field[0]->tbl_col_q;
+            $field = $field[0]->full;
             if ( is_array($value) )
             {
                 if ( isset($value['integer']) )
@@ -1309,14 +1519,14 @@ class Dialect
         return $this;
     }
     
-    public function from( $tbls, $format=true )
+    public function from( $tbls )
     {
         if ( empty($tbls) ) return $this;
         $view = is_array( $tbls ) ? $tbls[0] : $tbls;
         if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
         {
             $_ = array();
-            $selected_columns = !empty($this->clus['select_columns']) && ('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $_, false ) : null;
+            $selected_columns = !empty($this->clus['select_columns']) && ('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $_ ) : null;
             
             // using custom 'soft' view
             $view = $this->vews[ $view ];
@@ -1328,17 +1538,17 @@ class Dialect
             if ( $selected_columns )
             {
                 $selected_columns = $this->refs2( $selected_columns, $this->cols );
-                $select_columns = $selected_columns[0]->tbl_col_alias_q;
+                $select_columns = $selected_columns[0]->aliased;
                 for($i=1,$l=count($selected_columns); $i<$l; $i++)
-                    $select_columns .= ',' . $selected_columns[$i]->tbl_col_alias_q;
+                    $select_columns .= ',' . $selected_columns[$i]->aliased;
                 $this->clus['select_columns'] = $select_columns;
             }
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls, false !== $format );
-            $tables = $tbls[ 0 ]->tbl_col_alias_q;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->tbl_col_alias_q;
+            $tbls = $this->refs( $tbls, $this->tbls );
+            $tables = $tbls[ 0 ]->aliased;
+            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
             if ( !empty($this->clus['from_tables']) )
                 $tables = $this->clus['from_tables'] . ',' . $tables;
             $this->clus['from_tables'] = $tables;
@@ -1349,7 +1559,7 @@ class Dialect
     public function join( $table, $on_cond=null, $join_type=null )
     {
         $table = $this->refs( $table, $this->tbls );
-        $table = $table[0]->tbl_col_alias_q;
+        $table = $table[0]->aliased;
         if ( empty($on_cond) )
         {
             $join_clause = $table;
@@ -1359,7 +1569,7 @@ class Dialect
             if ( is_string( $on_cond ) )
             {
                 $on_cond = $this->refs( explode('=',$on_cond), $this->cols );
-                $on_cond = '(' . $on_cond[0]->tbl_col_q . '=' . $on_cond[1]->tbl_col_q . ')';
+                $on_cond = '(' . $on_cond[0]->full . '=' . $on_cond[1]->full . ')';
             }
             else
             {
@@ -1368,7 +1578,7 @@ class Dialect
                     if ( !is_array($cond) ) 
                         $on_cond[$field] = array('eq'=>$cond,'type'=>'identifier');
                 }
-                $on_cond = $this->conditions( $on_cond );
+                $on_cond = '(' . $this->conditions( $on_cond, false ) . ')';
             }
             $join_clause = "$table ON $on_cond";
         }
@@ -1408,7 +1618,7 @@ class Dialect
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
         if ( "OR" !== $boolean_connective ) $boolean_connective = "AND";
-        $conditions = $this->conditions( $conditions, false );
+        $conditions = $this->conditions( $conditions, true );
         if ( !empty($this->clus['having_conditions']) )
             $conditions = $this->clus['having_conditions'] . " ".$boolean_connective." " . $conditions;
         $this->clus['having_conditions'] = $conditions;
@@ -1486,7 +1696,7 @@ class Dialect
         return $this;
     }
     
-    public function refs( $refs, &$lookup, $q=true ) 
+    public function refs( $refs, &$lookup ) 
     {
         $rs = (array)$refs;
         $refs = array( );
@@ -1495,17 +1705,8 @@ class Dialect
             $r = explode( ',', $r );
             foreach ($r as $ref)
             {
-                $ref = DialectRef::parse( $ref, $this, $q );
-                if ( $q )
-                {
-                    $alias_q = $ref->alias_q;
-                    $tbl_col_q = $ref->tbl_col_q;
-                }
-                else
-                {
-                    $alias_q = $this->quote_name( $ref->alias_q );
-                    $tbl_col_q = $this->quote_name( $ref->tbl_col_q );
-                }
+                $ref = DialectRef::parse( $ref, $this );
+                $alias_q = $ref->alias_q; $tbl_col_q = $ref->full;
                 if ( !isset($lookup[ $alias_q ]) ) 
                 {
                     $lookup[ $alias_q ] = $ref;
@@ -1526,16 +1727,16 @@ class Dialect
     {
         foreach ($refs as $i=>$ref)
         {
-            $alias_q = $this->quote_name( $ref->alias_q );
-            $tbl_col_q = $this->quote_name( $ref->tbl_col_q );
+            $alias_q = $ref->alias_q;
+            $tbl_col_q = $ref->full;
             
             if ( !isset($lookup[ $alias_q ]) )
             {
                 if ( isset($lookup[ $tbl_col_q ]) )
                 {
                     $ref2 = $lookup[ $tbl_col_q ];
-                    $alias2_q = $this->quote_name( $ref2->alias_q );
-                    $tbl_col2_q = $this->quote_name( $ref2->tbl_col_q );
+                    $alias2_q = $ref2->alias_q;
+                    $tbl_col2_q = $ref2->full;
                     
                     if ( ($tbl_col2_q !== $tbl_col_q) && ($alias2_q !== $alias_q) && ($alias2_q === $tbl_col_q) )
                     {
@@ -1572,7 +1773,7 @@ class Dialect
         
         $condquery = '';
         $conds = array();
-        $fmt = true === $can_use_alias ? 'alias_q' : 'tbl_col_q';
+        $fmt = true === $can_use_alias ? 'alias_q' : 'full';
         
         foreach ($conditions as $f=>$value)
         {
@@ -1776,31 +1977,53 @@ class Dialect
     
     public function tbl( $table )
     {
-        return is_array( $table ) ? array_map(array($this, 'tbl'), (array)$table): $this->p.$table;
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->tbl( $vi );
+            return $v;
+        }
+        return $this->p.$table;
     }
     
     public function intval( $v )
     {
-        return is_array( $v ) ? array_map( array($this, 'intval'), $v ) : intval( $v, 10 );
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->intval( $vi );
+            return $v;
+        }
+        return intval( $v, 10 );
     }
     
-    public function quote_name( $f )
+    public function quote_name( $v, $force=false )
     {
-        return is_array( $f )
-        ? array_map( array($this, 'quote_name'), $f )
-        : ('*' === $f ? $f : ($this->qn[0] == substr($f,0,strlen($this->qn[0])) ? '' : $this->qn[0]) . $f . ($this->qn[1] == substr($f,-strlen($this->qn[1])) ? '' : $this->qn[1]));
+        $force = true === $force;
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->quote_name($vi, $force);
+            return $v;
+        }
+        elseif ( '*' === $v ) return $v;
+        else return ($force || $this->qn[0] != substr($v,0,strlen($this->qn[0])) ? $this->qn[0] : '') . $v . ($force || $this->qn[1] != substr($v,-strlen($this->qn[1])) ? $this->qn[1] : '');
     }
     
     public function quote( $v )
     {
-        return is_array( $v )
-        ? array_map( array($this, 'quote'), $v )
-        : ($this->q[0] . $this->esc( $v ) . $this->q[1]);
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->quote( $vi );
+            return $v;
+        }
+        return ($this->q[0] . $this->esc( $v ) . $this->q[1]);
     }
     
     public function like( $v )
     {
-        if ( is_array( $v ) ) return array_map( array($this, 'like'), $v );
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->like( $vi );
+            return $v;
+        }
         $q = $this->q;
         $e = $this->escdb ? array('','') : $this->e;
         return $e[0] . $q[0] . '%' . $this->esc_like( $this->esc( $v ) ) . '%' . $q[1] . $e[1];
@@ -1824,15 +2047,14 @@ class Dialect
     
     public function esc( $v )
     {
-        if ( $this->escdb )
+        if ( is_array( $v ) )
         {
-            return is_array( $v )
-            ? array_map( $this->escdb, $v )
-            : call_user_func( $this->escdb, $v );
+            foreach($v as $i=>$vi) $v[$i] = $this->esc( $vi );
+            return $v;
         }
-        elseif ( is_array( $v ) )
+        elseif ( $this->escdb )
         {
-            return array_map( array($this, 'esc'), $v );
+            return call_user_func( $this->escdb, $v );
         }
         else
         {
@@ -1853,7 +2075,11 @@ class Dialect
     
     public function esc_like( $v )
     {
-        if ( is_array( $v ) ) return array_map( array($this, 'esc_like'), $v );
+        if ( is_array( $v ) )
+        {
+            foreach($v as $i=>$vi) $v[$i] = $this->esc_like( $vi );
+            return $v;
+        }
         $chars = '_%'; $esc = '\\';
         return self::addslashes( $v, $chars, $esc );
     }

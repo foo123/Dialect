@@ -13,7 +13,7 @@ var conditions = {
 };
 
 dialect
-    .select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3', false)
+    .select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     .from('t')
     .join('t2',{'t.id':'t2.id'},'inner')
     .where({f1:'2'})

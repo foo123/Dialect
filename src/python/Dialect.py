@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.5.4
+#   @version: 0.6.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -331,7 +331,7 @@ class GrammTpl:
         rest = 0
         l = len(tpl)
         i = 0
-        a = [[], None, 0, 0, 0, 0]
+        a = [[], None, 0, 0, 0, 0, None]
         stack = []
         s = ''
         while i < l:
@@ -402,12 +402,18 @@ class GrammTpl:
                     a[3] = negative
                     a[4] = start_i
                     a[5] = end_i
+                    # handle multiple optional arguments for same optional block
+                    a[6] = [[argument,negative,start_i,end_i]]
+                elif optional:
+                    # handle multiple optional arguments for same optional block
+                    a[6].append([argument,negative,start_i,end_i])
                 elif (not optional) and (a[1] is None):
                     a[1] = argument
                     a[2] = 0
                     a[3] = negative
                     a[4] = start_i
                     a[5] = end_i
+                    a[6] = [[argument,negative,start_i,end_i]]
                 a[0].append([1, argument, default_value, optional, negative, start_i, end_i])
             
             elif OBL == tpl[i:i+lenOBL]:
@@ -416,7 +422,7 @@ class GrammTpl:
                 if len(s): a[0].append([0, s])
                 s = ''
                 stack.append(a)
-                a = [[], None, 0, 0, 0, 0]
+                a = [[], None, 0, 0, 0, 0, None]
             
             elif OBR == tpl[i:i+lenOBR]:
                 i += lenOBR
@@ -424,7 +430,7 @@ class GrammTpl:
                 a = stack.pop(-1)
                 if len(s): b[0].append([0, s])
                 s = ''
-                a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[0]])
+                a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[6], b[0]])
             else:
                 s += tpl[i]
                 i += 1
@@ -472,41 +478,51 @@ class GrammTpl:
             s = t[ 1 ]
             
             if -1 == tt:
+                
                 # optional block
-                if (0 == t[ 3 ] and (s in args)) or (1 == t[ 3 ] and (s not in args)):
+                opts_vars = t[ 6 ]
+                if opts_vars and len(opts_vars):
                     
-                    if 1 == t[ 3 ]:
-                        stack.append([tpl, i+1, l, rarg, ri])
-                        tpl = t[ 6 ]
-                        i = 0
-                        l = len(tpl)
-                        rarg = None
-                        ri = 0
-                        continue
+                    render = True
+                    for opt_v in opts_vars:
+                        if (0 == opt_v[1] and (opt_v[0] not in args)) or (1 == opt_v[1] and (opt_v[0] in args)):
+                            render = False
+                            break
                     
-                    else:
-                        arr = is_array( args[s] )
-                        if arr and (t[4] != t[5]) and len(args[s]) > t[ 4 ]:
-                            rs = t[ 4 ]
-                            re = len(args[s])-1 if -1 == t[ 5 ] else min(t[ 5 ], len(args[s])-1)
-                            if re >= rs:
+                    if render:
+                        
+                        if 1 == t[ 3 ]:
+                            stack.append([tpl, i+1, l, rarg, ri])
+                            tpl = t[ 7 ]
+                            i = 0
+                            l = len(tpl)
+                            rarg = None
+                            ri = 0
+                            continue
+                        
+                        else:
+                            arr = is_array( args[s] )
+                            if arr and (t[4] != t[5]) and len(args[s]) > t[ 4 ]:
+                                rs = t[ 4 ]
+                                re = len(args[s])-1 if -1 == t[ 5 ] else min(t[ 5 ], len(args[s])-1)
+                                if re >= rs:
+                                    stack.append([tpl, i+1, l, rarg, ri])
+                                    tpl = t[ 7 ]
+                                    i = 0
+                                    l = len(tpl)
+                                    rarg = s
+                                    for ri in range(re,rs,-1): stack.append([tpl, 0, l, rarg, ri])
+                                    ri = rs
+                                    continue
+                                    
+                            elif (not arr) and (t[4] == t[5]):
                                 stack.append([tpl, i+1, l, rarg, ri])
-                                tpl = t[ 6 ]
+                                tpl = t[ 7 ]
                                 i = 0
                                 l = len(tpl)
                                 rarg = s
-                                for ri in range(re,rs,-1): stack.append([tpl, 0, l, rarg, ri])
-                                ri = rs
+                                ri = 0
                                 continue
-                                
-                        elif (not arr) and (t[4] == t[5]):
-                            stack.append([tpl, i+1, l, rarg, ri])
-                            tpl = t[ 6 ]
-                            i = 0
-                            l = len(tpl)
-                            rarg = s
-                            ri = 0
-                            continue
             
             elif 1 == tt:
                 #TODO: handle nested/structured/deep arguments
@@ -528,51 +544,201 @@ class GrammTpl:
         return out
 
 
+Ref_spc_re = re.compile(r'\s')
+Ref_num_re = re.compile(r'[0-9]')
+Ref_alf_re = re.compile(r'[a-z_]', re.I)
+
 class Ref:
 
-    def parse( r, d, q=True ):
-        q = q is not False
-        r = r.strip( ).split(' AS ')
-        col = r[ 0 ].split( '.' )
-        l = len(col)
-        if 3 <= l:
-            dtb = col[ 0 ].strip( )
-            tbl = col[ 1 ].strip( )
-            col = col[ 2 ].strip( )
-        elif 2 == l:
-            dtb = None
-            tbl = col[ 0 ].strip( )
-            col = col[ 1 ].strip( )
-        else:
-            dtb = None
-            tbl = None
-            col = col[ 0 ].strip( )
+    def parse( r, d ):
+        global Ref_spc_re
+        global Ref_num_re
+        global Ref_alf_re
+        # should handle field formats like:
+        # [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+        # and extract alias, dtb, tbl, col identifiers (if present)
+        # and also extract F1,..,Fn function identifiers (if present)
+        r = r.strip( )
+        l = len(r)
+        i = 0
+        stacks = [[]]
+        stack = stacks[0]
+        ids = []
+        funcs = []
+        keywords2 = ['AS']
+        # 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
+        s = ''
+        err = None
+        paren = 0
+        quote = None
+        while i < l:
+            ch = r[i]
+            i += 1
             
-        col_q = d.quote_name( col ) if q else col
-        if dtb is not None:
-            dtb_q = d.quote_name( dtb ) if q else dtb
-            tbl_q = d.quote_name( tbl ) if q else tbl
-            tbl_col = dtb + '.' + tbl + '.' + col
-            tbl_col_q = dtb_q + '.' + tbl_q + '.' + col_q
-        elif tbl is not None:
-            dtb_q = None
-            tbl_q = d.quote_name( tbl ) if q else tbl
-            tbl_col = tbl + '.' + col
-            tbl_col_q = tbl_q + '.' + col_q
-        else:
-            dtb_q = None
-            tbl_q = None
-            tbl_col = col
-            tbl_col_q = col_q
-        if len(r) < 2:
-            alias = tbl_col
-            alias_q = tbl_col_q
-        else:
-            alias = r[1].strip( )
-            alias_q = d.quote_name( alias ) if q else alias
-        return Ref( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q )
+            if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
+                # sql quote
+                if not quote:
+                    if len(s) or (']' == ch):
+                        err = ['invalid',i]
+                        break
+                    quote = ']' if '[' == ch else ch
+                    continue
+                
+                elif quote == ch:
+                    if len(s):
+                        stack.insert(0,[1, s])
+                        ids.insert(0,s)
+                        s = ''
+                    else:
+                        err = ['invalid',i]
+                        break
+                    quote = None
+                    continue
+                
+                elif quote:
+                    s += ch
+                    continue
+            
+            if quote:
+                # part of sql-quoted value
+                s += ch
+                continue
+            
+            if '*' == ch:
+                # placeholder
+                if len(s):
+                    err = ['invalid',i]
+                    break
+                stack.insert(0,[10, '*'])
+                ids.insert(0,10)
+            
+            elif '.' == ch:
+                # separator
+                if len(s):
+                    stack.insert(0,[1, s])
+                    ids.insert(0,s)
+                    s = ''
+                if not len(stack) or 1 != stack[0][0]:
+                    # error, mismatched separator
+                    err = ['invalid',i]
+                    break
+                
+                stack.insert(0,[0, '.'])
+                ids.insert(0,0)
+            
+            elif '(' == ch:
+                # left paren
+                paren += 1
+                if len(s):
+                    # identifier is function
+                    stack.insert(0,[2, s])
+                    funcs.insert(0,s)
+                    s = ''
+                if not len(stack) or (2 != stack[0][0] and 1 != stack[0][0]):
+                    err = ['invalid',i]
+                    break
+                if 1 == stack[0][0]:
+                    stack[0][0] = 2
+                    funcs.insert(0,ids.pop(0))
+                stacks.insert(0,[])
+                stack = stacks[0]
+            
+            elif ')' == ch:
+                # right paren
+                paren -= 1
+                if len(s):
+                    keyword = s.upper() in keywords2
+                    stack.insert(0,[5 if keyword else 1, s])
+                    ids.insert(0, 5 if keyword else s)
+                    s = ''
+                if len(stacks) < 2:
+                    err = ['invalid',i]
+                    break
+                # reduce
+                stacks[1].insert(0,[100, stacks.pop(0)])
+                stack = stacks[0]
+            
+            elif Ref_spc_re.match(ch):
+                # space separator
+                if len(s):
+                    keyword = s.upper() in keywords2
+                    stack.insert(0,[5 if keyword else 1, s])
+                    ids.insert(0, 5 if keyword else s)
+                    s = ''
+                continue
+            
+            elif Ref_num_re.match(ch):
+                if not len(s):
+                    err = ['invalid',i]
+                    break
+                # identifier
+                s += ch
+            
+            elif Ref_alf_re.match(ch):
+                # identifier
+                s += ch
+            
+            else:
+                err = ['invalid',i]
+                break
+        
+        if len(s):
+            stack.insert(0,[1, s])
+            ids.insert(0,s)
+            s = ''
+        
+        if not err and paren: err = ['paren', l]
+        if not err and quote: err = ['quote', l]
+        if not err and 1 != len(stacks): err = ['invalid', l]
+        if err:
+            err_pos = err[1]-1
+            err_type = err[0]
+            if 'paren' == err_type:
+                # error, mismatched parentheses
+                raise ValueError('Dialect: Mismatched parentheses "'+r+'" at position '+err_pos+'.')
+            elif 'quote' == err_type:
+                # error, mismatched quotes
+                raise ValueError('Dialect: Mismatched quotes "'+r+'" at position '+err_pos+'.')
+            else:# if 'invalid' == err_type:
+                # error, invalid character
+                raise ValueError('Dialect: Invalid character "'+r+'" at position '+err_pos+'.')
+        
+        alias = None
+        alias_q = ''
+        if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
+            alias = ids.pop(0)
+            alias_q = d.quote_name( alias )
+            ids.pop(0)
+        
+        col = None
+        col_q = ''
+        if len(ids) and (isinstance(ids[0],str) or 10 == ids[0]):
+            if isinstance(ids[0],str):
+                col = ids.pop(0)
+                col_q = d.quote_name( col )
+            else:
+                ids.pop(0)
+                col = col_q = '*'
+        
+        tbl = None
+        tbl_q = ''
+        if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
+            ids.pop(0)
+            tbl = ids.pop(0)
+            tbl_q = d.quote_name( tbl )
+        
+        dtb = None
+        dtb_q = ''
+        if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
+            ids.pop(0)
+            dtb = ids.pop(0)
+            dtb_q = d.quote_name( dtb )
+        
+        tbl_col = (dtb+'.' if dtb else '') + (tbl+'.' if tbl else '') + (col if col else '')
+        tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
+        return Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs)
 
-    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q ):
+    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, func=[] ):
         self.col = col
         self.col_q = col_q
         self.tbl = tbl
@@ -583,12 +749,17 @@ class Ref:
         self.alias_q = alias_q
         self.tbl_col = tbl_col
         self.tbl_col_q = tbl_col_q
-        if self.tbl_col_q != self.alias_q:
-            self.tbl_col_alias = self.tbl_col + ' AS ' + self.alias
-            self.tbl_col_alias_q = self.tbl_col_q + ' AS ' + self.alias_q
+        self.full = self.tbl_col_q
+        self.func = [] if not func else func
+        if len(self.func):
+            for f in self.func: self.full = f+'('+self.full+')'
+        
+        if self.alias is not None:
+            self.alias_q = alias_q
+            self.aliased = self.full + ' AS ' + self.alias_q
         else:
-            self.tbl_col_alias = self.tbl_col
-            self.tbl_col_alias_q = self.tbl_col_q
+            self.alias_q = self.full
+            self.aliased = self.full
 
     def cloned( self, alias=None, alias_q=None ):
         if alias is None and alais_q is None:
@@ -597,7 +768,7 @@ class Ref:
         elif alias is not None:
             alias_q = alias if alias_q is None else alias_q
         return Ref( self.col, self.col_q, self.tbl, self.tbl_q, self.dtb, self.dtb_q, alias, alias_q, 
-                    self.tbl_col, self.tbl_col_q )
+                    self.tbl_col, self.tbl_col_q, self.func )
     
     def __del__( self ):
         self.dispose( )
@@ -613,8 +784,9 @@ class Ref:
         self.alias_q = None
         self.tbl_col = None
         self.tbl_col_q = None
-        self.tbl_col_alias = None
-        self.tbl_col_alias_q = None
+        self.full = None
+        self.aliased = None
+        self.func = None
         return self
 
 
@@ -624,7 +796,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.5.4'
+    VERSION = '0.6.0'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -839,11 +1011,11 @@ class Dialect:
                         if is_array(args[param]):
                             # array of references, e.g fields
                             tmp = array( args[param] )
-                            param = Ref.parse( tmp[0], self ).tbl_col_alias_q
-                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
+                            param = Ref.parse( tmp[0], self ).aliased
+                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).aliased
                         else:
                             # reference, e.g field
-                            param = Ref.parse( args[param], self ).tbl_col_alias_q
+                            param = Ref.parse( args[param], self ).aliased
                     
                     elif 'd'==type: 
                         if is_array(args[param]):
@@ -980,11 +1152,11 @@ class Dialect:
                     if is_array(v):
                         # array of references, e.g fields
                         tmp = array( v )
-                        params[k] = Ref.parse( tmp[0], self ).tbl_col_alias_q
-                        for i in range(1,len(tmp)): params[k] += ','+Ref.parse( tmp[i], self ).tbl_col_alias_q
+                        params[k] = Ref.parse( tmp[0], self ).aliased
+                        for i in range(1,len(tmp)): params[k] += ','+Ref.parse( tmp[i], self ).aliased
                     else:
                         # reference, e.g field
-                        params[k] = Ref.parse( v, self ).tbl_col_alias_q
+                        params[k] = Ref.parse( v, self ).aliased
                 
                 elif 'd'==type: 
                     if is_array(v):
@@ -1012,9 +1184,9 @@ class Dialect:
            del self.tpls[ tpl ]
         return self
     
-    def create( self, table, defs, opts=None, format=True, create_clause='create' ):
+    def create( self, table, defs, opts=None, create_clause='create' ):
         self.reset(create_clause)
-        table = self.refs( table, self.tbls, format is not False )[0].tbl_col_q
+        table = self.refs( table, self.tbls )[0].full
         self.clus['create_table'] = table
         if 'create_defs' in self.clus and len(self.clus['create_defs']) > 0:
             defs = self.clus['create_defs'] + ',' + defs
@@ -1025,9 +1197,9 @@ class Dialect:
             self.clus['create_opts'] = opts
         return self
     
-    def alter( self, table, defs, opts=None, format=True, alter_clause='alter' ):
+    def alter( self, table, defs, opts=None, alter_clause='alter' ):
         self.reset(alter_clause)
-        table = self.refs( table, self.tbls, format is not False )[0].tbl_col_q
+        table = self.refs( table, self.tbls )[0].full
         self.clus['alter_table'] = table
         if 'alter_defs' in self.clus and len(self.clus['alter_defs']) > 0:
             defs = self.clus['alter_defs'] + ',' + defs
@@ -1038,33 +1210,33 @@ class Dialect:
             self.clus['alter_opts'] = opts
         return self
     
-    def drop( self, tables, format=True, drop_clause='drop' ):
+    def drop( self, tables, drop_clause='drop' ):
         self.reset(drop_clause)
         if not tables or not len(tables) or '*' == tables: 
             tables = '*'
         else:
-            tbls = self.refs( tables, self.tbls, format is not False )
-            tables = tbls[ 0 ].tbl_col_q
-            for i in range(1,len(cols)): tables += ',' + tbls[ i ].tbl_col_q
+            tbls = self.refs( tables, self.tbls )
+            tables = tbls[ 0 ].full
+            for i in range(1,len(cols)): tables += ',' + tbls[ i ].full
         if 'drop_tables' in self.clus and len(self.clus['drop_tables']) > 0:
             tables = self.clus['drop_tables'] + ',' + tables
         self.clus['drop_tables'] = tables
         return self
     
-    def select( self, cols='*', format=True, select_clause='select' ):
+    def select( self, cols='*', select_clause='select' ):
         self.reset(select_clause)
         if not cols or not len(cols) or '*' == cols: 
             columns = '*';
         else:
-            cols = self.refs( cols, self.cols, format is not False )
-            columns = cols[ 0 ].tbl_col_alias_q
-            for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_alias_q
+            cols = self.refs( cols, self.cols )
+            columns = cols[ 0 ].aliased
+            for i in range(1,len(cols)): columns += ',' + cols[ i ].aliased
         if 'select_columns' in self.clus and len(self.clus['select_columns']) > 0:
             columns = self.clus['select_columns'] + ',' + columns
         self.clus['select_columns'] = columns
         return self
     
-    def insert( self, tbls, cols, format=True, insert_clause='insert' ):
+    def insert( self, tbls, cols, insert_clause='insert' ):
         self.reset(insert_clause);
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
@@ -1074,12 +1246,12 @@ class Dialect:
             self.tbls = defaults( {}, view['tbls'], True )
             self.cols = defaults( {}, view['cols'], True )
         else:
-            tbls = self.refs( tbls, self.tbls, format is not False )
-            cols = self.refs( cols, self.cols, format is not False )
-            tables = tbls[ 0 ].tbl_col_alias_q 
-            columns = cols[ 0 ].tbl_col_q
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
-            for i in range(1,len(cols)): columns += ',' + cols[ i ].tbl_col_q
+            tbls = self.refs( tbls, self.tbls )
+            cols = self.refs( cols, self.cols )
+            tables = tbls[ 0 ].aliased 
+            columns = cols[ 0 ].full
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
+            for i in range(1,len(cols)): columns += ',' + cols[ i ].full
             if 'insert_tables' in self.clus and len(self.clus['insert_tables']) > 0:
                 tables = self.clus['insert_tables'] + ',' + tables
             if 'insert_columns' in self.clus and len(self.clus['insert_columns']) > 0:
@@ -1114,7 +1286,7 @@ class Dialect:
         self.clus['values_values'] = insert_values
         return self
     
-    def update( self, tbls, format=True, update_clause='update' ):
+    def update( self, tbls, update_clause='update' ):
         self.reset(update_clause)
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
@@ -1124,9 +1296,9 @@ class Dialect:
             self.tbls = defaults( {}, view['tbls'], True )
             self.cols = defaults( {}, view['cols'], True )
         else:
-            tbls = self.refs( tbls, self.tbls, format is not False )
-            tables = tbls[ 0 ].tbl_col_alias_q 
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+            tbls = self.refs( tbls, self.tbls )
+            tables = tbls[ 0 ].aliased 
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
             if 'update_tables' in self.clus and len(self.clus['update_tables']) > 0:
                 tables = self.clus['update_tables'] + ',' + tables
             self.clus['update_tables'] = tables
@@ -1137,7 +1309,7 @@ class Dialect:
         set_values = []
         COLS = self.cols
         for f in fields_values:
-            field = self.refs( f, COLS )[0].tbl_col_q
+            field = self.refs( f, COLS )[0].full
             value = fields_values[f]
             
             if is_obj(value):
@@ -1163,11 +1335,11 @@ class Dialect:
         self.reset(delete_clause)
         return self
     
-    def from_( self, tbls, format=True ):
+    def from_( self, tbls ):
         if empty(tbls): return self
         view = tbls[0] if is_array( tbls ) else tbls
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
-            selected_columns = self.refs( self.clus['select_columns'], {}, False ) if (not empty(self.clus['select_columns'])) and ('*'!=self.clus['select_columns']) else None
+            selected_columns = self.refs( self.clus['select_columns'], {} ) if (not empty(self.clus['select_columns'])) and ('*'!=self.clus['select_columns']) else None
             
             # using custom 'soft' view
             view = self.vews[ view ]
@@ -1178,32 +1350,32 @@ class Dialect:
             # handle recursive aliasing in views
             if selected_columns:
                 selected_columns = self.refs2( selected_columns, self.cols )
-                select_columns = selected_columns[0].tbl_col_alias_q
+                select_columns = selected_columns[0].aliased
                 for i in range(1,len(selected_columns)):
-                    select_columns += ',' + selected_columns[i].tbl_col_alias_q
+                    select_columns += ',' + selected_columns[i].aliased
                 self.clus['select_columns'] = select_columns
         else:
-            tbls = self.refs( tbls, self.tbls, format is not False )
-            tables = tbls[ 0 ].tbl_col_alias_q 
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].tbl_col_alias_q
+            tbls = self.refs( tbls, self.tbls )
+            tables = tbls[ 0 ].aliased
+            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
             if 'from_tables' in self.clus and len(self.clus['from_tables']) > 0:
                 tables = self.clus['from_tables'] + ',' + tables
             self.clus['from_tables'] = tables
         return self
     
     def join( self, table, on_cond=None, join_type='' ):
-        table = self.refs( table, self.tbls )[0].tbl_col_alias_q
+        table = self.refs( table, self.tbls )[0].aliased
         if empty(on_cond):
             join_clause = table
         else:
             if is_string(on_cond):
                 on_cond = self.refs( on_cond.split('='), self.cols )
-                on_cond = '(' + on_cond[0].tbl_col_q + '=' + on_cond[1].tbl_col_q + ')'
+                on_cond = '(' + on_cond[0].full + '=' + on_cond[1].full + ')'
             else:
                 for field in on_cond:
                     cond = on_cond[ field ]
                     if not is_obj(cond): on_cond[field] = {'eq':cond,'type':'identifier'}
-                on_cond = self.conditions( on_cond, False )
+                on_cond = '(' + self.conditions( on_cond, False ) + ')'
             join_clause = table + " ON " + on_cond
         join_clause = ("JOIN " if empty(join_type) else (join_type.upper() + " JOIN ")) + join_clause
         if 'join_clauses' in self.clus and len(self.clus['join_clauses']) > 0:
@@ -1234,7 +1406,7 @@ class Dialect:
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
-        conditions = self.conditions( conditions, False )
+        conditions = self.conditions( conditions, True )
         if 'having_conditions' in self.clus and len(self.clus['having_conditions']) > 0:
             conditions = self.clus['having_conditions'] + " "+boolean_connective+" " + conditions
         self.clus['having_conditions'] = conditions
@@ -1297,19 +1469,15 @@ class Dialect:
             del conditions[f]
         return self
     
-    def refs( self, refs, lookup, q=True ):
+    def refs( self, refs, lookup ):
         rs = array( refs )
         refs = [ ]
         for i in range(len(rs)):
             r = rs[ i ].split(',')
             for j in range(len(r)):
-                ref = Ref.parse( r[ j ], self, q )
-                if q:
-                    alias_q = ref.alias_q
-                    tbl_col_q = ref.tbl_col_q
-                else:
-                    alias_q = self.quote_name( ref.alias_q )
-                    tbl_col_q = self.quote_name( ref.tbl_col_q )
+                ref = Ref.parse( r[ j ], self )
+                alias_q = ref.alias_q
+                tbl_col_q = ref.full
                 if alias_q not in lookup:
                     lookup[ alias_q ] = ref
                     if (tbl_col_q != alias_q) and (tbl_col_q not in lookup):
@@ -1322,16 +1490,16 @@ class Dialect:
     def refs2( self, refs, lookup ):
         i = 0
         for ref in refs:
-            alias_q = self.quote_name( ref.alias_q )
-            tbl_col_q = self.quote_name( ref.tbl_col_q )
+            alias_q = ref.alias_q
+            tbl_col_q = ref.full
             
             if alias_q not in lookup:
                 
                 if tbl_col_q in lookup:
                     
                     ref2 = lookup[ tbl_col_q ]
-                    alias2_q = self.quote_name( ref2.alias_q )
-                    tbl_col2_q = self.quote_name( ref2.tbl_col_q )
+                    alias2_q = ref2.alias_q
+                    tbl_col2_q = ref2.full
                     
                     if (tbl_col2_q != tbl_col_q) and (alias2_q != alias_q) and (alias2_q == tbl_col_q):
                         
@@ -1367,7 +1535,7 @@ class Dialect:
         condquery = ''
         conds = []
         COLS = self.cols
-        fmt = 'alias_q' if can_use_alias is True else 'tbl_col_q'
+        fmt = 'alias_q' if can_use_alias is True else 'full'
         
         for f in conditions:
             
@@ -1490,32 +1658,36 @@ class Dialect:
         return condquery
     
     def tbl( self, table ):
-        prefix = self.p
-        return list(map(lambda table: prefix+table, table)) if is_array( table ) else (prefix+table)
+        if is_array( table ): return [self.tbl( x ) for x in table]
+        return self.p + table
     
     def intval( self, v ):
         if is_int( v ): return v
-        elif is_array( v ): return list(map(lambda v: self.intval( v ), v))
-        return int( v, 10 )
+        elif is_array( v ): return [self.intval( x ) for x in v]
+        else: return int( v, 10 )
     
     def intval2str( self, v ):
-        v = self.intval( v )
         if is_int( v ): return str(v)
-        elif is_array( v ): return list(map(lambda v: str( v ), v))
-        return v
+        elif is_array( v ): return [self.intval2str( x ) for x in v]
+        else: return str(self.intval( v ))
     
-    def quote_name( self, f ):
+    def quote_name( self, v, force=False ):
+        force = force is True
+        if is_array( v ): return [self.quote_name( x, force ) for x in v]
+        elif '*' == v: return v
         qn = self.qn
-        return list(map(lambda f: f if '*' == f else (('' if qn[0] == f[0:len(qn[0])] else qn[0]) + f + ('' if qn[1] == f[-len(qn[1]):] else qn[1])), f)) if is_array( f ) else (f if '*' == f else (('' if qn[0] == f[0:len(qn[0])] else qn[0]) + f + ('' if qn[1] == f[-len(qn[1]):] else qn[1])))
+        return (qn[0] if force or qn[0] != v[0:len(qn[0])] else '') + v + (qn[1] if force or qn[1] != v[-len(qn[1]):] else '')
     
     def quote( self, v ):
+        if is_array( v ): return [self.quote( x ) for x in v]
         q = self.q
-        return list(map(lambda v: q[0] + self.esc( v ) + q[1], v)) if is_array( v ) else (q[0] + self.esc( v ) + q[1])
+        return q[0] + self.esc( v ) + q[1]
     
     def like( self, v ):
+        if is_array( v ): return [self.like( x ) for x in v]
         q = self.q
         e = ['',''] if self.escdb else self.e
-        return list(map(lambda v: e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1], v)) if is_array( v ) else (e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1])
+        return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]
     
     def multi_like( self, f, v, trimmed=True ):
         trimmed = trimmed is not False
@@ -1531,9 +1703,11 @@ class Dialect:
     
     def esc( self, v ):
         global NULL_CHAR
+        
+        if is_array( v ): return [self.esc( x ) for x in v]
+        
         escdb = self.escdb
-        if escdb: return list(map(escdb, v)) if is_array( v ) else escdb( v )
-        elif is_array( v ): return list(map(lambda v: self.esc( v ), v))
+        if escdb: return escdb( v )
         else:
             # simple ecsaping using addslashes
             # '"\ and NUL (the NULL byte).
@@ -1548,11 +1722,8 @@ class Dialect:
             return ve
     
     def esc_like( self, v ):
-        chars = '_%'
-        esc = '\\'
-        if is_array( v ):
-            return list(map(lambda v: addslashes( str(v), chars, esc ), v))
-        return addslashes( str(v), chars, esc )
+        if is_array( v ): return [self.esc_like( x ) for x in v]
+        return addslashes( str(v), '_%', '\\' )
         
 
 __all__ = ['Dialect']

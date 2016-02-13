@@ -270,7 +270,7 @@ dialect
 
 // use it in a SELECT statement
 var query_soft_view = dialect
-                        .select()
+                        .select('f1 AS f11,f2,f3')
                         .from('my_view')
                         .where({f1:'2'})
                         .sql()

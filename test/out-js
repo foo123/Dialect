@@ -1,11 +1,11 @@
-Dialect.VERSION = 0.5.4
+Dialect.VERSION = 0.6.0
 
 SQL dialect = sqlserver
 
-SELECT COUNT(t.f0) AS f0,t.f1 AS [f11]
+SELECT COUNT([t].[f0]) AS [f0],[t].[f1] AS [f11]
 FROM [t]
-INNER JOIN [t2] ON ([t].[id] = [t2].[id])
-WHERE ((t.f1 = '2')) AND ((t.f2 = '3') OR (t.f2 = '1'))
+INNER JOIN [t2] ON (([t].[id] = [t2].[id]))
+WHERE (([t].[f1] = '2')) AND (([t].[f2] = '3') OR ([t].[f2] = '1'))
 ORDER BY 1
 OFFSET 100 ROWS FETCH NEXT 100 ROWS ONLY
 
