@@ -18,39 +18,39 @@ $conditions = array(
 );
 
 $dialect
-    ->select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    ->from('t')
-    ->join('t2',array('t.id'=>'t2.id'),'inner')
-    ->where(array('f1'=>'2'))
-    ->limit(100,100)
-    ->make_view('my_view')
+    ->Select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    ->From('t')
+    ->Join('t2',array('t.id'=>'t2.id'),'inner')
+    ->Where(array('f1'=>'2'))
+    ->Limit(100,100)
+    ->CreateView('my_view')
 ;
 
 $dialect
-    ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    ->from('t')
-    ->where(array(
+    ->Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    ->From('t')
+    ->Where(array(
         'f1'=>array('eq'=>'%d:id%','type'=>'raw')
     ))
-    ->limit(100,100)
-    ->prepare_tpl('prepared_query')
+    ->Limit(100,100)
+    ->PrepareTpl('prepared_query')
 ;
 
-$dialect->prepare_tpl(
+$dialect->PrepareTpl(
     'prepared_query2',
     $dialect
-        ->select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-        ->from('t')
-        ->where(array(
+        ->Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+        ->From('t')
+        ->Where(array(
             'f1'=>array('eq'=>'%d:id%','type'=>'raw')
         ))->sql( )
 );
 
 $query_soft_view = $dialect
-        ->select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
-        ->from('my_view')
-        ->where(array('f2'=>'3'), 'OR')
-        ->where(array('f2'=>'1'), 'OR')
+        ->Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
+        ->From('my_view')
+        ->Where(array('f2'=>'3'), 'OR')
+        ->Where(array('f2'=>'1'), 'OR')
         ->sql()
     ;
     
@@ -59,10 +59,10 @@ $query_prepared = $dialect->prepared('prepared_query',array('id'=>'12'));
 $query_prepared2 = $dialect->prepared('prepared_query2',array('id'=>'12'));
 
 $query = $dialect
-        ->select()
-        ->order('main.field1')
-        ->from('table AS main')
-        ->join_conditions(array(
+        ->Select()
+        ->Order('main.field1')
+        ->From('table AS main')
+        ->joinConditions(array(
             'project' => array(
                 'table' => 'main',
                 'id' => 'ID',
@@ -72,9 +72,9 @@ $query = $dialect
                 'value' => 'meta_value'
             )
         ), $conditions)
-        ->where($conditions)
-        ->order('main.field2')
-        ->page(2, 1000)
+        ->Where($conditions)
+        ->Order('main.field2')
+        ->Page(2, 1000)
         ->sql( )
     ;
     

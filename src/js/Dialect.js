@@ -1207,101 +1207,7 @@ Dialect[PROTO] = {
         return query;
     }
     
-    ,prepare: function( query, args, left, right ) {
-        var self = this, pattern, offset, m, pos, len, i, l, tmp, param, type, prepared;
-        if ( query && args )
-        {
-            // custom delimiters
-            left = left ? esc_re( left ) : '%';
-            right = right ? esc_re( right ) : '%';
-            
-            // custom prepared parameter format
-            pattern = RE(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right);
-            prepared = '';
-            while ( query.length && (m = query.match( pattern )) )
-            {
-                pos = m.index;
-                len = m[0].length;
-                param = m[2];
-                if ( args[HAS](param) )
-                {
-                    type = m[1] ? m[1].slice(0,-1) : "s";
-                    switch( type )
-                    {
-                        case 'r': 
-                            // raw param
-                            if ( is_array(args[param]) )
-                            {
-                                param = args[param].join(',');
-                            }
-                            else
-                            {
-                                param = args[param];
-                            }
-                            break;
-                        
-                        case 'l': 
-                            // like param
-                            param = self.like( args[param] ); 
-                            break;
-                            
-                        case 'f': 
-                            if ( is_array(args[param]) )
-                            {
-                                // array of references, e.g fields
-                                tmp = array( args[param] );
-                                param = Ref.parse( tmp[0], self ).aliased;
-                                for (i=1,l=tmp.length; i<l; i++) param += ','+Ref.parse( tmp[i], self ).aliased;
-                            }
-                            else
-                            {
-                                // reference, e.g field
-                                param = Ref.parse( args[param], self ).aliased;
-                            }
-                            break;
-                            
-                        case 'd': 
-                            if ( is_array(args[param]) )
-                            {
-                                // array of integers param
-                                param = self.intval( array(args[param]) ).join(',');
-                            }
-                            else
-                            {
-                                // integer param
-                                param = self.intval( args[param] );
-                            }
-                            break;
-                            
-                        case 's': 
-                        default:
-                            if ( is_array(args[param]) )
-                            {
-                                // array of strings param
-                                param = self.quote( array(args[param]) ).join(',');
-                            }
-                            else
-                            {
-                                // string param
-                                param = self.quote( args[param] );
-                            }
-                            break;
-                    }
-                    prepared += query.slice(0, pos) + param;
-                }
-                else
-                {
-                    prepared += query.slice(0, pos) + self.quote('');
-                }
-                query = query.slice( pos+len );
-            }
-            if ( query.length ) prepared += query;
-            return prepared;
-        }
-        return query;
-    }
-    
-    ,make_view: function( view ) {
+    ,createView: function( view ) {
         var self = this;
         if ( view && self.clau )
         {
@@ -1329,7 +1235,35 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,clear_view: function( view ) {
+    ,useView: function( view ) {
+        // using custom 'soft' view
+        var self = this, selected_columns, select_columns;
+        
+        selected_columns = self.clus['select_columns'];
+            
+        view = self.vews[ view ];
+        self.clus = defaults( self.clus, view.clus, true, true );
+        self.tbls = defaults( {}, view.tbls, true );
+        self.cols = defaults( {}, view.cols, true );
+        
+        // handle name resolution and recursive re-aliasing in views
+        if ( !!selected_columns )
+        {
+            selected_columns = self.refs( selected_columns, self.cols, true );
+            select_columns = [];
+            for(var i=0,l=selected_columns.length; i<l; i++)
+            {
+                if ( '*' === selected_columns[i].qualified )
+                    select_columns = select_columns.concat( self.clus['select_columns'] );
+                else
+                    select_columns.push( selected_columns[i] );
+            }
+            self.clus['select_columns'] = select_columns;
+        }
+        return self;
+    }
+    
+    ,dropView: function( view ) {
         var self = this;
         if ( view && self.vews[HAS](view) )
         {
@@ -1338,17 +1272,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,use_view_: function( view ) {
-        // using custom 'soft' view
-        var self = this;
-        view = self.vews[ view ];
-        self.clus = defaults( self.clus, view.clus, true, true );
-        self.tbls = defaults( {}, view.tbls, true );
-        self.cols = defaults( {}, view.cols, true );
-        return self;
-    }
-    
-    ,prepare_tpl: function( tpl /*, query, left, right*/ ) {
+    ,prepareTpl: function( tpl /*, query, left, right*/ ) {
         var self = this, pattern, sql, types, i, l, tpli, k, 
             args, argslen, query, left, right, use_internal_query;
         if ( !empty(tpl) )
@@ -1508,7 +1432,101 @@ Dialect[PROTO] = {
         return '';
     }
     
-    ,clear_tpl: function( tpl ) {
+    ,prepare: function( query, args, left, right ) {
+        var self = this, pattern, offset, m, pos, len, i, l, tmp, param, type, prepared;
+        if ( query && args )
+        {
+            // custom delimiters
+            left = left ? esc_re( left ) : '%';
+            right = right ? esc_re( right ) : '%';
+            
+            // custom prepared parameter format
+            pattern = RE(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right);
+            prepared = '';
+            while ( query.length && (m = query.match( pattern )) )
+            {
+                pos = m.index;
+                len = m[0].length;
+                param = m[2];
+                if ( args[HAS](param) )
+                {
+                    type = m[1] ? m[1].slice(0,-1) : "s";
+                    switch( type )
+                    {
+                        case 'r': 
+                            // raw param
+                            if ( is_array(args[param]) )
+                            {
+                                param = args[param].join(',');
+                            }
+                            else
+                            {
+                                param = args[param];
+                            }
+                            break;
+                        
+                        case 'l': 
+                            // like param
+                            param = self.like( args[param] ); 
+                            break;
+                            
+                        case 'f': 
+                            if ( is_array(args[param]) )
+                            {
+                                // array of references, e.g fields
+                                tmp = array( args[param] );
+                                param = Ref.parse( tmp[0], self ).aliased;
+                                for (i=1,l=tmp.length; i<l; i++) param += ','+Ref.parse( tmp[i], self ).aliased;
+                            }
+                            else
+                            {
+                                // reference, e.g field
+                                param = Ref.parse( args[param], self ).aliased;
+                            }
+                            break;
+                            
+                        case 'd': 
+                            if ( is_array(args[param]) )
+                            {
+                                // array of integers param
+                                param = self.intval( array(args[param]) ).join(',');
+                            }
+                            else
+                            {
+                                // integer param
+                                param = self.intval( args[param] );
+                            }
+                            break;
+                            
+                        case 's': 
+                        default:
+                            if ( is_array(args[param]) )
+                            {
+                                // array of strings param
+                                param = self.quote( array(args[param]) ).join(',');
+                            }
+                            else
+                            {
+                                // string param
+                                param = self.quote( args[param] );
+                            }
+                            break;
+                    }
+                    prepared += query.slice(0, pos) + param;
+                }
+                else
+                {
+                    prepared += query.slice(0, pos) + self.quote('');
+                }
+                query = query.slice( pos+len );
+            }
+            if ( query.length ) prepared += query;
+            return prepared;
+        }
+        return query;
+    }
+    
+    ,dropTpl: function( tpl ) {
         var self = this;
         if ( !empty(tpl) && self.tpls[HAS](tpl) )
         {
@@ -1518,7 +1536,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,create: function( table, defs, opts, create_clause ) {
+    ,Create: function( table, defs, opts, create_clause ) {
         var self = this;
         self.reset(create_clause||'create');
         self.clus.create_table = self.refs( table, self.tbls );;
@@ -1534,7 +1552,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,alter: function( table, defs, opts, alter_clause ) {
+    ,Alter: function( table, defs, opts, alter_clause ) {
         var self = this;
         self.reset(alter_clause||'alter');
         self.clus.alter_table = self.refs( table, self.tbls );
@@ -1550,9 +1568,16 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,drop: function( tables, drop_clause ) {
-        var self = this;
+    ,Drop: function( tables, drop_clause ) {
+        var self = this, view;
         self.reset(drop_clause||'drop');
+        view = is_array( tables ) ? tables[0] : tables;
+        if ( self.vews[HAS]( view ) )
+        {
+            // drop custom 'soft' view
+            self.dropView( view );
+            return self;
+        }
         tables = self.refs( null==tables ? '*' : tables, self.tbls );
         if ( !self.clus.drop_tables )
             self.clus.drop_tables = tables;
@@ -1561,7 +1586,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,select: function( columns, select_clause ) {
+    ,Select: function( columns, select_clause ) {
         var self = this;
         self.reset(select_clause||'select');
         columns = self.refs( null==columns ? '*' : columns, self.cols );
@@ -1572,14 +1597,14 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,insert: function( tables, columns, insert_clause ) {
+    ,Insert: function( tables, columns, insert_clause ) {
         var self = this, view;
         self.reset(insert_clause||'insert');
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
-            self.use_view_( view );
+            self.useView( view );
         }
         else
         {
@@ -1597,7 +1622,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,values: function( values ) {
+    ,Values: function( values ) {
         var self = this, count, insert_values, vals, i, val, j, l, vs;
         if ( empty(values) ) return self;
         // array of arrays
@@ -1643,14 +1668,14 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,update: function( tables, update_clause ) {
+    ,Update: function( tables, update_clause ) {
         var self = this, view;
         self.reset(update_clause||'update');
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
-            self.use_view_( view );
+            self.useView( view );
         }
         else
         {
@@ -1663,7 +1688,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,set: function( fields_values ) {
+    ,Set: function( fields_values ) {
         var self = this, set_values, set_case_value, f, field, value, COLS;
         if ( empty(fields_values) ) return self;
         set_values = [];
@@ -1699,10 +1724,23 @@ Dialect[PROTO] = {
                 else if ( value[HAS]('case') )
                 {
                     set_case_value = field + " = CASE";
-                    for ( case_value in value['case'] )
+                    if ( value['case'][HAS]('when') )
                     {
-                        if ( !value['case'][HAS](case_value) ) continue;
-                        set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],false) + " THEN " + self.quote(case_value);
+                        for ( case_value in value['case']['when'] )
+                        {
+                            if ( !value['case']['when'][HAS](case_value) ) continue;
+                            set_case_value += "\nWHEN " + self.conditions(value['case']['when'][case_value],false) + " THEN " + self.quote(case_value);
+                        }
+                        if ( value['case'][HAS]('else') )
+                            set_case_value += "\nELSE " + self.quote(value['case']['else']);
+                    }
+                    else
+                    {
+                        for ( case_value in value['case'] )
+                        {
+                            if ( !value['case'][HAS](case_value) ) continue;
+                            set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],false) + " THEN " + self.quote(case_value);
+                        }
                     }
                     set_case_value += "\nEND";
                     set_values.push( set_case_value );
@@ -1720,37 +1758,20 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,del: function( delete_clause ) {
+    ,Delete: function( delete_clause ) {
         var self = this;
         self.reset(delete_clause||'delete');
         return self;
     }
     
-    ,from: function( tables ) {
-        var self = this, view, tables, selected_columns, select_columns;
+    ,From: function( tables ) {
+        var self = this, view, tables;
         if ( empty(tables) ) return self;
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
-            selected_columns = self.clus['select_columns'];
-            
             // using custom 'soft' view
-            self.use_view_( view );
-            
-            // handle recursive aliasing in views
-            if ( !!selected_columns )
-            {
-                selected_columns = self.refs2( selected_columns, self.cols );
-                select_columns = [];
-                for(var i=0,l=selected_columns.length; i<l; i++)
-                {
-                    if ( '*' === selected_columns[i].qualified )
-                        select_columns = select_columns.concat( self.clus['select_columns'] );
-                    else
-                        select_columns.push( selected_columns[i] );
-                }
-                self.clus['select_columns'] = select_columns;
-            }
+            self.useView( view );
         }
         else
         {
@@ -1763,7 +1784,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,join: function( table, on_cond, join_type ) {
+    ,Join: function( table, on_cond, join_type ) {
         var self = this, join_clause, field, cond;
         table = self.refs( table, self.tbls )[0].aliased;
         if ( empty(on_cond) )
@@ -1796,7 +1817,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,where: function( conditions, boolean_connective ) {
+    ,Where: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
@@ -1808,7 +1829,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,group: function( col, dir ) {
+    ,Group: function( col, dir ) {
         var self = this, group_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
@@ -1819,7 +1840,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,having: function( conditions, boolean_connective ) {
+    ,Having: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
         boolean_connective = boolean_connective ? boolean_connective.toUpperCase() : "AND";
@@ -1831,7 +1852,7 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,order: function( col, dir ) {
+    ,Order: function( col, dir ) {
         var self = this, order_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
@@ -1842,145 +1863,17 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,limit: function( count, offset ) {
+    ,Limit: function( count, offset ) {
         var self = this;
         self.clus.count = int(count);
         self.clus.offset = int(offset);
         return self;
     }
     
-    ,page: function( page, perpage ) {
+    ,Page: function( page, perpage ) {
         var self = this;
         page = int(page); perpage = int(perpage);
-        return self.limit( perpage, page*perpage );
-    }
-    
-    ,refs: function( refs, lookup ) {
-        var self = this, i, l, j, m, r, rs, ref, alias, qualified;
-        rs = array( refs );
-        refs = [ ];
-        for (i=0,l=rs.length; i<l; i++)
-        {
-            r = rs[ i ].split(',');
-            for (j=0,m=r.length; j<m; j++)
-            {
-                ref = Ref.parse( r[ j ], self );
-                alias = ref.alias; qualified = ref.full;
-                if ( !lookup[HAS](alias) ) 
-                {
-                    lookup[ alias ] = ref;
-                    if ( (qualified !== alias) && !lookup[HAS](qualified) )
-                        lookup[ qualified ] = ref;
-                }
-                else
-                {                    
-                    ref = lookup[ alias ];
-                }
-                refs.push( ref );
-            }
-        }
-        return refs;
-    }
-    
-    ,refs2: function( refs, lookup ) {
-        var self = this, i, l, ref, ref2, alias, qualified, qualified_full, alias2, qualified_full2;
-        for (i=0,l=refs.length; i<l; i++)
-        {
-            ref = refs[ i ];
-            alias = ref.alias;
-            qualified = ref.qualified;
-            qualified_full = ref.full;
-            
-            if ( !lookup[HAS]( alias ) )
-            {
-                if ( lookup[HAS]( qualified_full ) )
-                {
-                    ref2 = lookup[ qualified_full ];
-                    alias2 = ref2.alias;
-                    qualified_full2 = ref2.full;
-                    
-                    if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
-                    {
-                        // handle recursive aliasing
-                        /*if ( (qualified_full2 !== alias2) && lookup[HAS]( alias2 ) )
-                            delete lookup[ alias2 ];*/
-                        
-                        ref2 = ref2.cloned( ref.alias );
-                        refs[i] = lookup[ alias ] = ref2;
-                    }
-                }
-                else if ( lookup[HAS]( qualified ) )
-                {
-                    ref2 = lookup[ qualified ];
-                    if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
-                    ref2 = ref2.cloned( ref.alias, null, ref._func );
-                    refs[i] = lookup[ ref2.alias ] = ref2;
-                    if ( (ref2.alias !== ref2.full) && !lookup[HAS]( ref2.full ) )
-                        lookup[ ref2.full ] = ref2;
-                }
-                else
-                {
-                    lookup[ alias ] = ref;
-                    if ( (alias !== qualified_full) && !lookup[HAS]( qualified_full ) )
-                        lookup[ qualified_full ] = ref;
-                }
-            }
-            else
-            {
-                refs[i] = lookup[ alias ];
-            }
-        }
-        return refs;
-    }
-    
-    ,join_conditions: function( join, conditions ) {
-        var self = this, j = 0, f, ref, field, cond, where,
-            main_table, main_id, join_table, join_id, join_alias,
-            join_key, join_value;
-        for ( f in conditions )
-        {
-            if ( !conditions[HAS](f) ) continue;
-            
-            ref = Ref.parse( f, self );
-            field = ref._col;
-            if ( !join[HAS]( field ) ) continue;
-            cond = conditions[ f ];
-            main_table = join[field].table;
-            main_id = join[field].id;
-            join_table = join[field].join;
-            join_id = join[field].join_id;
-            
-            j++; join_alias = join_table+j;
-            
-            where = { };
-            if ( join[field][HAS]('key') && field !== join[field].key )
-            {
-                join_key = join[field].key;
-                where[join_alias+'.'+join_key] = field;
-            }
-            else
-            {
-                join_key = field;
-            }
-            if ( join[field][HAS]('value') )
-            {
-                join_value = join[field].value;
-                where[join_alias+'.'+join_value] = cond;
-            }
-            else
-            {
-                join_value = join_key;
-                where[join_alias+'.'+join_value] = cond;
-            }
-            self.join(
-                join_table+" AS "+join_alias, 
-                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
-                "inner"
-            ).where( where );
-            
-            delete conditions[f];
-        }
-        return self;
+        return self.Limit( perpage, page*perpage );
     }
     
     ,conditions: function( conditions, can_use_alias ) {
@@ -2189,6 +2082,137 @@ Dialect[PROTO] = {
         
         if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
         return condquery;
+    }
+    
+    ,joinConditions: function( join, conditions ) {
+        var self = this, j = 0, f, ref, field, cond, where,
+            main_table, main_id, join_table, join_id, join_alias,
+            join_key, join_value;
+        for ( f in conditions )
+        {
+            if ( !conditions[HAS](f) ) continue;
+            
+            ref = Ref.parse( f, self );
+            field = ref._col;
+            if ( !join[HAS]( field ) ) continue;
+            cond = conditions[ f ];
+            main_table = join[field].table;
+            main_id = join[field].id;
+            join_table = join[field].join;
+            join_id = join[field].join_id;
+            
+            j++; join_alias = join_table+j;
+            
+            where = { };
+            if ( join[field][HAS]('key') && field !== join[field].key )
+            {
+                join_key = join[field].key;
+                where[join_alias+'.'+join_key] = field;
+            }
+            else
+            {
+                join_key = field;
+            }
+            if ( join[field][HAS]('value') )
+            {
+                join_value = join[field].value;
+                where[join_alias+'.'+join_value] = cond;
+            }
+            else
+            {
+                join_value = join_key;
+                where[join_alias+'.'+join_value] = cond;
+            }
+            self.Join(
+                join_table+" AS "+join_alias, 
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                "inner"
+            ).Where( where );
+            
+            delete conditions[f];
+        }
+        return self;
+    }
+    
+    ,refs: function( refs, lookup, re_alias ) {
+        var self = this;
+        if ( true === re_alias )
+        {
+            var i, l, ref, ref2, alias, qualified, qualified_full, alias2, qualified_full2;
+            for (i=0,l=refs.length; i<l; i++)
+            {
+                ref = refs[ i ];
+                alias = ref.alias;
+                qualified = ref.qualified;
+                qualified_full = ref.full;
+                
+                if ( !lookup[HAS]( alias ) )
+                {
+                    if ( lookup[HAS]( qualified_full ) )
+                    {
+                        ref2 = lookup[ qualified_full ];
+                        alias2 = ref2.alias;
+                        qualified_full2 = ref2.full;
+                        
+                        if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
+                        {
+                            // handle recursive aliasing
+                            /*if ( (qualified_full2 !== alias2) && lookup[HAS]( alias2 ) )
+                                delete lookup[ alias2 ];*/
+                            
+                            ref2 = ref2.cloned( ref.alias );
+                            refs[i] = lookup[ alias ] = ref2;
+                        }
+                    }
+                    else if ( lookup[HAS]( qualified ) )
+                    {
+                        ref2 = lookup[ qualified ];
+                        if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
+                        ref2 = ref2.cloned( ref.alias, null, ref._func );
+                        refs[i] = lookup[ ref2.alias ] = ref2;
+                        if ( (ref2.alias !== ref2.full) && !lookup[HAS]( ref2.full ) )
+                            lookup[ ref2.full ] = ref2;
+                    }
+                    else
+                    {
+                        lookup[ alias ] = ref;
+                        if ( (alias !== qualified_full) && !lookup[HAS]( qualified_full ) )
+                            lookup[ qualified_full ] = ref;
+                    }
+                }
+                else
+                {
+                    refs[i] = lookup[ alias ];
+                }
+            }
+        }
+        else
+        {
+            var i, l, j, m, r, rs, ref, alias, qualified;
+            rs = array( refs );
+            refs = [ ];
+            for (i=0,l=rs.length; i<l; i++)
+            {
+                r = rs[ i ].split(',');
+                for (j=0,m=r.length; j<m; j++)
+                {
+                    ref = Ref.parse( r[ j ], self );
+                    alias = ref.alias; qualified = ref.full;
+                    if ( !lookup[HAS](alias) ) 
+                    {
+                        lookup[ alias ] = ref;
+                        if ( (qualified !== alias) && !lookup[HAS](qualified) )
+                            lookup[ qualified ] = ref;
+                    }
+                    else
+                    {                    
+                        ref = lookup[ alias ];
+                    }
+                    refs.push( ref );
+                }
+            }
+        }
+        return refs;
     }
     
     ,tbl: function( table ) {

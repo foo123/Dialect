@@ -1023,101 +1023,7 @@ class Dialect
         return $query;
     }
     
-    public function prepare( $query, $args=array(), $left=null, $right=null )
-    {
-        if ( $query && !empty($args) )
-        {
-            // custom delimiters
-            $left = $left ? preg_quote($left, '/') : '%';
-            $right = $right ? preg_quote($right, '/') : '%';
-            
-            // custom prepared parameter format
-            $pattern = '/' . $left . '([rlfds]:)?([0-9a-zA-Z_]+)' . $right . '/';
-            $prepared = '';
-            while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
-            {
-                $pos = $m[0][1];
-                $len = strlen($m[0][0]);
-                $param = $m[2][0];
-                if ( isset($args[$param]) )
-                {
-                    $type = isset($m[1])&&$m[1]&&strlen($m[1][0]) ? substr($m[1][0],0,-1) : "s";
-                    switch($type)
-                    {
-                        case 'r': 
-                            // raw param
-                            if ( is_array($args[$param]) )
-                            {
-                                $param = implode(',', $args[$param]);
-                            }
-                            else
-                            {
-                                $param = $args[$param];
-                            }
-                            break;
-                        
-                        case 'l': 
-                            // like param
-                            $param = $this->like( $args[$param] ); 
-                            break;
-                        
-                        case 'f': 
-                            if ( is_array($args[$param]) )
-                            {
-                                // array of references, e.g fields
-                                $tmp = (array)$args[$param];
-                                $param = DialectRef::parse( $tmp[0], $this )->aliased;
-                                for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->aliased;
-                            }
-                            else
-                            {
-                                // reference, e.g field
-                                $param = DialectRef::parse( $args[$param], $this )->aliased;
-                            }
-                            break;
-                        
-                        case 'd':
-                            if ( is_array($args[$param]) )
-                            {
-                                // array of integers param
-                                $param = implode( ',', $this->intval( (array)$args[$param] ) );
-                            }
-                            else
-                            {
-                                // integer
-                                $param = $this->intval( $args[$param] );
-                            }
-                            break;
-                        
-                        case 's': 
-                        default:
-                            if ( is_array($args[$param]) )
-                            {
-                                // array of strings param
-                                $param = implode( ',', $this->quote( (array)$args[$param] ) );
-                            }
-                            else
-                            {
-                                // string param
-                                $param = $this->quote( $args[$param] );
-                            }
-                            break;
-                    }
-                    $prepared .= substr($query, 0, $pos) . $param;
-                }
-                else
-                {
-                    $prepared .= substr($query, 0, $pos) . $this->quote('');
-                }
-                $query = substr($query, $pos+$len );
-            }
-            if ( strlen($query) ) $prepared .= $query;
-            return $prepared;
-        }
-        return $query;
-    }
-    
-    public function make_view( $view ) 
+    public function createView( $view ) 
     {
         if ( !empty($view) && $this->clau )
         {
@@ -1145,7 +1051,35 @@ class Dialect
         return $this;
     }
     
-    public function clear_view( $view ) 
+    public function useView( $view )
+    {
+        // using custom 'soft' view
+        $selected_columns = $this->clus['select_columns'];
+        
+        $view = $this->vews[ $view ];
+        $this->clus = self::defaults( $this->clus, $view->clus, true, true );
+        $this->tbls = self::defaults( array(), $view->tbls, true );
+        $this->cols = self::defaults( array(), $view->cols, true );
+        
+        // handle name resolution and recursive re-aliasing in views
+        if ( !empty($selected_columns) )
+        {
+            $selected_columns = $this->refs( $selected_columns, $this->cols, true );
+            $select_columns = array( );
+            foreach($selected_columns as $selected_column)
+            {
+                if ( '*' === $selected_column->qualified )
+                    $select_columns = array_merge($select_columns, $this->clus['select_columns']);
+                else
+                    $select_columns[] = $selected_column;
+            }
+            $this->clus['select_columns'] = $select_columns;
+        }
+        
+        return $this;
+    }
+    
+    public function dropView( $view ) 
     {
         if ( !empty($view) && isset($this->vews[$view]) )
         {
@@ -1154,17 +1088,7 @@ class Dialect
         return $this;
     }
     
-    public function use_view_( $view )
-    {
-        // using custom 'soft' view
-        $view = $this->vews[ $view ];
-        $this->clus = self::defaults( $this->clus, $view->clus, true, true );
-        $this->tbls = self::defaults( array(), $view->tbls, true );
-        $this->cols = self::defaults( array(), $view->cols, true );
-        return $this;
-    }
-    
-    public function prepare_tpl( $tpl /*, $query=null, $left=null, $right=null*/ ) 
+    public function prepareTpl( $tpl /*, $query=null, $left=null, $right=null*/ ) 
     {
         if ( !empty($tpl) )
         {
@@ -1320,7 +1244,101 @@ class Dialect
         return '';
     }
     
-    public function clear_tpl( $tpl ) 
+    public function prepare( $query, $args=array(), $left=null, $right=null )
+    {
+        if ( $query && !empty($args) )
+        {
+            // custom delimiters
+            $left = $left ? preg_quote($left, '/') : '%';
+            $right = $right ? preg_quote($right, '/') : '%';
+            
+            // custom prepared parameter format
+            $pattern = '/' . $left . '([rlfds]:)?([0-9a-zA-Z_]+)' . $right . '/';
+            $prepared = '';
+            while ( preg_match($pattern, $query, $m, PREG_OFFSET_CAPTURE) )
+            {
+                $pos = $m[0][1];
+                $len = strlen($m[0][0]);
+                $param = $m[2][0];
+                if ( isset($args[$param]) )
+                {
+                    $type = isset($m[1])&&$m[1]&&strlen($m[1][0]) ? substr($m[1][0],0,-1) : "s";
+                    switch($type)
+                    {
+                        case 'r': 
+                            // raw param
+                            if ( is_array($args[$param]) )
+                            {
+                                $param = implode(',', $args[$param]);
+                            }
+                            else
+                            {
+                                $param = $args[$param];
+                            }
+                            break;
+                        
+                        case 'l': 
+                            // like param
+                            $param = $this->like( $args[$param] ); 
+                            break;
+                        
+                        case 'f': 
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of references, e.g fields
+                                $tmp = (array)$args[$param];
+                                $param = DialectRef::parse( $tmp[0], $this )->aliased;
+                                for ($i=1,$l=count($tmp); $i<$l; $i++) $param .= ','.DialectRef::parse( $tmp[$i], $this )->aliased;
+                            }
+                            else
+                            {
+                                // reference, e.g field
+                                $param = DialectRef::parse( $args[$param], $this )->aliased;
+                            }
+                            break;
+                        
+                        case 'd':
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of integers param
+                                $param = implode( ',', $this->intval( (array)$args[$param] ) );
+                            }
+                            else
+                            {
+                                // integer
+                                $param = $this->intval( $args[$param] );
+                            }
+                            break;
+                        
+                        case 's': 
+                        default:
+                            if ( is_array($args[$param]) )
+                            {
+                                // array of strings param
+                                $param = implode( ',', $this->quote( (array)$args[$param] ) );
+                            }
+                            else
+                            {
+                                // string param
+                                $param = $this->quote( $args[$param] );
+                            }
+                            break;
+                    }
+                    $prepared .= substr($query, 0, $pos) . $param;
+                }
+                else
+                {
+                    $prepared .= substr($query, 0, $pos) . $this->quote('');
+                }
+                $query = substr($query, $pos+$len );
+            }
+            if ( strlen($query) ) $prepared .= $query;
+            return $prepared;
+        }
+        return $query;
+    }
+    
+    public function dropTpl( $tpl ) 
     {
         if ( !empty($tpl) && isset($this->tpls[$tpl]) )
         {
@@ -1330,7 +1348,7 @@ class Dialect
         return $this;
     }
     
-    public function create( $table, $defs, $opts=null, $create_clause='create' )
+    public function Create( $table, $defs, $opts=null, $create_clause='create' )
     {
         $this->reset($create_clause);
         $this->clus['create_table'] = $this->refs( $table, $this->tbls );
@@ -1346,7 +1364,7 @@ class Dialect
         return $this;
     }
     
-    public function alter( $table, $defs, $opts=null, $alter_clause='alter' )
+    public function Alter( $table, $defs, $opts=null, $alter_clause='alter' )
     {
         $this->reset($alter_clause);
         $this->clus['alter_table'] = $this->refs( $table, $this->tbls );
@@ -1362,9 +1380,16 @@ class Dialect
         return $this;
     }
     
-    public function drop( $tables='*', $drop_clause='drop' )
+    public function Drop( $tables='*', $drop_clause='drop' )
     {
         $this->reset($drop_clause);
+        $view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->vews[ $view ]) )
+        {
+            // drop custom 'soft' view
+            $this->dropView( $view );
+            return $this;
+        }
         $tables = $this->refs( empty($tables) ? '*' : $tables, $this->tbls );
         if ( empty($this->clus['drop_tables']) )
             $this->clus['drop_tables'] = $tables;
@@ -1373,7 +1398,7 @@ class Dialect
         return $this;
     }
     
-    public function select( $columns='*', $select_clause='select' )
+    public function Select( $columns='*', $select_clause='select' )
     {
         $this->reset($select_clause);
         $columns = $this->refs( empty($columns) ? '*' : $columns, $this->cols );
@@ -1384,14 +1409,14 @@ class Dialect
         return $this;
     }
     
-    public function insert( $tables, $columns, $insert_clause='insert' )
+    public function Insert( $tables, $columns, $insert_clause='insert' )
     {
         $this->reset($insert_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
             // using custom 'soft' view
-            $this->use_view_( $view );
+            $this->useView( $view );
         }
         else
         {
@@ -1409,7 +1434,7 @@ class Dialect
         return $this;
     }
     
-    public function values( $values )
+    public function Values( $values )
     {
         if ( empty($values) ) return $this;
         // array of arrays
@@ -1453,14 +1478,14 @@ class Dialect
         return $this;
     }
     
-    public function update( $tables, $update_clause='update' )
+    public function Update( $tables, $update_clause='update' )
     {
         $this->reset($update_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
             // using custom 'soft' view
-            $this->use_view_( $view );
+            $this->useView( $view );
         }
         else
         {
@@ -1473,7 +1498,7 @@ class Dialect
         return $this;
     }
     
-    public function set( $fields_values )
+    public function Set( $fields_values )
     {
         if ( empty($fields_values) ) return $this;
         $set_values = array();
@@ -1506,9 +1531,21 @@ class Dialect
                 elseif ( isset($value['case']) )
                 {
                     $set_case_value = "$field = CASE";
-                    foreach ( $value['case'] as $case_value=>$case_conditions )
+                    if ( isset($value['case']['when']) )
                     {
-                        $set_case_value .= "\nWHEN " . $this->conditions($case_conditions,false) . " THEN " . $this->quote($case_value);
+                        foreach ( $value['case']['when'] as $case_value=>$case_conditions )
+                        {
+                            $set_case_value .= "\nWHEN " . $this->conditions($case_conditions,false) . " THEN " . $this->quote($case_value);
+                        }
+                        if ( isset($value['case']['else']) )
+                            $set_case_value .= "\nELSE " . $this->quote($value['case']['else']);
+                    }
+                    else
+                    {
+                        foreach ( $value['case'] as $case_value=>$case_conditions )
+                        {
+                            $set_case_value .= "\nWHEN " . $this->conditions($case_conditions,false) . " THEN " . $this->quote($case_value);
+                        }
                     }
                     $set_case_value .= "\nEND";
                     $set_values[] = $set_case_value;
@@ -1526,37 +1563,20 @@ class Dialect
         return $this;
     }
     
-    public function del( $delete_clause='delete' )
+    public function Delete( $delete_clause='delete' )
     {
         $this->reset($delete_clause);
         return $this;
     }
     
-    public function from( $tables )
+    public function From( $tables )
     {
         if ( empty($tables) ) return $this;
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
-            $selected_columns = $this->clus['select_columns'];
-            
             // using custom 'soft' view
-            $this->use_view_( $view );
-            
-            // handle recursive aliasing in views
-            if ( !empty($selected_columns) )
-            {
-                $selected_columns = $this->refs2( $selected_columns, $this->cols );
-                $select_columns = array( );
-                foreach($selected_columns as $selected_column)
-                {
-                    if ( '*' === $selected_column->qualified )
-                        $select_columns = array_merge($select_columns, $this->clus['select_columns']);
-                    else
-                        $select_columns[] = $selected_column;
-                }
-                $this->clus['select_columns'] = $select_columns;
-            }
+            $this->useView( $view );
         }
         else
         {
@@ -1569,7 +1589,7 @@ class Dialect
         return $this;
     }
     
-    public function join( $table, $on_cond=null, $join_type=null )
+    public function Join( $table, $on_cond=null, $join_type=null )
     {
         $table = $this->refs( $table, $this->tbls );
         $table = $table[0]->aliased;
@@ -1602,7 +1622,7 @@ class Dialect
         return $this;
     }
     
-    public function where( $conditions, $boolean_connective="AND" )
+    public function Where( $conditions, $boolean_connective="AND" )
     {
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
@@ -1614,7 +1634,7 @@ class Dialect
         return $this;
     }
     
-    public function group( $col, $dir="asc" )
+    public function Group( $col, $dir="asc" )
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
@@ -1626,7 +1646,7 @@ class Dialect
         return $this;
     }
     
-    public function having( $conditions, $boolean_connective="AND" )
+    public function Having( $conditions, $boolean_connective="AND" )
     {
         if ( empty($conditions) ) return $this;
         $boolean_connective = strtoupper($boolean_connective);
@@ -1638,7 +1658,7 @@ class Dialect
         return $this;
     }
     
-    public function order( $col, $dir="asc" )
+    public function Order( $col, $dir="asc" )
     {
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
@@ -1650,140 +1670,17 @@ class Dialect
         return $this;
     }
     
-    public function limit( $count, $offset=0 )
+    public function Limit( $count, $offset=0 )
     {
         $this->clus['count'] = intval($count,10);
         $this->clus['offset'] = intval($offset,10);
         return $this;
     }
     
-    public function page( $page, $perpage )
+    public function Page( $page, $perpage )
     {
         $page = intval($page,10); $perpage = intval($perpage,10);
-        return $this->limit( $perpage, $page*$perpage );
-    }
-    
-    public function join_conditions( $join, &$conditions )
-    {
-        $j = 0;
-        foreach ($conditions as $f=>$cond)
-        {
-            $ref = DialectRef::parse( $f, $this );
-            $field = $ref->_col;
-            if ( !isset($join[$field]) ) continue;
-            $main_table = $join[$field]['table'];
-            $main_id = $join[$field]['id'];
-            $join_table = $join[$field]['join'];
-            $join_id = $join[$field]['join_id'];
-            
-            $j++; $join_alias = "{$join_table}{$j}";
-            
-            $where = array( );
-            if ( isset($join[$field]['key']) && $field !== $join[$field]['key'] )
-            {
-                $join_key = $join[$field]['key'];
-                $where["{$join_alias}.{$join_key}"] = $field;
-            }
-            else
-            {
-                $join_key = $field;
-            }
-            if ( isset($join[$field]['value']) )
-            {
-                $join_value = $join[$field]['value'];
-                $where["{$join_alias}.{$join_value}"] = $cond;
-            }
-            else
-            {
-                $join_value = $join_key;
-                $where["{$join_alias}.{$join_value}"] = $cond;
-            }
-            $this->join(
-                "{$join_table} AS {$join_alias}", 
-                "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
-                "inner"
-            )->where( $where );
-            
-            unset( $conditions[$f] );
-        }
-        return $this;
-    }
-    
-    public function refs( $refs, &$lookup ) 
-    {
-        $rs = (array)$refs;
-        $refs = array( );
-        foreach ($rs as $r)
-        {
-            $r = explode( ',', $r );
-            foreach ($r as $ref)
-            {
-                $ref = DialectRef::parse( $ref, $this );
-                $alias = $ref->alias; $qualified = $ref->full;
-                if ( !isset($lookup[ $alias ]) ) 
-                {
-                    $lookup[ $alias ] = $ref;
-                    if ( ($qualified !== $alias) && !isset($lookup[ $qualified ]) )
-                        $lookup[ $qualified ] = $ref;
-                }
-                else
-                {                    
-                    $ref = $lookup[ $alias ];
-                }
-                $refs[] = $ref;
-            }
-        }
-        return $refs;
-    }
-    
-    public function refs2( $refs, &$lookup )
-    {
-        foreach ($refs as $i=>$ref)
-        {
-            $alias = $ref->alias;
-            $qualified = $ref->qualified;
-            $qualified_full = $ref->full;
-            
-            if ( !isset($lookup[ $alias ]) )
-            {
-                if ( isset($lookup[ $qualified_full ]) )
-                {
-                    $ref2 = $lookup[ $qualified_full ];
-                    $alias2 = $ref2->alias;
-                    $qualified_full2 = $ref2->full;
-                    
-                    if ( ($qualified_full2 !== $qualified_full) && ($alias2 !== $alias) && ($alias2 === $qualified_full) )
-                    {
-                        // handle recursive aliasing
-                        /*if ( ($qualified_full2 !== $alias2) && isset($lookup[ $alias2 ]) )
-                            unset($lookup[ $alias2 ]);*/
-                        
-                        $ref2 = $ref2->cloned( $ref->alias );
-                        $refs[$i] = $lookup[ $alias ] = $ref2;
-                    }
-                }
-                elseif ( isset($lookup[ $qualified ]) )
-                {
-                    $ref2 = $lookup[ $qualified ];
-                    if ( $ref2->qualified !== $qualified ) $ref2 = $lookup[ $ref2->qualified ];
-                    $ref2 = $ref2->cloned( $ref->alias, null, $ref->_func );
-                    $refs[$i] = $lookup[ $ref2->alias ] = $ref2;
-                    if ( ($ref2->alias !== $ref2->full) && !isset($lookup[ $ref2->full ]) )
-                        $lookup[ $ref2->full ] = $ref2;
-                }
-                else
-                {
-                    $lookup[ $alias ] = $ref;
-                    if ( ($alias !== $qualified_full) && !isset($lookup[ $qualified_full ]) )
-                        $lookup[ $qualified_full ] = $ref;
-                }
-            }
-            else
-            {
-                $refs[$i] = $lookup[ $alias ];
-            }
-        }
-        return $refs;
+        return $this->Limit( $perpage, $page*$perpage );
     }
     
     public function conditions( $conditions, $can_use_alias=false )
@@ -1993,6 +1890,130 @@ class Dialect
         
         if ( !empty($conds) ) $condquery = '(' . implode(') AND (', $conds) . ')';
         return $condquery;
+    }
+    
+    public function joinConditions( $join, &$conditions )
+    {
+        $j = 0;
+        foreach ($conditions as $f=>$cond)
+        {
+            $ref = DialectRef::parse( $f, $this );
+            $field = $ref->_col;
+            if ( !isset($join[$field]) ) continue;
+            $main_table = $join[$field]['table'];
+            $main_id = $join[$field]['id'];
+            $join_table = $join[$field]['join'];
+            $join_id = $join[$field]['join_id'];
+            
+            $j++; $join_alias = "{$join_table}{$j}";
+            
+            $where = array( );
+            if ( isset($join[$field]['key']) && $field !== $join[$field]['key'] )
+            {
+                $join_key = $join[$field]['key'];
+                $where["{$join_alias}.{$join_key}"] = $field;
+            }
+            else
+            {
+                $join_key = $field;
+            }
+            if ( isset($join[$field]['value']) )
+            {
+                $join_value = $join[$field]['value'];
+                $where["{$join_alias}.{$join_value}"] = $cond;
+            }
+            else
+            {
+                $join_value = $join_key;
+                $where["{$join_alias}.{$join_value}"] = $cond;
+            }
+            $this->Join(
+                "{$join_table} AS {$join_alias}", 
+                "{$main_table}.{$main_id}={$join_alias}.{$join_id}", 
+                "inner"
+            )->Where( $where );
+            
+            unset( $conditions[$f] );
+        }
+        return $this;
+    }
+    
+    public function refs( $refs, &$lookup, $re_alias=false ) 
+    {
+        if ( true === $re_alias )
+        {
+            foreach ($refs as $i=>$ref)
+            {
+                $alias = $ref->alias;
+                $qualified = $ref->qualified;
+                $qualified_full = $ref->full;
+                
+                if ( !isset($lookup[ $alias ]) )
+                {
+                    if ( isset($lookup[ $qualified_full ]) )
+                    {
+                        $ref2 = $lookup[ $qualified_full ];
+                        $alias2 = $ref2->alias;
+                        $qualified_full2 = $ref2->full;
+                        
+                        if ( ($qualified_full2 !== $qualified_full) && ($alias2 !== $alias) && ($alias2 === $qualified_full) )
+                        {
+                            // handle recursive aliasing
+                            /*if ( ($qualified_full2 !== $alias2) && isset($lookup[ $alias2 ]) )
+                                unset($lookup[ $alias2 ]);*/
+                            
+                            $ref2 = $ref2->cloned( $ref->alias );
+                            $refs[$i] = $lookup[ $alias ] = $ref2;
+                        }
+                    }
+                    elseif ( isset($lookup[ $qualified ]) )
+                    {
+                        $ref2 = $lookup[ $qualified ];
+                        if ( $ref2->qualified !== $qualified ) $ref2 = $lookup[ $ref2->qualified ];
+                        $ref2 = $ref2->cloned( $ref->alias, null, $ref->_func );
+                        $refs[$i] = $lookup[ $ref2->alias ] = $ref2;
+                        if ( ($ref2->alias !== $ref2->full) && !isset($lookup[ $ref2->full ]) )
+                            $lookup[ $ref2->full ] = $ref2;
+                    }
+                    else
+                    {
+                        $lookup[ $alias ] = $ref;
+                        if ( ($alias !== $qualified_full) && !isset($lookup[ $qualified_full ]) )
+                            $lookup[ $qualified_full ] = $ref;
+                    }
+                }
+                else
+                {
+                    $refs[$i] = $lookup[ $alias ];
+                }
+            }
+        }
+        else
+        {
+            $rs = (array)$refs;
+            $refs = array( );
+            foreach ($rs as $r)
+            {
+                $r = explode( ',', $r );
+                foreach ($r as $ref)
+                {
+                    $ref = DialectRef::parse( $ref, $this );
+                    $alias = $ref->alias; $qualified = $ref->full;
+                    if ( !isset($lookup[ $alias ]) ) 
+                    {
+                        $lookup[ $alias ] = $ref;
+                        if ( ($qualified !== $alias) && !isset($lookup[ $qualified ]) )
+                            $lookup[ $qualified ] = $ref;
+                    }
+                    else
+                    {                    
+                        $ref = $lookup[ $alias ];
+                    }
+                    $refs[] = $ref;
+                }
+            }
+        }
+        return $refs;
     }
     
     public function tbl( $table )

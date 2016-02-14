@@ -1004,73 +1004,7 @@ class Dialect:
         self.clear( )
         return query
     
-    def prepare( self, query, args, left=None, right=None ):
-        if query and args:
-            # custom delimiters
-            left = re.escape( left ) if left else '%'
-            right = re.escape( right ) if right else '%'
-            
-            # custom prepared parameter format
-            pattern = re.compile(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right)
-            prepared = ''
-            m = pattern.search( query )
-            while m:
-                pos = m.start(0)
-                le = len(m.group(0))
-                param = m.group(2)
-                if param in args:
-                    type = m.group(1)[0:-1] if m.group(1) else "s"
-                    
-                    if 'r'==type: 
-                        # raw param
-                        if is_array(args[param]):
-                            param = ','.join(args[param])
-                        else:
-                            param = args[param]
-                    
-                    elif 'l'==type: 
-                        # like param
-                        param = self.like( args[param] )
-                    
-                    elif 'f'==type: 
-                        if is_array(args[param]):
-                            # array of references, e.g fields
-                            tmp = array( args[param] )
-                            param = Ref.parse( tmp[0], self ).aliased
-                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).aliased
-                        else:
-                            # reference, e.g field
-                            param = Ref.parse( args[param], self ).aliased
-                    
-                    elif 'd'==type: 
-                        if is_array(args[param]):
-                            # array of integers param
-                            param = ','.join(self.intval2str( array(args[param]) ))
-                        else:
-                            # integer param
-                            param = self.intval2str( args[param] )
-                    
-                    #elif 's'==type: 
-                    else: 
-                        if is_array(args[param]):
-                            # array of strings param
-                            param = ','.join(self.quote( array(args[param]) ))
-                        else:
-                            # string param
-                            param = self.quote( args[param] )
-                    
-                    prepared += query[0:pos] + param
-                else:
-                    prepared += query[0:pos] + self.quote('')
-                query = query[pos+le:]
-                m = pattern.search( query )
-            
-            if len(query): prepared += query
-            return prepared
-
-        return query
-    
-    def make_view( self, view ):
+    def createView( self, view ):
         if view and self.clau:
             self.vews[ view ] = {
                 'clau':self.clau, 
@@ -1090,20 +1024,34 @@ class Dialect:
             self.clear( )
         return self
     
-    def clear_view( self, view ):
-        if view and (view in self.vews):
-            del self.vews[ view ]
-        return self
-    
-    def use_view_( self, view ):
+    def useView( self, view ):
         # using custom 'soft' view
+        selected_columns = self.clus['select_columns']
+        
         view = self.vews[ view ]
         self.clus = defaults( self.clus, view['clus'], True, True )
         self.tbls = defaults( {}, view['tbls'], True )
         self.cols = defaults( {}, view['cols'], True )
+        
+        # handle name resolution and recursive re-aliasing in views
+        if selected_columns:
+            selected_columns = self.refs( selected_columns, self.cols, True )
+            select_columns = []
+            for selected_column in selected_columns:
+                if '*' == selected_column.qualified:
+                    select_columns = select_columns + self.clus['select_columns'];
+                else:
+                    select_columns.append( selected_column )
+            self.clus['select_columns'] = select_columns
+        
         return self
     
-    def prepare_tpl( self, tpl, *args ):
+    def dropView( self, view ):
+        if view and (view in self.vews):
+            del self.vews[ view ]
+        return self
+    
+    def prepareTpl( self, tpl, *args ):
                                 #, query, left, right
         if tpl:
             argslen = len(args)
@@ -1211,13 +1159,79 @@ class Dialect:
             return sql.render( params )
         return ''
     
-    def clear_tpl( self, tpl ):
+    def prepare( self, query, args, left=None, right=None ):
+        if query and args:
+            # custom delimiters
+            left = re.escape( left ) if left else '%'
+            right = re.escape( right ) if right else '%'
+            
+            # custom prepared parameter format
+            pattern = re.compile(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right)
+            prepared = ''
+            m = pattern.search( query )
+            while m:
+                pos = m.start(0)
+                le = len(m.group(0))
+                param = m.group(2)
+                if param in args:
+                    type = m.group(1)[0:-1] if m.group(1) else "s"
+                    
+                    if 'r'==type: 
+                        # raw param
+                        if is_array(args[param]):
+                            param = ','.join(args[param])
+                        else:
+                            param = args[param]
+                    
+                    elif 'l'==type: 
+                        # like param
+                        param = self.like( args[param] )
+                    
+                    elif 'f'==type: 
+                        if is_array(args[param]):
+                            # array of references, e.g fields
+                            tmp = array( args[param] )
+                            param = Ref.parse( tmp[0], self ).aliased
+                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).aliased
+                        else:
+                            # reference, e.g field
+                            param = Ref.parse( args[param], self ).aliased
+                    
+                    elif 'd'==type: 
+                        if is_array(args[param]):
+                            # array of integers param
+                            param = ','.join(self.intval2str( array(args[param]) ))
+                        else:
+                            # integer param
+                            param = self.intval2str( args[param] )
+                    
+                    #elif 's'==type: 
+                    else: 
+                        if is_array(args[param]):
+                            # array of strings param
+                            param = ','.join(self.quote( array(args[param]) ))
+                        else:
+                            # string param
+                            param = self.quote( args[param] )
+                    
+                    prepared += query[0:pos] + param
+                else:
+                    prepared += query[0:pos] + self.quote('')
+                query = query[pos+le:]
+                m = pattern.search( query )
+            
+            if len(query): prepared += query
+            return prepared
+
+        return query
+    
+    def dropTpl( self, tpl ):
         if tpl and (tpl in self.tpls):
            self.tpls[ tpl ]['sql'].dispose( )
            del self.tpls[ tpl ]
         return self
     
-    def create( self, table, defs, opts=None, create_clause='create' ):
+    def Create( self, table, defs, opts=None, create_clause='create' ):
         self.reset(create_clause)
         table = self.refs( table, self.tbls )[0].full
         self.clus['create_table'] = table
@@ -1230,7 +1244,7 @@ class Dialect:
             self.clus['create_opts'] = opts
         return self
     
-    def alter( self, table, defs, opts=None, alter_clause='alter' ):
+    def Alter( self, table, defs, opts=None, alter_clause='alter' ):
         self.reset(alter_clause)
         table = self.refs( table, self.tbls )[0].full
         self.clus['alter_table'] = table
@@ -1243,8 +1257,14 @@ class Dialect:
             self.clus['alter_opts'] = opts
         return self
     
-    def drop( self, tables='*', drop_clause='drop' ):
+    def Drop( self, tables='*', drop_clause='drop' ):
         self.reset(drop_clause)
+        view = tables[0] if is_array( tbls ) else tables
+        if (view in self.vews):
+            # drop custom 'soft' view
+            self.dropView( view )
+            return self
+        
         tables = self.refs( '*' if not tables else tables, self.tbls )
         if ('drop_tables' not in self.clus) or not len(self.clus['drop_tables']):
             self.clus['drop_tables'] = tables
@@ -1252,7 +1272,7 @@ class Dialect:
             self.clus['drop_tables'] = self.clus['drop_tables'] + tables
         return self
     
-    def select( self, columns='*', select_clause='select' ):
+    def Select( self, columns='*', select_clause='select' ):
         self.reset(select_clause)
         columns = self.refs( '*' if not columns else columns, self.cols )
         if ('select_columns' not in self.clus) or not len(self.clus['select_columns']):
@@ -1261,12 +1281,12 @@ class Dialect:
             self.clus['select_columns'] = self.clus['select_columns'] + columns
         return self
     
-    def insert( self, tables, columns, insert_clause='insert' ):
+    def Insert( self, tables, columns, insert_clause='insert' ):
         self.reset(insert_clause);
         view = tables[0] if is_array( tbls ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            self.use_view_( view )
+            self.useView( view )
         else:
             tables = self.refs( tables, self.tbls )
             columns = self.refs( columns, self.cols )
@@ -1280,7 +1300,7 @@ class Dialect:
                 self.clus['insert_columns'] = self.clus['insert_columns'] + columns
         return self
     
-    def values( self, values ):
+    def Values( self, values ):
         if empty(values): return self
         # array of arrays
         if not is_array(values) or not is_array(values[0]): values = [values]
@@ -1306,12 +1326,12 @@ class Dialect:
         self.clus['values_values'] = insert_values
         return self
     
-    def update( self, tables, update_clause='update' ):
+    def Update( self, tables, update_clause='update' ):
         self.reset(update_clause)
         view = tables[0] if is_array( tables ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            self.use_view_( view )
+            self.useView( view )
         else:
             tables = self.refs( tables, self.tbls )
             if ('update_tables' not in self.clus) or not len(self.clus['update_tables']):
@@ -1320,7 +1340,7 @@ class Dialect:
                 self.clus['update_tables'] = self.clus['update_tables'] + tables
         return self
     
-    def set( self, fields_values ):
+    def Set( self, fields_values ):
         if empty(fields_values): return self
         set_values = []
         COLS = self.cols
@@ -1341,8 +1361,14 @@ class Dialect:
                     set_values.append( field + " = " + field + " - " + self.intval2str(value['increment']) )
                 elif 'case' in value:
                     set_case_value = field + " = CASE"
-                    for case_value in value['case']:
-                        set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],False) + " THEN " + self.quote(case_value)
+                    if 'when' in value['case']:
+                        for case_value in value['case']['when']:
+                            set_case_value += "\nWHEN " + self.conditions(value['case']['when'][case_value],False) + " THEN " + self.quote(case_value)
+                        if 'else' in value['case']:
+                            set_case_value += "\nELSE " + self.quote(value['case']['else'])
+                    else:
+                        for case_value in value['case']:
+                            set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],False) + " THEN " + self.quote(case_value)
                     set_case_value += "\nEND"
                     set_values.append( set_case_value )
             else:
@@ -1353,29 +1379,16 @@ class Dialect:
         self.clus['set_values'] = set_values
         return self
     
-    def del_( self, delete_clause='delete' ):
+    def Delete( self, delete_clause='delete' ):
         self.reset(delete_clause)
         return self
     
-    def from_( self, tables ):
+    def From( self, tables ):
         if empty(tables): return self
         view = tables[0] if is_array( tables ) else tables
         if (view in self.vews) and (self.clau == self.vews[ view ]['clau']):
-            selected_columns = self.clus['select_columns']
-            
             # using custom 'soft' view
-            self.use_view_( view )
-            
-            # handle recursive aliasing in views
-            if selected_columns:
-                selected_columns = self.refs2( selected_columns, self.cols )
-                select_columns = []
-                for selected_column in selected_columns:
-                    if '*' == selected_column.qualified:
-                        select_columns = select_columns + self.clus['select_columns'];
-                    else:
-                        select_columns.append( selected_column )
-                self.clus['select_columns'] = select_columns
+            self.useView( view )
         else:
             tables = self.refs( tables, self.tbls )
             if ('from_tables' not in self.clus) or not len(self.clus['from_tables']):
@@ -1384,7 +1397,7 @@ class Dialect:
                 self.clus['from_tables'] = self.clus['from_tables'] + tables
         return self
     
-    def join( self, table, on_cond=None, join_type='' ):
+    def Join( self, table, on_cond=None, join_type='' ):
         table = self.refs( table, self.tbls )[0].aliased
         if empty(on_cond):
             join_clause = table
@@ -1404,7 +1417,7 @@ class Dialect:
         self.clus['join_clauses'] = join_clause
         return self
     
-    def where( self, conditions, boolean_connective="and" ):
+    def Where( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
@@ -1414,7 +1427,7 @@ class Dialect:
         self.clus['where_conditions'] = conditions
         return self
     
-    def group( self, col, dir="asc" ):
+    def Group( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
         group_condition = self.refs( col, self.cols )[0].alias + " " + dir
@@ -1423,7 +1436,7 @@ class Dialect:
         self.clus['group_conditions'] = group_condition
         return self
     
-    def having( self, conditions, boolean_connective="and" ):
+    def Having( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
@@ -1433,7 +1446,7 @@ class Dialect:
         self.clus['having_conditions'] = conditions
         return self
     
-    def order( self, col, dir="asc" ):
+    def Order( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
         order_condition = self.refs( col, self.cols )[0].alias + " " + dir
@@ -1442,118 +1455,15 @@ class Dialect:
         self.clus['order_conditions'] = order_condition
         return self
     
-    def limit( self, count, offset=0 ):
+    def Limit( self, count, offset=0 ):
         self.clus['count'] = int(count,10) if is_string(count) else count
         self.clus['offset'] = int(offset,10) if is_string(offset) else offset
         return self
     
-    def page( self, page, perpage ):
+    def Page( self, page, perpage ):
         page = int(page,10) if is_string(page) else page
         perpage = int(perpage,10) if is_string(perpage) else perpage
-        return self.limit( perpage, page*perpage )
-    
-    def join_conditions( self, join, conditions ):
-        j = 0
-        conditions_copied = copy.copy(conditions)
-        for f in conditions_copied:
-            
-            ref = Ref.parse( f, self )
-            field = ref._col
-            if field not in join: continue
-            cond = conditions[ f ]
-            main_table = join[field]['table']
-            main_id = join[field]['id']
-            join_table = join[field]['join']
-            join_id = join[field]['join_id']
-            
-            j += 1
-            join_alias = join_table+str(j)
-            
-            where = { }
-            if ('key' in join[field]) and field != join[field]['key']:
-                join_key = join[field]['key']
-                where[join_alias+'.'+join_key] = field
-            else:
-                join_key = field
-            if 'value' in join[field]:
-                join_value = join[field]['value']
-                where[join_alias+'.'+join_value] = cond
-            else:
-                join_value = join_key
-                where[join_alias+'.'+join_value] = cond
-            self.join(
-                join_table+" AS "+join_alias, 
-                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
-                "inner"
-            ).where( where )
-            
-            del conditions[f]
-        return self
-    
-    def refs( self, refs, lookup ):
-        rs = array( refs )
-        refs = [ ]
-        for i in range(len(rs)):
-            r = rs[ i ].split(',')
-            for j in range(len(r)):
-                ref = Ref.parse( r[ j ], self )
-                alias = ref.alias
-                qualified = ref.full
-                if alias not in lookup:
-                    lookup[ alias ] = ref
-                    if (qualified != alias) and (qualified not in lookup):
-                        lookup[ qualified ] = ref
-                else:
-                    ref = lookup[ alias ]
-                refs.append( ref )
-        return refs
-    
-    def refs2( self, refs, lookup ):
-        i = 0
-        for ref in refs:
-            alias = ref.alias
-            qualified = ref.qualified
-            qualified_full = ref.full
-            
-            if alias not in lookup:
-                
-                if qualified_full in lookup:
-                    
-                    ref2 = lookup[ qualified_full ]
-                    alias2 = ref2.alias
-                    qualified_full2 = ref2.full
-                    
-                    if (qualified_full2 != qualified_full) and (alias2 != alias) and (alias2 == qualified_full):
-                        
-                        # handle recursive aliasing
-                        #if (qualified_full2 != alias2) and (alias2 in lookup):
-                        #    del lookup[ alias2 ]
-                        
-                        ref2 = ref2.cloned( ref.alias )
-                        refs[i] = lookup[ alias ] = ref2
-                
-                elif qualified in lookup:
-                    ref2 = lookup[ qualified ]
-                    if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
-                    ref2 = ref2.cloned( ref.alias, None, ref._func )
-                    refs[i] = lookup[ ref2.alias ] = ref2
-                    if (ref2.alias != ref2.full) and (ref2.full not in lookup):
-                        lookup[ ref2.full ] = ref2
-                
-                else:
-                    
-                    lookup[ alias ] = ref
-                    
-                    if (alias != qualified_full) and (qualified_full not in lookup):
-                        lookup[ qualified_full ] = ref
-            
-            else:
-                
-                refs[i] = lookup[ alias ]
-            
-            i += 1
-        
-        return refs
+        return self.Limit( perpage, page*perpage )
     
     def conditions( self, conditions, can_use_alias=False ):
         if empty(conditions): return ''
@@ -1683,6 +1593,107 @@ class Dialect:
         
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
+    
+    def joinConditions( self, join, conditions ):
+        j = 0
+        conditions_copied = copy.copy(conditions)
+        for f in conditions_copied:
+            
+            ref = Ref.parse( f, self )
+            field = ref._col
+            if field not in join: continue
+            cond = conditions[ f ]
+            main_table = join[field]['table']
+            main_id = join[field]['id']
+            join_table = join[field]['join']
+            join_id = join[field]['join_id']
+            
+            j += 1
+            join_alias = join_table+str(j)
+            
+            where = { }
+            if ('key' in join[field]) and field != join[field]['key']:
+                join_key = join[field]['key']
+                where[join_alias+'.'+join_key] = field
+            else:
+                join_key = field
+            if 'value' in join[field]:
+                join_value = join[field]['value']
+                where[join_alias+'.'+join_value] = cond
+            else:
+                join_value = join_key
+                where[join_alias+'.'+join_value] = cond
+            self.Join(
+                join_table+" AS "+join_alias, 
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                "inner"
+            ).Where( where )
+            
+            del conditions[f]
+        return self
+    
+    def refs( self, refs, lookup, re_alias=False ):
+        if re_alias is True:
+            i = 0
+            for ref in refs:
+                alias = ref.alias
+                qualified = ref.qualified
+                qualified_full = ref.full
+                
+                if alias not in lookup:
+                    
+                    if qualified_full in lookup:
+                        
+                        ref2 = lookup[ qualified_full ]
+                        alias2 = ref2.alias
+                        qualified_full2 = ref2.full
+                        
+                        if (qualified_full2 != qualified_full) and (alias2 != alias) and (alias2 == qualified_full):
+                            
+                            # handle recursive aliasing
+                            #if (qualified_full2 != alias2) and (alias2 in lookup):
+                            #    del lookup[ alias2 ]
+                            
+                            ref2 = ref2.cloned( ref.alias )
+                            refs[i] = lookup[ alias ] = ref2
+                    
+                    elif qualified in lookup:
+                        ref2 = lookup[ qualified ]
+                        if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
+                        ref2 = ref2.cloned( ref.alias, None, ref._func )
+                        refs[i] = lookup[ ref2.alias ] = ref2
+                        if (ref2.alias != ref2.full) and (ref2.full not in lookup):
+                            lookup[ ref2.full ] = ref2
+                    
+                    else:
+                        
+                        lookup[ alias ] = ref
+                        
+                        if (alias != qualified_full) and (qualified_full not in lookup):
+                            lookup[ qualified_full ] = ref
+                
+                else:
+                    
+                    refs[i] = lookup[ alias ]
+                
+                i += 1
+        else:
+            rs = array( refs )
+            refs = [ ]
+            for i in range(len(rs)):
+                r = rs[ i ].split(',')
+                for j in range(len(r)):
+                    ref = Ref.parse( r[ j ], self )
+                    alias = ref.alias
+                    qualified = ref.full
+                    if alias not in lookup:
+                        lookup[ alias ] = ref
+                        if (qualified != alias) and (qualified not in lookup):
+                            lookup[ qualified ] = ref
+                    else:
+                        ref = lookup[ alias ]
+                    refs.append( ref )
+        return refs
     
     def tbl( self, table ):
         if is_array( table ): return [self.tbl( x ) for x in table]

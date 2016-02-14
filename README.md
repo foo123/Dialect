@@ -95,19 +95,19 @@ FROM <from_tables> [, <*from_tables> ]
 The `DELETE` clause for `SQLite` with `ORDER BY` and `LIMIT` clause emulation can be described as follows (note how the grammar template is *polymorphic* depending on whether `ORDER BY` and/or `LIMIT` are to be used, else defaults to the simplest `sql` output):
 
 ```text
-[<?!order_conditions>[<?!count>
+[<?!order_conditions><?!count>
 DELETE FROM <from_tables> [, <*from_tables> ] [ WHERE <?where_conditions> ]
-]][
+][
 DELETE FROM <from_tables> [, <*from_tables> ] WHERE rowid IN (
 SELECT rowid FROM <from_tables> [, <*from_tables> ]
 [ WHERE <?where_conditions> ] ORDER BY <?order_conditions> [, <*order_conditions> ] [ LIMIT <?count> OFFSET <offset|0> ]
 )
-][<?!order_conditions>[
+][<?!order_conditions>
 DELETE FROM <from_tables> [, <*from_tables> ] WHERE rowid IN (
 SELECT rowid FROM <from_tables> [, <*from_tables> ]
 [ WHERE <?where_conditions> ] LIMIT <?count> OFFSET <offset|0>
 )
-]]
+]
 ```
 
 where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables (i.e `non-terminals`).
@@ -136,7 +136,7 @@ The whole point of `Dialect` from the start was to use intuitive configuration t
 For example, a main `DELETE` clause for `SQLite` with `LIMIT` emulation and another variation (e.g `'delete_with_limit_clause'`) when `SQLite` is configured to allow `LIMIT` clauses in `DELETE` clauses (which is not a default setting out-of-the-box).
 
 
-User will just pass the clause variation name as parameter to, an otherwise same, `dialect.delete('delete_with_limit_clause')` method call and `Dialect` will take care of the rest. Easy and flexible as that.
+User will just pass the clause variation name as parameter to, an otherwise same, `dialect.Delete('delete_with_limit_clause')` method call and `Dialect` will take care of the rest. Easy and flexible as that.
 
 Coupled with the fact that `Dialect` supports `clause` definition via grammar-templates, which are polymoprhic themselves (see above), this is a very powerful and flexible feature.
 
@@ -189,46 +189,46 @@ var dialect = new Dialect( [String vendor="mysql"] );
 // NOTE4: config sql clauses use 'grammar-like templates' to generate vendor-specific sql code in a flexible and intuitive way
 
 // initiate SELECT directive (resets the instance state to SELECT)
-dialect.select( String | Array fields='*' );
+dialect.Select( String | Array fields='*' );
 
 // initiate INSERT directive (resets the instance state to INSERT)
-dialect.insert( String | Array tables, String | Array fields );
+dialect.Insert( String | Array tables, String | Array fields );
 
 // initiate UPDATE directive (resets the instance state to UPDATE)
-dialect.update( String | Array tables );
+dialect.Update( String | Array tables );
 
 // initiate DELETE directive (resets the instance state to DELETE)
-dialect.del( );
+dialect.Delete( );
 
 // FROM directive
-dialect.from( String | Array tables );
+dialect.From( String | Array tables );
 
 // WHERE directive
-dialect.where( String | Object conditions [, String type="AND"] );
+dialect.Where( String | Object conditions [, String type="AND"] );
 
 // HAVING directive
-dialect.having( String | Object conditions [, String type="AND"] );
+dialect.Having( String | Object conditions [, String type="AND"] );
 
 // VALUES directive
-dialect.values( Array values );
+dialect.Values( Array values );
 
 // SET directive
-dialect.set( Object fields_values );
+dialect.Set( Object fields_values );
 
 // JOIN directive
-dialect.join( String table, String | Object condition [, String type=""] );
+dialect.Join( String table, String | Object condition [, String type=""] );
 
 // GROUP directive
-dialect.group( String field [, String dir="ASC"] );
+dialect.Group( String field [, String dir="ASC"] );
 
 // ORDER directive
-dialect.order( String field [, String dir="ASC"] );
+dialect.Order( String field [, String dir="ASC"] );
 
 // LIMIT directive
-dialect.limit( Number count [, Number offset=0] );
+dialect.Limit( Number count [, Number offset=0] );
 
 // PAGE directive (an alias of LIMIT)
-dialect.page( Number page, Number perpage );
+dialect.Page( Number page, Number perpage );
 
 // get final sql code as string (resets the instance state after this)
 // dialect.toString( ) will do same
@@ -262,22 +262,22 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 
 // define/create a custom soft view
 dialect
-    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    .from('t')
-    .join('t2',{'t.id':'t2.id'},'inner')
-    .make_view('my_view') // automaticaly clears instance state after view created, so new statements can be used
+    .Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .From('t')
+    .Join('t2',{'t.id':'t2.id'},'inner')
+    .createView('my_view') // automaticaly clears instance state after view created, so new statements can be used
 ;
 
 // use it in a SELECT statement
 var query_soft_view = dialect
-                        .select('f1 AS f11,f2,f3')
-                        .from('my_view')
-                        .where({f1:'2'})
-                        .sql()
+                    .Select('f1 AS f11,f2,f3')
+                    .From('my_view')
+                    .Where({f1:'2'})
+                    .sql()
                     ;
 
 // drop the custom view, if exists
-dialect.clear_view('my_view');
+dialect.dropView('my_view');
 
 
 
@@ -287,23 +287,23 @@ dialect.clear_view('my_view');
 
 // define/create a prepared sql query template
 dialect
-    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    .from('t')
-    .where({
+    .Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .From('t')
+    .Where({
         f1:{eq:'%d:id%',type:'raw'} // NOTE: parameter type format is same as that used in .prepare method above
     })
-    .prepare_tpl('prepared_query') // automaticaly clears instance state after tpl created, so new statements can be used
+    .prepareTpl('prepared_query') // automaticaly clears instance state after tpl created, so new statements can be used
 ;
 
 // or using a ready-made query string also works
-dialect.prepare_tpl('prepared_query', "SELECT * FROM `table` WHERE `field` = %d:id%");
+dialect.prepareTpl('prepared_query', "SELECT * FROM `table` WHERE `field` = %d:id%");
 
 // use it
 // will automaticaly typecast the key to integer (i.e "d:" modifier was used in prepared template definition)
 var query_prepared = dialect.prepared('prepared_query',{id:'12'});
 
 // drop the custom prepared sql template, if exists
-dialect.clear_tpl('prepared_query');
+dialect.dropTpl('prepared_query');
 ```
 
 

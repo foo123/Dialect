@@ -13,38 +13,38 @@ var conditions = {
 };
 
 dialect
-    .select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    .from('t')
-    .join('t2',{'t.id':'t2.id'},'inner')
-    .where({f1:'2'})
-    .limit(100,100)
-    .make_view('my_view')
+    .Select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .From('t')
+    .Join('t2',{'t.id':'t2.id'},'inner')
+    .Where({f1:'2'})
+    .Limit(100,100)
+    .createView('my_view')
 ;
 
 dialect
-    .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-    .from('t')
-    .where({
+    .Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+    .From('t')
+    .Where({
         'f1':{'eq':'%d:id%','type':'raw'}
     })
-    .prepare_tpl('prepared_query')
+    .prepareTpl('prepared_query')
 ;
 
-dialect.prepare_tpl(
+dialect.prepareTpl(
     'prepared_query2', 
     dialect
-        .select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
-        .from('t')
-        .where({
+        .Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
+        .From('t')
+        .Where({
             'f1':{'eq':'%d:id%','type':'raw'}
         }).sql( )
 );
 
 var query_soft_view = dialect
-        .select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
-        .from('my_view')
-        .where({f2:'3'}, 'OR')
-        .where({f2:'1'}, 'OR')
+        .Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
+        .From('my_view')
+        .Where({f2:'3'}, 'OR')
+        .Where({f2:'1'}, 'OR')
         .sql()
     ;
     
@@ -52,10 +52,10 @@ var query_prepared = dialect.prepared('prepared_query',{'id':'12'});
 var query_prepared2 = dialect.prepared('prepared_query2',{'id':'12'});
 
 var query = dialect
-        .select()
-        .order('main.field1')
-        .from('table AS main')
-        .join_conditions({
+        .Select()
+        .Order('main.field1')
+        .From('table AS main')
+        .joinConditions({
             'project' : {
                 'table' : 'main',
                 'id' : 'ID',
@@ -65,9 +65,9 @@ var query = dialect
                 'value' : 'meta_value'
             }
         }, conditions)
-        .where(conditions)
-        .order('main.field2')
-        .page(2, 1000)
+        .Where(conditions)
+        .Order('main.field2')
+        .Page(2, 1000)
         .sql( )
     ;
     
