@@ -1000,7 +1000,25 @@ class Dialect
     {
         $query = null;
         if ( $this->clau && isset($this->clauses[ $this->clau ]) )
+        {
+            if ( isset($this->clus['select_columns']) )
+                $this->clus['select_columns'] = self::map_join( $this->clus['select_columns'], 'aliased' );
+            if ( isset($this->clus['from_tables']) )
+                $this->clus['from_tables'] = self::map_join( $this->clus['from_tables'], 'aliased' );
+            if ( isset($this->clus['insert_tables']) )
+                $this->clus['insert_tables'] = self::map_join( $this->clus['insert_tables'], 'aliased' );
+            if ( isset($this->clus['insert_columns']) )
+                $this->clus['insert_columns'] = self::map_join( $this->clus['insert_columns'], 'full' );
+            if ( isset($this->clus['update_tables']) )
+                $this->clus['update_tables'] = self::map_join( $this->clus['update_tables'], 'aliased' );
+            if ( isset($this->clus['create_table']) )
+                $this->clus['create_table'] = self::map_join( $this->clus['create_table'], 'full' );
+            if ( isset($this->clus['alter_table']) )
+                $this->clus['alter_table'] = self::map_join( $this->clus['alter_table'], 'full' );
+            if ( isset($this->clus['drop_tables']) )
+                $this->clus['drop_tables'] = self::map_join( $this->clus['drop_tables'], 'full' );
             $query = $this->clauses[ $this->clau ]->render( $this->clus );
+        }
         $this->clear( );
         return $query;
     }
@@ -1109,7 +1127,7 @@ class Dialect
                 'tbls'=>$this->tbls,
                 'cols'=>$this->cols
             );
-            // make existing where / having conditions required
+            // make existing where / having conditions, required
             if ( isset($this->vews[ $view ]->clus[ 'where_conditions' ]) )
             {
                 if ( !empty($this->vews[ $view ]->clus[ 'where_conditions' ]) )
@@ -1133,6 +1151,16 @@ class Dialect
         {
            unset( $this->vews[ $view ] );
         }
+        return $this;
+    }
+    
+    public function use_view_( $view )
+    {
+        // using custom 'soft' view
+        $view = $this->vews[ $view ];
+        $this->clus = self::defaults( $this->clus, $view->clus, true, true );
+        $this->tbls = self::defaults( array(), $view->tbls, true );
+        $this->cols = self::defaults( array(), $view->cols, true );
         return $this;
     }
     
@@ -1305,9 +1333,7 @@ class Dialect
     public function create( $table, $defs, $opts=null, $create_clause='create' )
     {
         $this->reset($create_clause);
-        $table = $this->refs( $table, $this->tbls );
-        $table = $table[0]->full;
-        $this->clus['create_table'] = $table;
+        $this->clus['create_table'] = $this->refs( $table, $this->tbls );
         if ( !empty($this->clus['create_defs']) )
             $defs = $this->clus['create_defs'] . ',' . $defs;
         $this->clus['create_defs'] = $defs;
@@ -1323,9 +1349,7 @@ class Dialect
     public function alter( $table, $defs, $opts=null, $alter_clause='alter' )
     {
         $this->reset($alter_clause);
-        $table = $this->refs( $table, $this->tbls );
-        $table = $table[0]->full;
-        $this->clus['alter_table'] = $table;
+        $this->clus['alter_table'] = $this->refs( $table, $this->tbls );
         if ( !empty($this->clus['alter_defs']) )
             $defs = $this->clus['alter_defs'] . ',' . $defs;
         $this->clus['alter_defs'] = $defs;
@@ -1338,70 +1362,49 @@ class Dialect
         return $this;
     }
     
-    public function drop( $tables, $drop_clause='drop' )
+    public function drop( $tables='*', $drop_clause='drop' )
     {
         $this->reset($drop_clause);
-        if ( empty($tables) || '*' === $tables ) 
-        {
-            $tables = '*';
-        }
+        $tables = $this->refs( empty($tables) ? '*' : $tables, $this->tbls );
+        if ( empty($this->clus['drop_tables']) )
+            $this->clus['drop_tables'] = $tables;
         else
-        {            
-            $tbls = $this->refs( $tables, $this->tbls );
-            $tables = $tbls[ 0 ]->full;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->full;
-        }
-        if ( !empty($this->clus['drop_tables']) )
-            $tables = $this->clus['drop_tables'] . ',' . $tables;
-        $this->clus['drop_tables'] = $tables;
+            $this->clus['drop_tables'] = array_merge($this->clus['drop_tables'], $tables);
         return $this;
     }
     
-    public function select( $cols='*', $select_clause='select' )
+    public function select( $columns='*', $select_clause='select' )
     {
         $this->reset($select_clause);
-        if ( !$cols || empty($cols) || '*' === $cols ) 
-        {
-            $columns = '*';
-        }
+        $columns = $this->refs( empty($columns) ? '*' : $columns, $this->cols );
+        if ( empty($this->clus['select_columns']) )
+            $this->clus['select_columns'] = $columns;
         else
-        {
-            $cols = $this->refs( $cols, $this->cols );
-            $columns = $cols[ 0 ]->aliased;
-            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->aliased;
-        }
-        if ( !empty($this->clus['select_columns']) )
-            $columns = $this->clus['select_columns'] . ',' . $columns;
-        $this->clus['select_columns'] = $columns;
+            $this->clus['select_columns'] = array_merge($this->clus['select_columns'], $columns);
         return $this;
     }
     
-    public function insert( $tbls, $cols, $insert_clause='insert' )
+    public function insert( $tables, $columns, $insert_clause='insert' )
     {
         $this->reset($insert_clause);
-        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
-        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
+        $view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
             // using custom 'soft' view
-            $view = $this->vews[ $view ];
-            $this->clus = self::defaults( $this->clus, $view->clus, true );
-            $this->tbls = self::defaults( array(), $view->tbls, true );
-            $this->cols = self::defaults( array(), $view->cols, true );
+            $this->use_view_( $view );
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls );
-            $cols = $this->refs( $cols, $this->cols );
-            $tables = $tbls[ 0 ]->aliased;
-            $columns = $cols[ 0 ]->full;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
-            for($i=1,$l=count($cols); $i<$l; $i++) $columns .= ',' . $cols[ $i ]->full;
-            if ( !empty($this->clus['insert_tables']) )
-                $tables = $this->clus['insert_tables'] . ',' . $tables;
-            if ( !empty($this->clus['insert_columns']) )
-                $columns = $this->clus['insert_columns'] . ',' . $columns;
-            $this->clus['insert_tables'] = $tables;
-            $this->clus['insert_columns'] = $columns;
+            $tables = $this->refs( $tables, $this->tbls );
+            $columns = $this->refs( $columns, $this->cols );
+            if ( empty($this->clus['insert_tables']) )
+                $this->clus['insert_tables'] = $tables;
+            else
+                $this->clus['insert_tables'] = array_merge($this->clus['insert_tables'], $tables);
+            if ( empty($this->clus['insert_columns']) )
+                $this->clus['insert_columns'] = $columns;
+            else
+                $this->clus['insert_columns'] = array_merge($this->clus['insert_columns'], $columns);
         }
         return $this;
     }
@@ -1450,26 +1453,22 @@ class Dialect
         return $this;
     }
     
-    public function update( $tbls, $update_clause='update' )
+    public function update( $tables, $update_clause='update' )
     {
         $this->reset($update_clause);
-        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
-        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
+        $view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
             // using custom 'soft' view
-            $view = $this->vews[ $view ];
-            $this->clus = self::defaults( $this->clus, $view->clus, true );
-            $this->tbls = self::defaults( array(), $view->tbls, true );
-            $this->cols = self::defaults( array(), $view->cols, true );
+            $this->use_view_( $view );
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls );
-            $tables = $tbls[ 0 ]->aliased;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
-            if ( !empty($this->clus['update_tables']) )
-                $tables = $this->clus['update_tables'] . ',' . $tables;
-            $this->clus['update_tables'] = $tables;
+            $tables = $this->refs( $tables, $this->tbls );
+            if ( empty($this->clus['update_tables']) )
+                $this->clus['update_tables'] = $tables;
+            else
+                $this->clus['update_tables'] = array_merge($this->clus['update_tables'], $tables);
         }
         return $this;
     }
@@ -1504,6 +1503,16 @@ class Dialect
                 {
                     $set_values[] = "$field = $field - " . $this->intval($value['decrement']);
                 }
+                elseif ( isset($value['case']) )
+                {
+                    $set_case_value = "$field = CASE";
+                    foreach ( $value['case'] as $case_value=>$case_conditions )
+                    {
+                        $set_case_value .= "\nWHEN " . $this->conditions($case_conditions,false) . " THEN " . $this->quote($case_value);
+                    }
+                    $set_case_value .= "\nEND";
+                    $set_values[] = $set_case_value;
+                }
             }
             else
             {
@@ -1523,40 +1532,39 @@ class Dialect
         return $this;
     }
     
-    public function from( $tbls )
+    public function from( $tables )
     {
-        if ( empty($tbls) ) return $this;
-        $view = is_array( $tbls ) ? $tbls[0] : $tbls;
-        if ( isset($this->vews[ $view ]) && $this->clau === $this->vews[ $view ]->clau )
+        if ( empty($tables) ) return $this;
+        $view = is_array( $tables ) ? $tables[0] : $tables;
+        if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
-            $_ = array();
-            $selected_columns = !empty($this->clus['select_columns']) && ('*'!=$this->clus['select_columns']) ? $this->refs( $this->clus['select_columns'], $_ ) : null;
+            $selected_columns = $this->clus['select_columns'];
             
             // using custom 'soft' view
-            $view = $this->vews[ $view ];
-            $this->clus = self::defaults( $this->clus, $view->clus, true );
-            $this->tbls = self::defaults( array(), $view->tbls, true );
-            $this->cols = self::defaults( array(), $view->cols, true );
+            $this->use_view_( $view );
             
             // handle recursive aliasing in views
-            if ( $selected_columns )
+            if ( !empty($selected_columns) )
             {
-                // not re-parse fields here, since they are already parsed??
                 $selected_columns = $this->refs2( $selected_columns, $this->cols );
-                $select_columns = ('*'===$selected_columns[0]->qualified ? $this->clus['select_columns'] : $selected_columns[0]->aliased);
-                for($i=1,$l=count($selected_columns); $i<$l; $i++)
-                    $select_columns .= ',' . ('*'===$selected_columns[$i]->qualified ? $this->clus['select_columns'] : $selected_columns[$i]->aliased);
+                $select_columns = array( );
+                foreach($selected_columns as $selected_column)
+                {
+                    if ( '*' === $selected_column->qualified )
+                        $select_columns = array_merge($select_columns, $this->clus['select_columns']);
+                    else
+                        $select_columns[] = $selected_column;
+                }
                 $this->clus['select_columns'] = $select_columns;
             }
         }
         else
         {
-            $tbls = $this->refs( $tbls, $this->tbls );
-            $tables = $tbls[ 0 ]->aliased;
-            for($i=1,$l=count($tbls); $i<$l; $i++) $tables .= ',' . $tbls[ $i ]->aliased;
-            if ( !empty($this->clus['from_tables']) )
-                $tables = $this->clus['from_tables'] . ',' . $tables;
-            $this->clus['from_tables'] = $tables;
+            $tables = $this->refs( $tables, $this->tbls );
+            if ( empty($this->clus['from_tables']) )
+                $this->clus['from_tables'] = $tables;
+            else
+                $this->clus['from_tables'] = array_merge($this->clus['from_tables'], $tables);
         }
         return $this;
     }
@@ -2102,13 +2110,25 @@ class Dialect
         return self::addslashes( $v, $chars, $esc );
     }
     
-    public static function defaults( $data, $defau=array(), $overwrite=false )
+    public static function map_join( $arr, $prop, $sep=',' )
+    {
+        $joined = '';
+        if ( !empty($arr) )
+        {
+            $joined = $arr[0]->{$prop};
+            for($i=1,$l=count($arr); $i<$l; $i++) $joined .= $sep . $arr[$i]->{$prop};
+        }
+        return $joined;
+    }
+    
+    public static function defaults( $data, $defau=array(), $overwrite=false, $array_copy=false )
     {
         $overwrite = true === $overwrite;
+        $array_copy = true === $array_copy;
         foreach((array)$defau as $k=>$v)
         {
             if ( $overwrite || !isset($data[$k]) )
-                $data[ $k ] = $v;
+                $data[ $k ] = $array_copy && is_array($v) ? array_merge(array(), $v) : $v;
         }
         return $data;
     }

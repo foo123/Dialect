@@ -143,12 +143,20 @@ def addslashes( s, chars=None, esc='\\' ):
         s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
     return s2
 
-def defaults( data, defau, overwrite=False ):
+def defaults( data, defau, overwrite=False, array_copy=False ):
     overwrite = overwrite is True
+    array_copy = array_copy is True
     for k in defau:
         if overwrite or not(k in data):
-            data[ k ] = defau[ k ]
+            data[ k ] = defau[ k ][:] if array_copy and isinstance(defau[ k ],list) else defau[ k ]
     return data
+
+def map_join( arr, prop, sep=',' ):
+    joined = ''
+    if arr and len(arr):
+        joined = getattr(arr[0], prop)
+        for i in range(1,len(arr)): joined += sep + getattr(arr[i], prop)
+    return joined
 
 #def filter( data, filt, positive=True ):
 #    if positive is not False:
@@ -976,6 +984,22 @@ class Dialect:
     def sql( self ):
         query = None
         if self.clau and (self.clau in self.clauses):
+            if 'select_columns' in self.clus:
+                self.clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' )
+            if 'from_tables' in self.clus:
+                self.clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' )
+            if 'insert_tables' in self.clus:
+                self.clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' )
+            if 'insert_columns' in self.clus:
+                self.clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' )
+            if 'update_tables' in self.clus:
+                self.clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' )
+            if 'create_table' in self.clus:
+                self.clus['create_table'] = map_join( self.clus['create_table'], 'full' )
+            if 'alter_table' in self.clus:
+                self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' )
+            if 'drop_tables' in self.clus:
+                self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' )
             query = self.clauses[ self.clau ].render( self.clus )
         self.clear( )
         return query
@@ -1069,6 +1093,14 @@ class Dialect:
     def clear_view( self, view ):
         if view and (view in self.vews):
             del self.vews[ view ]
+        return self
+    
+    def use_view_( self, view ):
+        # using custom 'soft' view
+        view = self.vews[ view ]
+        self.clus = defaults( self.clus, view['clus'], True, True )
+        self.tbls = defaults( {}, view['tbls'], True )
+        self.cols = defaults( {}, view['cols'], True )
         return self
     
     def prepare_tpl( self, tpl, *args ):
@@ -1211,54 +1243,41 @@ class Dialect:
             self.clus['alter_opts'] = opts
         return self
     
-    def drop( self, tables, drop_clause='drop' ):
+    def drop( self, tables='*', drop_clause='drop' ):
         self.reset(drop_clause)
-        if not tables or not len(tables) or '*' == tables: 
-            tables = '*'
+        tables = self.refs( '*' if not tables else tables, self.tbls )
+        if ('drop_tables' not in self.clus) or not len(self.clus['drop_tables']):
+            self.clus['drop_tables'] = tables
         else:
-            tbls = self.refs( tables, self.tbls )
-            tables = tbls[ 0 ].full
-            for i in range(1,len(cols)): tables += ',' + tbls[ i ].full
-        if 'drop_tables' in self.clus and len(self.clus['drop_tables']) > 0:
-            tables = self.clus['drop_tables'] + ',' + tables
-        self.clus['drop_tables'] = tables
+            self.clus['drop_tables'] = self.clus['drop_tables'] + tables
         return self
     
-    def select( self, cols='*', select_clause='select' ):
+    def select( self, columns='*', select_clause='select' ):
         self.reset(select_clause)
-        if not cols or not len(cols) or '*' == cols: 
-            columns = '*';
+        columns = self.refs( '*' if not columns else columns, self.cols )
+        if ('select_columns' not in self.clus) or not len(self.clus['select_columns']):
+            self.clus['select_columns'] = columns
         else:
-            cols = self.refs( cols, self.cols )
-            columns = cols[ 0 ].aliased
-            for i in range(1,len(cols)): columns += ',' + cols[ i ].aliased
-        if 'select_columns' in self.clus and len(self.clus['select_columns']) > 0:
-            columns = self.clus['select_columns'] + ',' + columns
-        self.clus['select_columns'] = columns
+            self.clus['select_columns'] = self.clus['select_columns'] + columns
         return self
     
-    def insert( self, tbls, cols, insert_clause='insert' ):
+    def insert( self, tables, columns, insert_clause='insert' ):
         self.reset(insert_clause);
-        view = tbls[0] if is_array( tbls ) else tbls
+        view = tables[0] if is_array( tbls ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            view = self.vews[ view ]
-            self.clus = defaults( self.clus, view['clus'], True )
-            self.tbls = defaults( {}, view['tbls'], True )
-            self.cols = defaults( {}, view['cols'], True )
+            self.use_view_( view )
         else:
-            tbls = self.refs( tbls, self.tbls )
-            cols = self.refs( cols, self.cols )
-            tables = tbls[ 0 ].aliased 
-            columns = cols[ 0 ].full
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
-            for i in range(1,len(cols)): columns += ',' + cols[ i ].full
-            if 'insert_tables' in self.clus and len(self.clus['insert_tables']) > 0:
-                tables = self.clus['insert_tables'] + ',' + tables
-            if 'insert_columns' in self.clus and len(self.clus['insert_columns']) > 0:
-                columns = self.clus['insert_columns'] + ',' + columns
-            self.clus['insert_tables'] = tables
-            self.clus['insert_columns'] = columns
+            tables = self.refs( tables, self.tbls )
+            columns = self.refs( columns, self.cols )
+            if ('insert_tables' not in self.clus) or not len(self.clus['insert_tables']):
+                self.clus['insert_tables'] = tables
+            else:
+                self.clus['insert_tables'] = self.clus['insert_tables'] + tables
+            if ('insert_columns' not in self.clus) or not len(self.clus['insert_columns']):
+                self.clus['insert_columns'] = columns
+            else:
+                self.clus['insert_columns'] = self.clus['insert_columns'] + columns
         return self
     
     def values( self, values ):
@@ -1287,22 +1306,18 @@ class Dialect:
         self.clus['values_values'] = insert_values
         return self
     
-    def update( self, tbls, update_clause='update' ):
+    def update( self, tables, update_clause='update' ):
         self.reset(update_clause)
-        view = tbls[0] if is_array( tbls ) else tbls
+        view = tables[0] if is_array( tables ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
-            view = self.vews[ view ]
-            self.clus = defaults( self.clus, view['clus'], True )
-            self.tbls = defaults( {}, view['tbls'], True )
-            self.cols = defaults( {}, view['cols'], True )
+            self.use_view_( view )
         else:
-            tbls = self.refs( tbls, self.tbls )
-            tables = tbls[ 0 ].aliased 
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
-            if 'update_tables' in self.clus and len(self.clus['update_tables']) > 0:
-                tables = self.clus['update_tables'] + ',' + tables
-            self.clus['update_tables'] = tables
+            tables = self.refs( tables, self.tbls )
+            if ('update_tables' not in self.clus) or not len(self.clus['update_tables']):
+                self.clus['update_tables'] = tables
+            else:
+                self.clus['update_tables'] = self.clus['update_tables'] + tables
         return self
     
     def set( self, fields_values ):
@@ -1324,6 +1339,12 @@ class Dialect:
                     set_values.append( field + " = " + field + " + " + self.intval2str(value['increment']) )
                 elif 'decrement' in value:
                     set_values.append( field + " = " + field + " - " + self.intval2str(value['increment']) )
+                elif 'case' in value:
+                    set_case_value = field + " = CASE"
+                    for case_value in value['case']:
+                        set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],False) + " THEN " + self.quote(case_value)
+                    set_case_value += "\nEND"
+                    set_values.append( set_case_value )
             else:
                 set_values.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
         set_values = ','.join(set_values)
@@ -1336,32 +1357,31 @@ class Dialect:
         self.reset(delete_clause)
         return self
     
-    def from_( self, tbls ):
-        if empty(tbls): return self
-        view = tbls[0] if is_array( tbls ) else tbls
-        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
-            selected_columns = self.refs( self.clus['select_columns'], {} ) if (not empty(self.clus['select_columns'])) and ('*'!=self.clus['select_columns']) else None
+    def from_( self, tables ):
+        if empty(tables): return self
+        view = tables[0] if is_array( tables ) else tables
+        if (view in self.vews) and (self.clau == self.vews[ view ]['clau']):
+            selected_columns = self.clus['select_columns']
             
             # using custom 'soft' view
-            view = self.vews[ view ]
-            self.clus = defaults( self.clus, view['clus'], True )
-            self.tbls = defaults( {}, view['tbls'], True )
-            self.cols = defaults( {}, view['cols'], True )
+            self.use_view_( view )
             
             # handle recursive aliasing in views
             if selected_columns:
-                # not re-parse fields here, since they are already parsed??
                 selected_columns = self.refs2( selected_columns, self.cols )
-                select_columns = (self.clus['select_columns'] if '*'==selected_columns[0].qualified else selected_columns[0].aliased)
-                for i in range(1,len(selected_columns)): select_columns += ',' + (self.clus['select_columns'] if '*'==selected_columns[i].qualified else selected_columns[i].aliased)
+                select_columns = []
+                for selected_column in selected_columns:
+                    if '*' == selected_column.qualified:
+                        select_columns = select_columns + self.clus['select_columns'];
+                    else:
+                        select_columns.append( selected_column )
                 self.clus['select_columns'] = select_columns
         else:
-            tbls = self.refs( tbls, self.tbls )
-            tables = tbls[ 0 ].aliased
-            for i in range(1,len(tbls)): tables += ',' + tbls[ i ].aliased
-            if 'from_tables' in self.clus and len(self.clus['from_tables']) > 0:
-                tables = self.clus['from_tables'] + ',' + tables
-            self.clus['from_tables'] = tables
+            tables = self.refs( tables, self.tbls )
+            if ('from_tables' not in self.clus) or not len(self.clus['from_tables']):
+                self.clus['from_tables'] = tables
+            else:
+                self.clus['from_tables'] = self.clus['from_tables'] + tables
         return self
     
     def join( self, table, on_cond=None, join_type='' ):

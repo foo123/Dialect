@@ -100,14 +100,15 @@ function addslashes( s, chars, esc )
     }
     return s2;
 }
-function defaults( data, def, overwrite )
+function defaults( data, def, overwrite, array_copy )
 {
     overwrite = true === overwrite;
+    array_copy = true === array_copy;
     for (var k in def)
     {
         if ( !def[HAS](k) ) continue;
         if ( overwrite || !data[HAS](k) )
-            data[ k ] = def[ k ];
+            data[ k ] = array_copy && def[ k ].slice ? def[ k ].slice( ) : def[ k ];
     }
     return data;
 }
@@ -204,6 +205,17 @@ function ffilter( x, F )
         if ( F(x[++k]) ) Fx.push(x[k]);
     }
     return Fx;
+}
+function map_join( arr, prop, sep )
+{
+    var joined = '', i, l;
+    if ( arr && arr.length )
+    {
+        sep = null == sep ? ',' : sep;
+        joined = arr[0][prop];
+        for(i=1,l=arr.length; i<l; i++) joined += sep + arr[i][prop];
+    }
+    return joined;
 }
 
 Tpl = function Tpl( tpl, replacements, compiled ) {
@@ -1172,7 +1184,25 @@ Dialect[PROTO] = {
     ,sql: function( ) {
         var self = this, query = null;
         if ( self.clau && self.clauses[HAS]( self.clau ) )
+        {
+            if ( self.clus[HAS]('select_columns') )
+                self.clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' );
+            if ( self.clus[HAS]('from_tables') )
+                self.clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' );
+            if ( self.clus[HAS]('insert_tables') )
+                self.clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' );
+            if ( self.clus[HAS]('insert_columns') )
+                self.clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' );
+            if ( self.clus[HAS]('update_tables') )
+                self.clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' );
+            if ( self.clus[HAS]('create_table') )
+                self.clus['create_table'] = map_join( self.clus['create_table'], 'full' );
+            if ( self.clus[HAS]('alter_table') )
+                self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' );
+            if ( self.clus[HAS]('drop_tables') )
+                self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' );
             query = self.clauses[ self.clau ].render( self.clus ) || "";
+        }
         self.clear( );
         return query;
     }
@@ -1305,6 +1335,16 @@ Dialect[PROTO] = {
         {
             delete self.vews[ view ];
         }
+        return self;
+    }
+    
+    ,use_view_: function( view ) {
+        // using custom 'soft' view
+        var self = this;
+        view = self.vews[ view ];
+        self.clus = defaults( self.clus, view.clus, true, true );
+        self.tbls = defaults( {}, view.tbls, true );
+        self.cols = defaults( {}, view.cols, true );
         return self;
     }
     
@@ -1481,8 +1521,7 @@ Dialect[PROTO] = {
     ,create: function( table, defs, opts, create_clause ) {
         var self = this;
         self.reset(create_clause||'create');
-        table = self.refs( table, self.tbls )[0].full;
-        self.clus.create_table = table;
+        self.clus.create_table = self.refs( table, self.tbls );;
         if ( !!self.clus.create_defs )
             defs = self.clus.create_defs + ',' + defs;
         self.clus.create_defs = defs;
@@ -1498,8 +1537,7 @@ Dialect[PROTO] = {
     ,alter: function( table, defs, opts, alter_clause ) {
         var self = this;
         self.reset(alter_clause||'alter');
-        table = self.refs( table, self.tbls )[0].full;
-        self.clus.alter_table = table;
+        self.clus.alter_table = self.refs( table, self.tbls );
         if ( !!self.clus.alter_defs )
             defs = self.clus.alter_defs + ',' + defs;
         self.clus.alter_defs = defs;
@@ -1513,69 +1551,48 @@ Dialect[PROTO] = {
     }
     
     ,drop: function( tables, drop_clause ) {
-        var self = this, i, l, tbls;
+        var self = this;
         self.reset(drop_clause||'drop');
-        if ( !tables || !tables.length || '*' === tables ) 
-        {
-            tables = '*';
-        }
+        tables = self.refs( null==tables ? '*' : tables, self.tbls );
+        if ( !self.clus.drop_tables )
+            self.clus.drop_tables = tables;
         else
-        {            
-            tbls = self.refs( tables, self.tbls );
-            tables = tbls[ 0 ].full;
-            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].full;
-        }
-        if ( !!self.clus.drop_tables )
-            tables = self.clus.drop_tables + ',' + tables;
-        self.clus.drop_tables = tables;
+            self.clus.drop_tables = self.clus.drop_tables.concat(tables);
         return self;
     }
     
-    ,select: function( cols, select_clause ) {
-        var self = this, i, l, columns;
+    ,select: function( columns, select_clause ) {
+        var self = this;
         self.reset(select_clause||'select');
-        if ( !cols || !cols.length || '*' === cols ) 
-        {
-            columns = '*';
-        }
+        columns = self.refs( null==columns ? '*' : columns, self.cols );
+        if ( !self.clus.select_columns )
+            self.clus.select_columns = columns;
         else
-        {            
-            cols = self.refs( cols, self.cols );
-            columns = cols[ 0 ].aliased;
-            for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].aliased;
-        }
-        if ( !!self.clus.select_columns )
-            columns = self.clus.select_columns + ',' + columns;
-        self.clus.select_columns = columns;
+            self.clus.select_columns = self.clus.select_columns.concat(columns);
         return self;
     }
     
-    ,insert: function( tbls, cols, insert_clause ) {
-        var self = this, i, l, view, tables, columns;
+    ,insert: function( tables, columns, insert_clause ) {
+        var self = this, view;
         self.reset(insert_clause||'insert');
-        view = is_array( tbls ) ? tbls[0] : tbls;
-        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
+        view = is_array( tables ) ? tables[0] : tables;
+        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
-            view = self.vews[ view ];
-            self.clus = defaults( self.clus, view.clus, true );
-            self.tbls = defaults( {}, view.tbls, true );
-            self.cols = defaults( {}, view.cols, true );
+            self.use_view_( view );
         }
         else
         {
-            tbls = self.refs( tbls, self.tbls );
-            cols = self.refs( cols, self.cols );
-            tables = tbls[ 0 ].aliased;
-            columns = cols[ 0 ].full;
-            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].aliased;
-            for(i=1,l=cols.length; i<l; i++) columns += ',' + cols[ i ].full;
-            if ( !!self.clus.insert_tables )
-                tables = self.clus.insert_tables + ',' + tables;
-            if ( !!self.clus.insert_columns )
-                columns = self.clus.insert_columns + ',' + columns;
-            self.clus.insert_tables = tables;
-            self.clus.insert_columns = columns;
+            tables = self.refs( tables, self.tbls );
+            columns = self.refs( columns, self.cols );
+            if ( !self.clus.insert_tables )
+                self.clus.insert_tables = tables;
+            else
+                self.clus.insert_tables = self.clus.insert_tables.concat(tables);
+            if ( !self.clus.insert_columns )
+                self.clus.insert_columns = columns;
+            else
+                self.clus.insert_columns = self.clus.insert_columns.concat(columns);
         }
         return self;
     }
@@ -1626,32 +1643,28 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,update: function( tbls, update_clause ) {
-        var self = this, i, l, view, tables;
+    ,update: function( tables, update_clause ) {
+        var self = this, view;
         self.reset(update_clause||'update');
-        view = is_array( tbls ) ? tbls[0] : tbls;
-        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
+        view = is_array( tables ) ? tables[0] : tables;
+        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
-            view = self.vews[ view ];
-            self.clus = defaults( self.clus, view.clus, true );
-            self.tbls = defaults( {}, view.tbls, true );
-            self.cols = defaults( {}, view.cols, true );
+            self.use_view_( view );
         }
         else
         {
-            tbls = self.refs( tbls, self.tbls );
-            tables = tbls[ 0 ].aliased;
-            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].aliased;
-            if ( !!self.clus.update_tables )
-                tables = self.clus.update_tables + ',' + tables;
-            self.clus.update_tables = tables;
+            tables = self.refs( tables, self.tbls );
+            if ( !self.clus.update_tables )
+                self.clus.update_tables = tables;
+            else
+                self.clus.update_tables = self.clus.update_tables.concat(tables);
         }
         return self;
     }
     
     ,set: function( fields_values ) {
-        var self = this, set_values, f, field, value, COLS;
+        var self = this, set_values, set_case_value, f, field, value, COLS;
         if ( empty(fields_values) ) return self;
         set_values = [];
         COLS = self.cols;
@@ -1683,6 +1696,17 @@ Dialect[PROTO] = {
                 {
                     set_values.push( field + " = " + field + " - " + self.intval(value['increment']) );
                 }
+                else if ( value[HAS]('case') )
+                {
+                    set_case_value = field + " = CASE";
+                    for ( case_value in value['case'] )
+                    {
+                        if ( !value['case'][HAS](case_value) ) continue;
+                        set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],false) + " THEN " + self.quote(case_value);
+                    }
+                    set_case_value += "\nEND";
+                    set_values.push( set_case_value );
+                }
             }
             else
             {
@@ -1702,39 +1726,39 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,from: function( tbls ) {
-        var self = this, i, l, view, tables, selected_columns, select_columns;
-        if ( empty(tbls) ) return self;
-        view = is_array( tbls ) ? tbls[0] : tbls;
-        if ( self.vews[HAS]( view ) && self.clau === self.vews[ view ].clau )
+    ,from: function( tables ) {
+        var self = this, view, tables, selected_columns, select_columns;
+        if ( empty(tables) ) return self;
+        view = is_array( tables ) ? tables[0] : tables;
+        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
-            selected_columns = !empty(self.clus['select_columns'])&&('*'!=self.clus['select_columns']) ? self.refs( self.clus['select_columns'], {} ) : null;
+            selected_columns = self.clus['select_columns'];
             
             // using custom 'soft' view
-            view = self.vews[ view ];
-            self.clus = defaults( self.clus, view.clus, true );
-            self.tbls = defaults( {}, view.tbls, true );
-            self.cols = defaults( {}, view.cols, true );
+            self.use_view_( view );
             
             // handle recursive aliasing in views
-            if ( selected_columns )
+            if ( !!selected_columns )
             {
-                // not re-parse fields here, since they are already parsed??
                 selected_columns = self.refs2( selected_columns, self.cols );
-                select_columns = ('*'===selected_columns[0].qualified ? self.clus['select_columns'] : selected_columns[0].aliased);
-                for(i=1,l=selected_columns.length; i<l; i++)
-                    select_columns += ',' + ('*'===selected_columns[i].qualified ? self.clus['select_columns'] : selected_columns[i].aliased);
+                select_columns = [];
+                for(var i=0,l=selected_columns.length; i<l; i++)
+                {
+                    if ( '*' === selected_columns[i].qualified )
+                        select_columns = select_columns.concat( self.clus['select_columns'] );
+                    else
+                        select_columns.push( selected_columns[i] );
+                }
                 self.clus['select_columns'] = select_columns;
             }
         }
         else
         {
-            tbls = self.refs( tbls, self.tbls );
-            tables = tbls[ 0 ].aliased;
-            for(i=1,l=tbls.length; i<l; i++) tables += ',' + tbls[ i ].aliased;
-            if ( !!self.clus.from_tables )
-                tables = self.clus.from_tables + ',' + tables;
-            self.clus.from_tables = tables;
+            tables = self.refs( tables, self.tbls );
+            if ( !self.clus.from_tables )
+                self.clus.from_tables = tables;
+            else
+                self.clus.from_tables = self.clus.from_tables.concat(tables);
         }
         return self;
     }
