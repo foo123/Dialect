@@ -624,31 +624,31 @@ GrammTpl[PROTO] = {
     }
 };
 
-Ref = function( col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, func ) {
+Ref = function( _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func ) {
     var self = this;
+    self._col = _col;
     self.col = col;
-    self.col_q = col_q;
+    self._tbl = _tbl;
     self.tbl = tbl;
-    self.tbl_q = tbl_q;
+    self._dtb = _dtb;
     self.dtb = dtb;
-    self.dtb_q = dtb_q;
-    self.alias = alias;
-    self.tbl_col = tbl_col;
-    self.tbl_col_q = tbl_col_q;
-    self.full = self.tbl_col_q;
-    self.func = null == func ? [] : func;
-    if ( self.func.length )
+    self._alias = _alias;
+    self._qualified =_qual;
+    self.qualified = qual;
+    self.full = self.qualified;
+    self._func = null == _func ? [] : _func;
+    if ( self._func.length )
     {
-        for(var f=0,fl=self.func.length; f<fl; f++) self.full = self.func[f]+'('+self.full+')';
+        for(var f=0,fl=self._func.length; f<fl; f++) self.full = self._func[f]+'('+self.full+')';
     }
-    if ( null != self.alias )
+    if ( null != self._alias )
     {
-        self.alias_q = alias_q;
-        self.aliased = self.full + ' AS ' + self.alias_q;
+        self.alias = alias;
+        self.aliased = self.full + ' AS ' + self.alias;
     }
     else
     {
-        self.alias_q = self.full;
+        self.alias = self.full;
         self.aliased = self.full;
     }
 };
@@ -898,50 +898,54 @@ Ref.parse = function( r, d ) {
 Ref[PROTO] = {
      constructor: Ref
     
+    ,_func: null
+    ,_col: null
     ,col: null
-    ,col_q: null
+    ,_tbl: null
     ,tbl: null
-    ,tbl_q: null
+    ,_dtb: null
     ,dtb: null
-    ,dtb_q: null
+    ,_alias: null
     ,alias: null
-    ,alias_q: null
-    ,tbl_col: null
-    ,tbl_col_q: null
+    ,_qualified: null
+    ,qualified: null
     ,full: null
     ,aliased: null
-    ,func: null
     
-    ,cloned: function( alias, alias_q ) {
+    ,cloned: function( alias, alias_q, func ) {
         var self = this;
         if ( !arguments.length )
         {
-            alias = self.alias;
-            alias_q = self.alias_q;
+            alias = self._alias;
+            alias_q = self.alias;
         }
         else
         {
             alias_q = alias_q || alias;
         }
-        return new Ref( self.col, self.col_q, self.tbl, self.tbl_q, self.dtb, self.dtb_q, alias, alias_q, 
-                self.tbl_col, self.tbl_col_q, self.func );
+        if ( null == func )
+        {
+            func = self._func;
+        }
+        return new Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q, 
+                    self._qualified, self.qualified, func );
     }
     
     ,dispose: function( ) {
         var self = this;
+        self._func = null;
+        self._col = null;
         self.col = null;
-        self.col_q = null;
+        self._tbl = null;
         self.tbl = null;
-        self.tbl_q = null;
+        self._dtb = null;
         self.dtb = null;
-        self.dtb_q = null;
+        self._alias = null;
         self.alias = null;
-        self.alias_q = null;
-        self.tbl_col = null;
-        self.tbl_col_q = null;
+        self._qualified = null;
+        self.qualified = null;
         self.full = null;
         self.aliased = null;
-        self.func = null;
         return self;
     }
 };
@@ -1427,7 +1431,7 @@ Dialect[PROTO] = {
                         else
                         {
                             // reference, e.g field
-                            params[k] = DialectRef.parse( v, self ).aliased;
+                            params[k] = Ref.parse( v, self ).aliased;
                         }
                         break;
                     
@@ -1715,10 +1719,11 @@ Dialect[PROTO] = {
             // handle recursive aliasing in views
             if ( selected_columns )
             {
+                // not re-parse fields here, since they are already parsed??
                 selected_columns = self.refs2( selected_columns, self.cols );
-                select_columns = selected_columns[0].aliased;
+                select_columns = ('*'===selected_columns[0].qualified ? self.clus['select_columns'] : selected_columns[0].aliased);
                 for(i=1,l=selected_columns.length; i<l; i++)
-                    select_columns += ',' + selected_columns[i].aliased;
+                    select_columns += ',' + ('*'===selected_columns[i].qualified ? self.clus['select_columns'] : selected_columns[i].aliased);
                 self.clus['select_columns'] = select_columns;
             }
         }
@@ -1783,7 +1788,7 @@ Dialect[PROTO] = {
         var self = this, group_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        group_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
+        group_condition = self.refs( col, self.cols )[0].alias + " " + dir;
         if ( !!self.clus.group_conditions )
             group_condition = self.clus.group_conditions + ',' + group_condition;
         self.clus.group_conditions = group_condition;
@@ -1806,7 +1811,7 @@ Dialect[PROTO] = {
         var self = this, order_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
         if ( "DESC" !== dir ) dir = "ASC";
-        order_condition = self.refs( col, self.cols )[0].alias_q + " " + dir;
+        order_condition = self.refs( col, self.cols )[0].alias + " " + dir;
         if ( !!self.clus.order_conditions )
             order_condition = self.clus.order_conditions + ',' + order_condition;
         self.clus.order_conditions = order_condition;
@@ -1827,7 +1832,7 @@ Dialect[PROTO] = {
     }
     
     ,refs: function( refs, lookup ) {
-        var self = this, i, l, j, m, r, rs, ref, alias_q, tbl_col_q;
+        var self = this, i, l, j, m, r, rs, ref, alias, qualified;
         rs = array( refs );
         refs = [ ];
         for (i=0,l=rs.length; i<l; i++)
@@ -1836,16 +1841,16 @@ Dialect[PROTO] = {
             for (j=0,m=r.length; j<m; j++)
             {
                 ref = Ref.parse( r[ j ], self );
-                alias_q = ref.alias_q; tbl_col_q = ref.full;
-                if ( !lookup[HAS](alias_q) ) 
+                alias = ref.alias; qualified = ref.full;
+                if ( !lookup[HAS](alias) ) 
                 {
-                    lookup[ alias_q ] = ref;
-                    if ( (tbl_col_q !== alias_q) && !lookup[HAS](tbl_col_q) )
-                        lookup[ tbl_col_q ] = ref;
+                    lookup[ alias ] = ref;
+                    if ( (qualified !== alias) && !lookup[HAS](qualified) )
+                        lookup[ qualified ] = ref;
                 }
                 else
                 {                    
-                    ref = lookup[ alias_q ];
+                    ref = lookup[ alias ];
                 }
                 refs.push( ref );
             }
@@ -1854,44 +1859,51 @@ Dialect[PROTO] = {
     }
     
     ,refs2: function( refs, lookup ) {
-        var self = this, i, l, ref, ref2, alias_q, tbl_col_q, alias2_q, tbl_col2_q;
+        var self = this, i, l, ref, ref2, alias, qualified, qualified_full, alias2, qualified_full2;
         for (i=0,l=refs.length; i<l; i++)
         {
             ref = refs[ i ];
-            alias_q = ref.alias_q;
-            tbl_col_q = ref.full;
+            alias = ref.alias;
+            qualified = ref.qualified;
+            qualified_full = ref.full;
             
-            if ( !lookup[HAS]( alias_q ) )
+            if ( !lookup[HAS]( alias ) )
             {
-                if ( lookup[HAS]( tbl_col_q ) )
+                if ( lookup[HAS]( qualified_full ) )
                 {
-                    ref2 = lookup[ tbl_col_q ];
-                    alias2_q = ref2.alias_q;
-                    tbl_col2_q = ref2.full;
+                    ref2 = lookup[ qualified_full ];
+                    alias2 = ref2.alias;
+                    qualified_full2 = ref2.full;
                     
-                    if ( (tbl_col2_q !== tbl_col_q) && (alias2_q !== alias_q) && (alias2_q === tbl_col_q) )
+                    if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
                     {
                         // handle recursive aliasing
-                        if ( (tbl_col2_q !== alias2_q) && lookup[HAS]( alias2_q ) )
-                            delete lookup[ alias2_q ];
+                        /*if ( (qualified_full2 !== alias2) && lookup[HAS]( alias2 ) )
+                            delete lookup[ alias2 ];*/
                         
-                        ref2 = ref2.cloned( ref.alias_q );
-                        refs[i] = lookup[ tbl_col2_q ] = ref2;
-                        
-                        if ( (alias_q !== tbl_col2_q) && !lookup[HAS]( alias_q ) )
-                            lookup[ alias_q ] = ref2;
+                        ref2 = ref2.cloned( ref.alias );
+                        refs[i] = lookup[ alias ] = ref2;
                     }
+                }
+                else if ( lookup[HAS]( qualified ) )
+                {
+                    ref2 = lookup[ qualified ];
+                    if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
+                    ref2 = ref2.cloned( ref.alias, null, ref._func );
+                    refs[i] = lookup[ ref2.alias ] = ref2;
+                    if ( (ref2.alias !== ref2.full) && !lookup[HAS]( ref2.full ) )
+                        lookup[ ref2.full ] = ref2;
                 }
                 else
                 {
-                    lookup[ alias_q ] = ref;
-                    if ( (alias_q !== tbl_col_q) && !lookup[HAS]( tbl_col_q ) )
-                        lookup[ tbl_col_q ] = ref;
+                    lookup[ alias ] = ref;
+                    if ( (alias !== qualified_full) && !lookup[HAS]( qualified_full ) )
+                        lookup[ qualified_full ] = ref;
                 }
             }
             else
             {
-                refs[i] = lookup[ alias_q ];
+                refs[i] = lookup[ alias ];
             }
         }
         return refs;
@@ -1906,7 +1918,7 @@ Dialect[PROTO] = {
             if ( !conditions[HAS](f) ) continue;
             
             ref = Ref.parse( f, self );
-            field = ref.col;
+            field = ref._col;
             if ( !join[HAS]( field ) ) continue;
             cond = conditions[ f ];
             main_table = join[field].table;
@@ -1955,7 +1967,7 @@ Dialect[PROTO] = {
         condquery = '';
         conds = [];
         COLS = self.cols;
-        fmt = true === can_use_alias ? 'alias_q' : 'full';
+        fmt = true === can_use_alias ? 'alias' : 'full';
         
         for (f in conditions)
         {
@@ -2175,16 +2187,22 @@ Dialect[PROTO] = {
         return parseInt( v, 10 );
     }
     
-    ,quote_name: function( v, force ) {
+    ,quote_name: function( v, optional ) {
         var self = this, qn = self.qn;
-        force = true === force;
+        optional = true === optional;
         if ( is_array( v ) )
         {
-            for(var i=0,l=v.length; i<l; i++) v[i] = self.quote_name( v[i], force );
+            for(var i=0,l=v.length; i<l; i++) v[i] = self.quote_name( v[i], optional );
             return v;
         }
-        else if ( '*' === v ) return v;
-        else return (force || qn[0]!=v.slice(0,qn[0].length)?qn[0]:'') + v + (force||qn[1]!=v.slice(-qn[1].length)?qn[1]:'');
+        else if ( optional )
+        {
+            return (qn[0] == v.slice(0,qn[0].length) ? '' : qn[0]) + v + (qn[1] == v.slice(-qn[1].length) ? '' : qn[1]);
+        }
+        else
+        {
+            return qn[0] + v + qn[1];
+        }
     }
     
     ,quote: function( v ) {

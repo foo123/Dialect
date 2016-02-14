@@ -738,55 +738,56 @@ class Ref:
         tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
         return Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs)
 
-    def __init__( self, col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, func=[] ):
+    def __init__( self, _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func=[] ):
+        self._col = _col
         self.col = col
-        self.col_q = col_q
+        self._tbl = _tbl
         self.tbl = tbl
-        self.tbl_q = tbl_q
+        self._dtb = _dtb
         self.dtb = dtb
-        self.dtb_q = dtb_q
-        self.alias = alias
-        self.alias_q = alias_q
-        self.tbl_col = tbl_col
-        self.tbl_col_q = tbl_col_q
-        self.full = self.tbl_col_q
-        self.func = [] if not func else func
-        if len(self.func):
-            for f in self.func: self.full = f+'('+self.full+')'
+        self._alias = _alias
+        self._qualified =_qual
+        self.qualified = qual
+        self.full = self.qualified
+        self._func = [] if not _func else _func
+        if len(self._func):
+            for f in self._func: self.full = f+'('+self.full+')'
         
-        if self.alias is not None:
-            self.alias_q = alias_q
-            self.aliased = self.full + ' AS ' + self.alias_q
+        if self._alias is not None:
+            self.alias = alias
+            self.aliased = self.full + ' AS ' + self.alias
         else:
-            self.alias_q = self.full
+            self.alias = self.full
             self.aliased = self.full
 
-    def cloned( self, alias=None, alias_q=None ):
+    def cloned( self, alias=None, alias_q=None, func=None ):
         if alias is None and alais_q is None:
-            alias = self.alias
-            alias_q = self.alias_q
+            alias = self._alias
+            alias_q = self.alias
         elif alias is not None:
             alias_q = alias if alias_q is None else alias_q
-        return Ref( self.col, self.col_q, self.tbl, self.tbl_q, self.dtb, self.dtb_q, alias, alias_q, 
-                    self.tbl_col, self.tbl_col_q, self.func )
+        if func is None:
+            func = self._func
+        return Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q, 
+                    self._qualified, self.qualified, func )
     
     def __del__( self ):
         self.dispose( )
         
     def dispose( self ):
+        self._func = None
+        self._col = None
         self.col = None
-        self.col_q = None
+        self._tbl = None
         self.tbl = None
-        self.tbl_q = None
+        self._dtb = None
         self.dtb = None
-        self.dtb_q = None
+        self._alias = None
         self.alias = None
-        self.alias_q = None
-        self.tbl_col = None
-        self.tbl_col_q = None
+        self._qualified = None
+        self.qualified = None
         self.full = None
         self.aliased = None
-        self.func = None
         return self
 
 
@@ -1349,10 +1350,10 @@ class Dialect:
             
             # handle recursive aliasing in views
             if selected_columns:
+                # not re-parse fields here, since they are already parsed??
                 selected_columns = self.refs2( selected_columns, self.cols )
-                select_columns = selected_columns[0].aliased
-                for i in range(1,len(selected_columns)):
-                    select_columns += ',' + selected_columns[i].aliased
+                select_columns = (self.clus['select_columns'] if '*'==selected_columns[0].qualified else selected_columns[0].aliased)
+                for i in range(1,len(selected_columns)): select_columns += ',' + (self.clus['select_columns'] if '*'==selected_columns[i].qualified else selected_columns[i].aliased)
                 self.clus['select_columns'] = select_columns
         else:
             tbls = self.refs( tbls, self.tbls )
@@ -1396,7 +1397,7 @@ class Dialect:
     def group( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
-        group_condition = self.refs( col, self.cols )[0].alias_q + " " + dir
+        group_condition = self.refs( col, self.cols )[0].alias + " " + dir
         if 'group_conditions' in self.clus and len(self.clus['group_conditions']) > 0:
             group_condition = self.clus['group_conditions'] + ',' + group_condition
         self.clus['group_conditions'] = group_condition
@@ -1415,7 +1416,7 @@ class Dialect:
     def order( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
-        order_condition = self.refs( col, self.cols )[0].alias_q + " " + dir
+        order_condition = self.refs( col, self.cols )[0].alias + " " + dir
         if 'order_conditions' in self.clus and len(self.clus['order_conditions']) > 0:
             order_condition = self.clus['order_conditions'] + ',' + order_condition
         self.clus['order_conditions'] = order_condition
@@ -1437,7 +1438,7 @@ class Dialect:
         for f in conditions_copied:
             
             ref = Ref.parse( f, self )
-            field = ref.col
+            field = ref._col
             if field not in join: continue
             cond = conditions[ f ]
             main_table = join[field]['table']
@@ -1476,53 +1477,59 @@ class Dialect:
             r = rs[ i ].split(',')
             for j in range(len(r)):
                 ref = Ref.parse( r[ j ], self )
-                alias_q = ref.alias_q
-                tbl_col_q = ref.full
-                if alias_q not in lookup:
-                    lookup[ alias_q ] = ref
-                    if (tbl_col_q != alias_q) and (tbl_col_q not in lookup):
-                        lookup[ tbl_col_q ] = ref
+                alias = ref.alias
+                qualified = ref.full
+                if alias not in lookup:
+                    lookup[ alias ] = ref
+                    if (qualified != alias) and (qualified not in lookup):
+                        lookup[ qualified ] = ref
                 else:
-                    ref = lookup[ alias_q ]
+                    ref = lookup[ alias ]
                 refs.append( ref )
         return refs
     
     def refs2( self, refs, lookup ):
         i = 0
         for ref in refs:
-            alias_q = ref.alias_q
-            tbl_col_q = ref.full
+            alias = ref.alias
+            qualified = ref.qualified
+            qualified_full = ref.full
             
-            if alias_q not in lookup:
+            if alias not in lookup:
                 
-                if tbl_col_q in lookup:
+                if qualified_full in lookup:
                     
-                    ref2 = lookup[ tbl_col_q ]
-                    alias2_q = ref2.alias_q
-                    tbl_col2_q = ref2.full
+                    ref2 = lookup[ qualified_full ]
+                    alias2 = ref2.alias
+                    qualified_full2 = ref2.full
                     
-                    if (tbl_col2_q != tbl_col_q) and (alias2_q != alias_q) and (alias2_q == tbl_col_q):
+                    if (qualified_full2 != qualified_full) and (alias2 != alias) and (alias2 == qualified_full):
                         
                         # handle recursive aliasing
-                        if (tbl_col2_q != alias2_q) and (alias2_q in lookup):
-                            del lookup[ alias2_q ]
+                        #if (qualified_full2 != alias2) and (alias2 in lookup):
+                        #    del lookup[ alias2 ]
                         
-                        ref2 = ref2.cloned( ref.alias_q )
-                        refs[i] = lookup[ tbl_col2_q ] = ref2
-                        
-                        if (alias_q != tbl_col2_q) and (alias_q not in lookup):
-                            lookup[ alias_q ] = ref2
+                        ref2 = ref2.cloned( ref.alias )
+                        refs[i] = lookup[ alias ] = ref2
+                
+                elif qualified in lookup:
+                    ref2 = lookup[ qualified ]
+                    if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
+                    ref2 = ref2.cloned( ref.alias, None, ref._func )
+                    refs[i] = lookup[ ref2.alias ] = ref2
+                    if (ref2.alias != ref2.full) and (ref2.full not in lookup):
+                        lookup[ ref2.full ] = ref2
                 
                 else:
                     
-                    lookup[ alias_q ] = ref
+                    lookup[ alias ] = ref
                     
-                    if (alias_q != tbl_col_q) and (tbl_col_q not in lookup):
-                        lookup[ tbl_col_q ] = ref
+                    if (alias != qualified_full) and (qualified_full not in lookup):
+                        lookup[ qualified_full ] = ref
             
             else:
                 
-                refs[i] = lookup[ alias_q ]
+                refs[i] = lookup[ alias ]
             
             i += 1
         
@@ -1535,7 +1542,7 @@ class Dialect:
         condquery = ''
         conds = []
         COLS = self.cols
-        fmt = 'alias_q' if can_use_alias is True else 'full'
+        fmt = 'alias' if can_use_alias is True else 'full'
         
         for f in conditions:
             
@@ -1671,12 +1678,12 @@ class Dialect:
         elif is_array( v ): return [self.intval2str( x ) for x in v]
         else: return str(self.intval( v ))
     
-    def quote_name( self, v, force=False ):
-        force = force is True
-        if is_array( v ): return [self.quote_name( x, force ) for x in v]
-        elif '*' == v: return v
+    def quote_name( self, v, optional=False ):
+        optional = optional is True
         qn = self.qn
-        return (qn[0] if force or qn[0] != v[0:len(qn[0])] else '') + v + (qn[1] if force or qn[1] != v[-len(qn[1]):] else '')
+        if is_array( v ): return [self.quote_name( x, optional ) for x in v]
+        elif optional: return ('' if qn[0] == v[0:len(qn[0])] else qn[0]) + v + ('' if qn[1] == v[-len(qn[1]):] else qn[1])
+        else: return qn[0] + v + qn[1]
     
     def quote( self, v ):
         if is_array( v ): return [self.quote( x ) for x in v]

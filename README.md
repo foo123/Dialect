@@ -136,7 +136,7 @@ The whole point of `Dialect` from the start was to use intuitive configuration t
 For example, a main `DELETE` clause for `SQLite` with `LIMIT` emulation and another variation (e.g `'delete_with_limit_clause'`) when `SQLite` is configured to allow `LIMIT` clauses in `DELETE` clauses (which is not a default setting out-of-the-box).
 
 
-User will just pass the clause variation name as parameter to, an otherwise same, `dialect.delete('delete_with_limit_clause')` method call and `Dialect` will take of the rest. Easy and flexible as that.
+User will just pass the clause variation name as parameter to, an otherwise same, `dialect.delete('delete_with_limit_clause')` method call and `Dialect` will take care of the rest. Easy and flexible as that.
 
 Coupled with the fact that `Dialect` supports `clause` definition via grammar-templates, which are polymoprhic themselves (see above), this is a very powerful and flexible feature.
 
@@ -159,7 +159,7 @@ Reasons to support `soft views` are:
 
 
 `Dialect` stores a `sql` definition as a `view` and whenever this soft `view` is used, the actual `sql` definition
-is transparently used underneath (with some care for conflicts and so on). 
+is transparently used underneath (with some care for name resolution, selection, re-aliasing, conflicts and so on). 
 
 Soft `Views` are mostly useful for `SELECT` clauses (e.g selecting from a `wordpress` post with associated `meta fields` as if they are one single custom-made table with custom column aliases, this makes code more concise, modular, safer, cleaner and transferable to other DB configurations where indeed a single table can be used and so on)
 

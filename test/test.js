@@ -41,7 +41,7 @@ dialect.prepare_tpl(
 );
 
 var query_soft_view = dialect
-        .select('f0,f1 AS f11')
+        .select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
         .from('my_view')
         .where({f2:'3'}, 'OR')
         .where({f2:'1'}, 'OR')

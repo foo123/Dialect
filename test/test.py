@@ -49,7 +49,7 @@ dialect.prepare_tpl('prepared_query2', dialect.select('t.f1 AS f1,t.f2 AS f2,t2.
     'f1':{'eq':'%d:id%','type':'raw'}
 }).sql( ))
 
-query_soft_view = dialect.select('f0,f1 AS f11').from_('my_view').where({'f2':'3'}, 'OR').where({'f2':'1'}, 'OR').sql()
+query_soft_view = dialect.select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22').from_('my_view').where({'f2':'3'}, 'OR').where({'f2':'1'}, 'OR').sql()
     
 query_prepared = dialect.prepared('prepared_query',{'id':'12'})
 query_prepared2 = dialect.prepared('prepared_query2',{'id':'12'})

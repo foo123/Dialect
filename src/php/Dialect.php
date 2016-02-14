@@ -693,62 +693,66 @@ class DialectRef
         return new self($col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q, $funcs);
     }
     
+    public $_func = null;
+    public $_col = null;
     public $col = null;
-    public $col_q = null;
+    public $_tbl = null;
     public $tbl = null;
-    public $tbl_q = null;
+    public $_dtb = null;
     public $dtb = null;
-    public $dtb_q = null;
+    public $_alias = null;
     public $alias = null;
-    public $alias_q = null;
-    public $tbl_col = null;
-    public $tbl_col_q = null;
-    public $func = null;
+    public $_qualified = null;
+    public $qualified = null;
     public $full = null;
     public $aliased = null;
     
-    public function __construct( $col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q, $func=array() ) 
+    public function __construct( $_col, $col, $_tbl, $tbl, $_dtb, $dtb, $_alias, $alias, $_qual, $qual, $_func=array() ) 
     {
+        $this->_col = $_col;
         $this->col = $col;
-        $this->col_q = $col_q;
+        $this->_tbl = $_tbl;
         $this->tbl = $tbl;
-        $this->tbl_q = $tbl_q;
+        $this->_dtb = $_dtb;
         $this->dtb = $dtb;
-        $this->dtb_q = $dtb_q;
-        $this->alias = $alias;
-        $this->tbl_col = $tbl_col;
-        $this->tbl_col_q = $tbl_col_q;
-        $this->full = $this->tbl_col_q;
-        $this->func = (array)$func;
-        if ( !empty($this->func) )
+        $this->_alias = $_alias;
+        $this->_qualified = $_qual;
+        $this->qualified = $qual;
+        $this->full = $this->qualified;
+        $this->_func = (array)$_func;
+        if ( !empty($this->_func) )
         {
-            foreach($this->func as $f) $this->full = $f.'('.$this->full.')';
+            foreach($this->_func as $f) $this->full = $f.'('.$this->full.')';
         }
-        if ( !empty($this->alias) )
+        if ( !empty($this->_alias) )
         {
-            $this->alias_q = $alias_q;
-            $this->aliased = $this->full . ' AS ' . $this->alias_q;
+            $this->alias = $alias;
+            $this->aliased = $this->full . ' AS ' . $this->alias;
         }
         else
         {
-            $this->alias_q = $this->full;
+            $this->alias = $this->full;
             $this->aliased = $this->full;
         }
     }
     
-    public function cloned( $alias=null, $alias_q=null)
+    public function cloned( $alias=null, $alias_q=null, $func=null )
     {
         if ( null === $alias && null === $alias_q )
         {
-            $alias = $this->alias;
-            $alias_q = $this->alias_q;
+            $alias = $this->_alias;
+            $alias_q = $this->alias;
         }
         elseif ( null !== $alias )
         {
             $alias_q = null === $alias_q ? $alias : $alias_q;
         }
-        return new self( $this->col, $this->col_q, $this->tbl, $this->tbl_q, $this->dtb, $this->dtb_q, $alias, $alias_q, 
-                    $this->tbl_col, $this->tbl_col_q, $this->func );
+        if ( null === $func )
+        {
+            $func = $this->_func;
+        }
+        return new self( $this->_col, $this->col, $this->_tbl, $this->tbl, $this->_dtb, $this->dtb, $alias, $alias_q, 
+                    $this->_qualified, $this->qualified, $func );
     }
     
     public function __destruct()
@@ -758,17 +762,17 @@ class DialectRef
     
     public function dispose( ) 
     {
+        $this->_func = null;
+        $this->_col = null;
         $this->col = null;
-        $this->col_q = null;
+        $this->_tbl = null;
         $this->tbl = null;
-        $this->tbl_q = null;
+        $this->_dtb = null;
         $this->dtb = null;
-        $this->dtb_q = null;
+        $this->_alias = null;
         $this->alias = null;
-        $this->alias_q = null;
-        $this->tbl_col = null;
-        $this->tbl_col_q = null;
-        $this->func = null;
+        $this->_qualified = null;
+        $this->qualified = null;
         $this->full = null;
         $this->aliased = null;
         return $this;
@@ -1537,10 +1541,11 @@ class Dialect
             // handle recursive aliasing in views
             if ( $selected_columns )
             {
+                // not re-parse fields here, since they are already parsed??
                 $selected_columns = $this->refs2( $selected_columns, $this->cols );
-                $select_columns = $selected_columns[0]->aliased;
+                $select_columns = ('*'===$selected_columns[0]->qualified ? $this->clus['select_columns'] : $selected_columns[0]->aliased);
                 for($i=1,$l=count($selected_columns); $i<$l; $i++)
-                    $select_columns .= ',' . $selected_columns[$i]->aliased;
+                    $select_columns .= ',' . ('*'===$selected_columns[$i]->qualified ? $this->clus['select_columns'] : $selected_columns[$i]->aliased);
                 $this->clus['select_columns'] = $select_columns;
             }
         }
@@ -1606,7 +1611,7 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $column = $this->refs( $col, $this->cols );
-        $group_condition = $column[0]->alias_q . " " . $dir;
+        $group_condition = $column[0]->alias . " " . $dir;
         if ( !empty($this->clus['group_conditions']) )
             $group_condition = $this->clus['group_conditions'] . ',' . $group_condition;
         $this->clus['group_conditions'] = $group_condition;
@@ -1630,7 +1635,7 @@ class Dialect
         $dir = strtoupper($dir);
         if ( "DESC" !== $dir ) $dir = "ASC";
         $column = $this->refs( $col, $this->cols );
-        $order_condition = $column[0]->alias_q . " " . $dir;
+        $order_condition = $column[0]->alias . " " . $dir;
         if ( !empty($this->clus['order_conditions']) )
             $order_condition = $this->clus['order_conditions'] . ',' . $order_condition;
         $this->clus['order_conditions'] = $order_condition;
@@ -1656,7 +1661,7 @@ class Dialect
         foreach ($conditions as $f=>$cond)
         {
             $ref = DialectRef::parse( $f, $this );
-            $field = $ref->col;
+            $field = $ref->_col;
             if ( !isset($join[$field]) ) continue;
             $main_table = $join[$field]['table'];
             $main_id = $join[$field]['id'];
@@ -1706,16 +1711,16 @@ class Dialect
             foreach ($r as $ref)
             {
                 $ref = DialectRef::parse( $ref, $this );
-                $alias_q = $ref->alias_q; $tbl_col_q = $ref->full;
-                if ( !isset($lookup[ $alias_q ]) ) 
+                $alias = $ref->alias; $qualified = $ref->full;
+                if ( !isset($lookup[ $alias ]) ) 
                 {
-                    $lookup[ $alias_q ] = $ref;
-                    if ( ($tbl_col_q !== $alias_q) && !isset($lookup[ $tbl_col_q ]) )
-                        $lookup[ $tbl_col_q ] = $ref;
+                    $lookup[ $alias ] = $ref;
+                    if ( ($qualified !== $alias) && !isset($lookup[ $qualified ]) )
+                        $lookup[ $qualified ] = $ref;
                 }
                 else
                 {                    
-                    $ref = $lookup[ $alias_q ];
+                    $ref = $lookup[ $alias ];
                 }
                 $refs[] = $ref;
             }
@@ -1727,40 +1732,47 @@ class Dialect
     {
         foreach ($refs as $i=>$ref)
         {
-            $alias_q = $ref->alias_q;
-            $tbl_col_q = $ref->full;
+            $alias = $ref->alias;
+            $qualified = $ref->qualified;
+            $qualified_full = $ref->full;
             
-            if ( !isset($lookup[ $alias_q ]) )
+            if ( !isset($lookup[ $alias ]) )
             {
-                if ( isset($lookup[ $tbl_col_q ]) )
+                if ( isset($lookup[ $qualified_full ]) )
                 {
-                    $ref2 = $lookup[ $tbl_col_q ];
-                    $alias2_q = $ref2->alias_q;
-                    $tbl_col2_q = $ref2->full;
+                    $ref2 = $lookup[ $qualified_full ];
+                    $alias2 = $ref2->alias;
+                    $qualified_full2 = $ref2->full;
                     
-                    if ( ($tbl_col2_q !== $tbl_col_q) && ($alias2_q !== $alias_q) && ($alias2_q === $tbl_col_q) )
+                    if ( ($qualified_full2 !== $qualified_full) && ($alias2 !== $alias) && ($alias2 === $qualified_full) )
                     {
                         // handle recursive aliasing
-                        if ( ($tbl_col2_q !== $alias2_q) && isset($lookup[ $alias2_q ]) )
-                            unset($lookup[ $alias2_q ]);
+                        /*if ( ($qualified_full2 !== $alias2) && isset($lookup[ $alias2 ]) )
+                            unset($lookup[ $alias2 ]);*/
                         
-                        $ref2 = $ref2->cloned( $ref->alias_q );
-                        $refs[$i] = $lookup[ $tbl_col2_q ] = $ref2;
-                        
-                        if ( ($alias_q !== $tbl_col2_q) && !isset($lookup[ $alias_q ]) )
-                            $lookup[ $alias_q ] = $ref2;
+                        $ref2 = $ref2->cloned( $ref->alias );
+                        $refs[$i] = $lookup[ $alias ] = $ref2;
                     }
+                }
+                elseif ( isset($lookup[ $qualified ]) )
+                {
+                    $ref2 = $lookup[ $qualified ];
+                    if ( $ref2->qualified !== $qualified ) $ref2 = $lookup[ $ref2->qualified ];
+                    $ref2 = $ref2->cloned( $ref->alias, null, $ref->_func );
+                    $refs[$i] = $lookup[ $ref2->alias ] = $ref2;
+                    if ( ($ref2->alias !== $ref2->full) && !isset($lookup[ $ref2->full ]) )
+                        $lookup[ $ref2->full ] = $ref2;
                 }
                 else
                 {
-                    $lookup[ $alias_q ] = $ref;
-                    if ( ($alias_q !== $tbl_col_q) && !isset($lookup[ $tbl_col_q ]) )
-                        $lookup[ $tbl_col_q ] = $ref;
+                    $lookup[ $alias ] = $ref;
+                    if ( ($alias !== $qualified_full) && !isset($lookup[ $qualified_full ]) )
+                        $lookup[ $qualified_full ] = $ref;
                 }
             }
             else
             {
-                $refs[$i] = $lookup[ $alias_q ];
+                $refs[$i] = $lookup[ $alias ];
             }
         }
         return $refs;
@@ -1773,7 +1785,7 @@ class Dialect
         
         $condquery = '';
         $conds = array();
-        $fmt = true === $can_use_alias ? 'alias_q' : 'full';
+        $fmt = true === $can_use_alias ? 'alias' : 'full';
         
         foreach ($conditions as $f=>$value)
         {
@@ -1995,16 +2007,22 @@ class Dialect
         return intval( $v, 10 );
     }
     
-    public function quote_name( $v, $force=false )
+    public function quote_name( $v, $optional=false )
     {
-        $force = true === $force;
+        $optional = true === $optional;
         if ( is_array( $v ) )
         {
-            foreach($v as $i=>$vi) $v[$i] = $this->quote_name($vi, $force);
+            foreach($v as $i=>$vi) $v[$i] = $this->quote_name($vi, $optional);
             return $v;
         }
-        elseif ( '*' === $v ) return $v;
-        else return ($force || $this->qn[0] != substr($v,0,strlen($this->qn[0])) ? $this->qn[0] : '') . $v . ($force || $this->qn[1] != substr($v,-strlen($this->qn[1])) ? $this->qn[1] : '');
+        elseif ( $optional )
+        {
+            return ($this->qn[0] == substr($v,0,strlen($this->qn[0])) ? '' : $this->qn[0]) . $v . ($this->qn[1] == substr($v,-strlen($this->qn[1])) ? '' : $this->qn[1]);
+        }
+        else
+        {
+            return $this->qn[0] . $v . $this->qn[1];
+        }
     }
     
     public function quote( $v )
