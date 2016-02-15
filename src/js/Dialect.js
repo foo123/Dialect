@@ -2168,7 +2168,10 @@ Dialect[PROTO] = {
                     {
                         ref2 = lookup[ qualified ];
                         if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
-                        ref2 = ref2.cloned( ref.alias, null, ref._func );
+                        if ( ref.full !== ref.alias )
+                            ref2 = ref2.cloned( ref.alias, null, ref._func );
+                        else
+                            ref2 = ref2.cloned( null, ref2.alias, ref._func );
                         refs[i] = lookup[ ref2.alias ] = ref2;
                         if ( (ref2.alias !== ref2.full) && !lookup[HAS]( ref2.full ) )
                             lookup[ ref2.full ] = ref2;

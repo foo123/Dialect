@@ -769,7 +769,7 @@ class Ref:
             self.aliased = self.full
 
     def cloned( self, alias=None, alias_q=None, func=None ):
-        if alias is None and alais_q is None:
+        if alias is None and alias_q is None:
             alias = self._alias
             alias_q = self.alias
         elif alias is not None:
@@ -1660,7 +1660,10 @@ class Dialect:
                     elif qualified in lookup:
                         ref2 = lookup[ qualified ]
                         if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
-                        ref2 = ref2.cloned( ref.alias, None, ref._func )
+                        if ref.full != ref.alias:
+                            ref2 = ref2.cloned( ref.alias, None, ref._func )
+                        else:
+                            ref2 = ref2.cloned( None, ref2.alias, ref._func )
                         refs[i] = lookup[ ref2.alias ] = ref2
                         if (ref2.alias != ref2.full) and (ref2.full not in lookup):
                             lookup[ ref2.full ] = ref2

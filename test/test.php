@@ -47,7 +47,7 @@ $dialect->PrepareTpl(
 );
 
 $query_soft_view = $dialect
-        ->Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22')
+        ->Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22, COUNT( DISTINCT( f2 ) )')
         ->From('my_view')
         ->Where(array('f2'=>'3'), 'OR')
         ->Where(array('f2'=>'1'), 'OR')

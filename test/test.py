@@ -49,7 +49,7 @@ dialect.prepareTpl('prepared_query2', dialect.Select('t.f1 AS f1,t.f2 AS f2,t2.f
     'f1':{'eq':'%d:id%','type':'raw'}
 }).sql( ))
 
-query_soft_view = dialect.Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22').From('my_view').Where({'f2':'3'}, 'OR').Where({'f2':'1'}, 'OR').sql()
+query_soft_view = dialect.Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22, COUNT( DISTINCT( f2 ) )').From('my_view').Where({'f2':'3'}, 'OR').Where({'f2':'1'}, 'OR').sql()
     
 query_prepared = dialect.prepared('prepared_query',{'id':'12'})
 query_prepared2 = dialect.prepared('prepared_query2',{'id':'12'})
