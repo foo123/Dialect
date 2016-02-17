@@ -1253,7 +1253,7 @@ Dialect[PROTO] = {
             select_columns = [];
             for(var i=0,l=selected_columns.length; i<l; i++)
             {
-                if ( '*' === selected_columns[i].qualified )
+                if ( '*' === selected_columns[i].full )
                     select_columns = select_columns.concat( self.clus['select_columns'] );
                 else
                     select_columns.push( selected_columns[i] );
@@ -2145,6 +2145,8 @@ Dialect[PROTO] = {
                 alias = ref.alias;
                 qualified = ref.qualified;
                 qualified_full = ref.full;
+                
+                if ( '*' === qualified_full ) continue;
                 
                 if ( !lookup[HAS]( alias ) )
                 {

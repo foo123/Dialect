@@ -1068,7 +1068,7 @@ class Dialect
             $select_columns = array( );
             foreach($selected_columns as $selected_column)
             {
-                if ( '*' === $selected_column->qualified )
+                if ( '*' === $selected_column->full )
                     $select_columns = array_merge($select_columns, $this->clus['select_columns']);
                 else
                     $select_columns[] = $selected_column;
@@ -1947,6 +1947,8 @@ class Dialect
                 $alias = $ref->alias;
                 $qualified = $ref->qualified;
                 $qualified_full = $ref->full;
+                
+                if ( '*' === $qualified_full ) continue;
                 
                 if ( !isset($lookup[ $alias ]) )
                 {

@@ -1038,7 +1038,7 @@ class Dialect:
             selected_columns = self.refs( selected_columns, self.cols, True )
             select_columns = []
             for selected_column in selected_columns:
-                if '*' == selected_column.qualified:
+                if '*' == selected_column.full:
                     select_columns = select_columns + self.clus['select_columns'];
                 else:
                     select_columns.append( selected_column )
@@ -1639,6 +1639,8 @@ class Dialect:
                 alias = ref.alias
                 qualified = ref.qualified
                 qualified_full = ref.full
+                
+                if '*' == qualified_full: continue
                 
                 if alias not in lookup:
                     
