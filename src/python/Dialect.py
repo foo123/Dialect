@@ -799,6 +799,8 @@ class Ref:
         return self
 
 
+sql_func_arg_re = re.compile(r'<(\d+)>')
+
 class Dialect:
     """
     Dialect for Python,
@@ -824,6 +826,11 @@ class Dialect:
         # http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
         # http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
          'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
+        # http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
+        ,'functions'    : {
+         'strpos'       : 'POSITION(<1> IN <0>)'
+        ,'strlen'       : 'LENGTH(<0>)'
+        }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -841,6 +848,11 @@ class Dialect:
         # http://www.postgresql.org/docs/9.1/static/sql-altertable.html
         # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
          'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
+        # http://www.postgresql.org/docs/9.1/static/functions-string.html
+        ,'functions'    : {
+         'strpos'       : 'position(<1> in <0>)'
+        ,'strlen'       : 'length(<0>)'
+        }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -864,6 +876,11 @@ class Dialect:
         # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
         # http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
+        # https://msdn.microsoft.com/en-us/library/ms186323.aspx
+        ,'functions'    : {
+         'strpos'       : 'CHARINDEX(<1>,<0>)'
+        ,'strlen'       : 'LEN(<0>)'
+        }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -883,6 +900,11 @@ class Dialect:
         # https://www.sqlite.org/lang_expr.html
         # https://www.sqlite.org/lang_keywords.html
          'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
+        # https://www.sqlite.org/lang_corefunc.html
+        ,'functions'    : {
+         'strpos'       : 'instr(<1>,<0>)'
+        ,'strlen'       : 'length(<0>)'
+        }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
         ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -1476,18 +1498,61 @@ class Dialect:
         
         for f in conditions:
             
-            field = getattr(self.refs( f, COLS )[0], fmt)
             value = conditions[f]
             
             if is_obj( value ):
+                if 'raw' in value:
+                    conds.append(str(value['raw']))
+                    continue
+                
+                if 'either' in value:
+                    cases = []
+                    for either in value['either']:
+                        case_i = {}
+                        case_i[f] = either
+                        cases.append(self.conditions(case_i, can_use_alias))
+                    conds.append(' OR '.join(cases))
+                    continue
+                
+                field = getattr(self.refs( f, COLS )[0], fmt)
                 type = value['type'] if 'type' in value else 'string'
                 
-                if 'multi_like' in value:
+                if 'case' in value:
+                    cases = field + " = CASE"
+                    if 'when' in value['case']:
+                        for case_value in value['case']['when']:
+                            cases += " WHEN " + self.conditions(value['case']['when'][case_value], can_use_alias) + " THEN " + self.quote(case_value)
+                        if 'else' in value['case']:
+                            cases += " ELSE " + self.quote(value['case']['else'])
+                    else:
+                        for case_value in value['case']:
+                            cases += " WHEN " + self.conditions(value['case'][case_value], can_use_alias) + " THEN " + self.quote(case_value)
+                    cases += " END"
+                    conds.append( cases )
+                elif 'multi_like' in value:
                     conds.append( self.multi_like(field, value['multi_like']) )
                 elif 'like' in value:
                     conds.append( field + " LIKE " + (str(value['like']) if 'raw' == type else self.like(value['like'])) )
                 elif 'not_like' in value:
                     conds.append( field + " NOT LIKE " + (str(value['not_like']) if 'raw' == type else self.like(value['not_like'])) )
+                elif 'contains' in value:
+                    v = str(value['contains'])
+                    
+                    if 'raw' == type:
+                        # raw, do nothing
+                        pass
+                    else:
+                        v = self.quote( v )
+                    conds.append(self.sql_func('strpos', [field,v]) + ' > 0')
+                elif 'not_contains' in value:
+                    v = str(value['not_contains'])
+                    
+                    if 'raw' == type:
+                        # raw, do nothing
+                        pass
+                    else:
+                        v = self.quote( v )
+                    conds.append(self.sql_func('strpos', [field,v]) + ' = 0')
                 elif 'in' in value:
                     v = array( value['in'] )
                     
@@ -1589,6 +1654,7 @@ class Dialect:
                         v = self.quote( v )
                     conds.append( field + " = " + str(v) )
             else:
+                field = getattr(self.refs( f, COLS )[0], fmt)
                 conds.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
         
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
@@ -1767,7 +1833,12 @@ class Dialect:
     def esc_like( self, v ):
         if is_array( v ): return [self.esc_like( x ) for x in v]
         return addslashes( str(v), '_%', '\\' )
-        
+    
+    def sql_func( self, f, v ):
+        global sql_func_arg_re
+        if not f or (f not in Dialect.dialects[ self.type ][ 'functions' ]): return ''
+        func = Dialect.dialects[ self.type ][ 'functions' ][ f ]
+        return re.sub(sql_func_arg_re, lambda m: v[int(m.group(1))] if len(v) > int(m.group(1)) else '', func)
 
 __all__ = ['Dialect']
 

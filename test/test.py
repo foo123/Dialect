@@ -36,6 +36,10 @@ conditions = {
     'main.name':{'like':'%l:name%', 'type':'raw'},
     'main.str':{'eq':'%str%', 'type':'raw'},
     'main.year':{'eq':'2000', 'type':'raw'},
+    'main.foo':{'either':[
+        {'eq':',*,'},
+        {'contains':',12,'}
+    ]},
     'main.project': {'in':[1,2,3],'type':'integer'}
 }
 

@@ -974,6 +974,11 @@ var dialects = {
     // http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
     // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
      'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
+    // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
+    ,'functions'    : {
+     'strpos'       : 'POSITION(<1> IN <0>)'
+    ,'strlen'       : 'LENGTH(<0>)'
+    }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -991,6 +996,11 @@ var dialects = {
     // http://www.postgresql.org/docs/9.1/static/sql-altertable.html
     // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
      'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
+    // http://www.postgresql.org/docs/9.1/static/functions-string.html
+    ,'functions'    : {
+     'strpos'       : 'position(<1> in <0>)'
+    ,'strlen'       : 'length(<0>)'
+    }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -1017,6 +1027,11 @@ var dialects = {
 "{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
      */
      'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
+    // https://msdn.microsoft.com/en-us/library/ms186323.aspx
+    ,'functions'    : {
+     'strpos'       : 'CHARINDEX(<1>,<0>)'
+    ,'strlen'       : 'LEN(<0>)'
+    }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -1037,6 +1052,11 @@ var dialects = {
     // https://www.sqlite.org/lang_keywords.html
     // http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
      'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
+    // https://www.sqlite.org/lang_corefunc.html
+    ,'functions'    : {
+     'strpos'       : 'instr(<1>,<0>)'
+    ,'strlen'       : 'length(<0>)'
+    }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -1049,6 +1069,7 @@ var dialects = {
 }
 };
 
+var sql_func_arg_re = /<(\d+)>/g;
 Dialect = function Dialect( type ) {
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
@@ -1884,7 +1905,7 @@ Dialect[PROTO] = {
     }
     
     ,conditions: function( conditions, can_use_alias ) {
-        var self = this, condquery, conds, f, field, value, fmt, op, type, v, COLS;
+        var self = this, condquery, conds, f, field, value, fmt, op, type, v, COLS, cases, case_i, case_value;
         if ( empty(conditions) ) return '';
         if ( is_string(conditions) ) return conditions;
         
@@ -1897,14 +1918,56 @@ Dialect[PROTO] = {
         {
             if ( !conditions[HAS](f) ) continue;
             
-            field = self.refs( f, COLS )[0][ fmt ];
             value = conditions[ f ];
             
             if ( is_obj( value ) )
             {
+                if ( value[HAS]('raw') )
+                {
+                    conds.push(String(value['raw']));
+                    continue;
+                }
+                
+                if ( value[HAS]('either') )
+                {
+                    cases = [];
+                    for(var i=0,il=value['either'].length; i<il; i++)
+                    {
+                        case_i = {}; case_i[f] = value['either'][i];
+                        cases.push(self.conditions(case_i, can_use_alias));
+                    }
+                    conds.push(cases.join(' OR '));
+                    continue;
+                }
+                
+                field = self.refs( f, COLS )[0][ fmt ];
                 type = value[HAS]('type') ? value.type : 'string';
                 
-                if ( value[HAS]('multi_like') )
+                if ( value[HAS]('case') )
+                {
+                    cases = field + " = CASE";
+                    if ( value['case'][HAS]('when') )
+                    {
+                        for ( case_value in value['case']['when'] )
+                        {
+                            if ( !value['case']['when'][HAS](case_value) ) continue;
+                            cases += " WHEN " + self.conditions(value['case']['when'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
+                        }
+                        if ( value['case'][HAS]('else') )
+                            cases += " ELSE " + self.quote(value['case']['else']);
+                    }
+                    else
+                    {
+                        for ( case_value in value['case'] )
+                        {
+                            if ( !value['case'][HAS](case_value) ) continue;
+                            cases += " WHEN " + self.conditions(value['case'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
+                        }
+                    }
+                    cases += " END";
+                    conds.push( cases );
+                }
+                else if ( value[HAS]('multi_like') )
                 {
                     conds.push( self.multi_like(field, value.multi_like) );
                 }
@@ -1915,6 +1978,34 @@ Dialect[PROTO] = {
                 else if ( value[HAS]('not_like') )
                 {
                     conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
+                }
+                else if ( value[HAS]('contains') )
+                {
+                    v = String(value.contains);
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push(self.sql_func('strpos', [field,v]) + ' > 0');
+                }
+                else if ( value[HAS]('not_contains') )
+                {
+                    v = String(value.not_contains);
+                    
+                    if ( 'raw' === type )
+                    {
+                        // raw, do nothing
+                    }
+                    else
+                    {
+                        v = self.quote( v );
+                    }
+                    conds.push(self.sql_func('strpos', [field,v]) + ' = 0');
                 }
                 else if ( value[HAS]('in') )
                 {
@@ -2083,6 +2174,7 @@ Dialect[PROTO] = {
             }
             else
             {
+                field = self.refs( f, COLS )[0][ fmt ];
                 conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
             }
         }
@@ -2339,6 +2431,15 @@ Dialect[PROTO] = {
             return v;
         }
         return addslashes( v, '_%', '\\' );
+    }
+    
+    ,sql_func: function( f, v ) {
+        var self = this, func;
+        if ( !f || null == Dialect.dialects[ self.type ][ 'functions' ][ f ] ) return '';
+        func = Dialect.dialects[ self.type ][ 'functions' ][ f ];
+        return func.replace(sql_func_arg_re, function( m0, m1 ){
+            return v[HAS](m1) ? v[m1] : '';
+        });
     }
 };
 

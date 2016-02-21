@@ -796,6 +796,11 @@ class Dialect
     // http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
     // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
      'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
+    // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
+    ,'functions'     => array(
+     'strpos'      => 'POSITION(<1> IN <0>)'
+    ,'strlen'      => 'LENGTH(<0>)'
+    )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -813,6 +818,11 @@ class Dialect
     // http://www.postgresql.org/docs/9.1/static/sql-altertable.html
     // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
      'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
+    // http://www.postgresql.org/docs/9.1/static/functions-string.html
+    ,'functions'     => array(
+     'strpos'      => 'position(<1> in <0>)'
+    ,'strlen'      => 'length(<0>)'
+    )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -836,6 +846,11 @@ class Dialect
     // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
     // http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
      'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
+    // https://msdn.microsoft.com/en-us/library/ms186323.aspx
+    ,'functions'     => array(
+     'strpos'      => 'CHARINDEX(<1>,<0>)'
+    ,'strlen'      => 'LEN(<0>)'
+    )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
     ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
@@ -847,22 +862,27 @@ class Dialect
         )
     )
     ,'sqlite'           => array(
-        // https://www.sqlite.org/lang_createtable.html
-        // https://www.sqlite.org/lang_select.html
-        // https://www.sqlite.org/lang_insert.html
-        // https://www.sqlite.org/lang_update.html
-        // https://www.sqlite.org/lang_delete.html
-        // https://www.sqlite.org/lang_expr.html
-        // https://www.sqlite.org/lang_keywords.html
-         'quotes'       => array( array("'","'","''","''"), array('"','"'), array(''," ESCAPE '\\'") )
-        ,'clauses'      => array(
-         'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
-        ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
-        ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-        ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
-        ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-        ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]"
-        ,'delete'       => "[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]"
+    // https://www.sqlite.org/lang_createtable.html
+    // https://www.sqlite.org/lang_select.html
+    // https://www.sqlite.org/lang_insert.html
+    // https://www.sqlite.org/lang_update.html
+    // https://www.sqlite.org/lang_delete.html
+    // https://www.sqlite.org/lang_expr.html
+    // https://www.sqlite.org/lang_keywords.html
+     'quotes'       => array( array("'","'","''","''"), array('"','"'), array(''," ESCAPE '\\'") )
+    // https://www.sqlite.org/lang_corefunc.html
+    ,'functions'     => array(
+     'strpos'      => 'instr(<1>,<0>)'
+    ,'strlen'      => 'length(<0>)'
+    )
+    ,'clauses'      => array(
+     'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
+    ,'alter'        => "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
+    ,'drop'         => "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
+    ,'select'       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,'insert'       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,'update'       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]"
+    ,'delete'       => "[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]"
         )
     )
     );
@@ -877,6 +897,8 @@ class Dialect
     public $db = null;
     public $escdb = null;
     public $p = null;
+    
+    public $_args_ = null;
     
     public $type = null;
     public $clauses = null;
@@ -927,6 +949,8 @@ class Dialect
         $this->q = null;
         $this->qn = null;
         $this->e = null;
+        
+        $this->_args_ = null;
         return $this;
     }
     
@@ -1694,14 +1718,52 @@ class Dialect
         
         foreach ($conditions as $f=>$value)
         {
-            $field = $this->refs( $f, $this->cols );
-            $field = $field[0]->{$fmt};
-            
             if ( is_array( $value ) )
             {
+                if ( isset($value['raw']) )
+                {
+                    $conds[] = strval($value['raw']);
+                    continue;
+                }
+                
+                if ( isset($value['either']) )
+                {
+                    $cases = array( );
+                    foreach((array)$value['either'] as $either)
+                    {
+                        $cases[] = $this->conditions(array("$f"=>$either), $can_use_alias);
+                    }
+                    $conds[] = implode(' OR ', $cases);
+                    continue;
+                }
+                
+                $field = $this->refs( $f, $this->cols );
+                $field = $field[0]->{$fmt};
                 $type = isset($value['type']) ? $value['type'] : 'string';
                 
-                if ( isset($value['multi_like']) )
+                if ( isset($value['case']) )
+                {
+                    $cases = "$field = CASE";
+                    if ( isset($value['case']['when']) )
+                    {
+                        foreach ( $value['case']['when'] as $case_value=>$case_conditions )
+                        {
+                            $cases .= " WHEN " . $this->conditions($case_conditions, $can_use_alias) . " THEN " . $this->quote($case_value);
+                        }
+                        if ( isset($value['case']['else']) )
+                            $cases .= " ELSE " . $this->quote($value['case']['else']);
+                    }
+                    else
+                    {
+                        foreach ( $value['case'] as $case_value=>$case_conditions )
+                        {
+                            $cases .= " WHEN " . $this->conditions($case_conditions, $can_use_alias) . " THEN " . $this->quote($case_value);
+                        }
+                    }
+                    $cases .= " END";
+                    $conds[] = $cases;
+                }
+                elseif ( isset($value['multi_like']) )
                 {
                     $conds[] = $this->multi_like($field, $value['multi_like']);
                 }
@@ -1712,6 +1774,34 @@ class Dialect
                 elseif ( isset($value['not_like']) )
                 {
                     $conds[] = "$field NOT LIKE " . ('raw' === $type ? $value['not_like'] : $this->like($value['not_like']));
+                }
+                elseif ( isset($value['contains']) )
+                {
+                    $v = strval($value['contains']);
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = $this->sql_func('strpos', array($field,$v)) . ' > 0';
+                }
+                elseif ( isset($value['not_contains']) )
+                {
+                    $v = strval($value['not_contains']);
+                    
+                    if ( 'raw' === $type )
+                    {
+                        // raw, do nothing
+                    }
+                    else
+                    {
+                        $v = $this->quote( $v );
+                    }
+                    $conds[] = $this->sql_func('strpos', array($field,$v)) . ' = 0';
                 }
                 elseif ( isset($value['in']) )
                 {
@@ -1884,6 +1974,8 @@ class Dialect
             }
             else
             {
+                $field = $this->refs( $f, $this->cols );
+                $field = $field[0]->{$fmt};
                 $conds[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
             }
         }
@@ -2134,6 +2226,19 @@ class Dialect
         }
         $chars = '_%'; $esc = '\\';
         return self::addslashes( $v, $chars, $esc );
+    }
+    
+    public function sql_func_rep( $m )
+    {
+        return isset($this->_args_[$m[1]]) ? $this->_args_[$m[1]] : '';
+    }
+    
+    public function sql_func( $f, $v )
+    {
+        if ( !$f || !isset(self::$dialects[ $this->type ][ 'functions' ][ $f ]) ) return '';
+        $this->_args_ = $v;
+        $func = self::$dialects[ $this->type ][ 'functions' ][ $f ];
+        return preg_replace_callback('/<(\d+)>/u', array($this,'sql_func_rep'), $func);
     }
     
     public static function map_join( $arr, $prop, $sep=',' )

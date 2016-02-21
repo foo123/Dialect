@@ -14,6 +14,10 @@ $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
     'main.str'=>array('eq'=>'%str%','type'=>'raw'),
     'main.year'=>array('eq'=>'2000','type'=>'raw'),
+    'main.foo'=>array('either'=>array(
+        array('eq'=>',*,'),
+        array('contains'=>',12,')
+    )),
     'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
 );
 
