@@ -1,4 +1,4 @@
-Dialect.VERSION = 0.6.0
+Dialect.VERSION = 0.6.1
 
 SQL dialect = sqlite
 

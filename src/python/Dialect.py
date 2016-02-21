@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.6.0
+#   @version: 0.6.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -805,7 +805,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.6.0'
+    VERSION = '0.6.1'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Tpl = Tpl
@@ -1232,7 +1232,7 @@ class Dialect:
         return self
     
     def Create( self, table, defs, opts=None, create_clause='create' ):
-        self.reset(create_clause)
+        if self.clau != create_clause: self.reset(create_clause)
         table = self.refs( table, self.tbls )[0].full
         self.clus['create_table'] = table
         if 'create_defs' in self.clus and len(self.clus['create_defs']) > 0:
@@ -1245,7 +1245,7 @@ class Dialect:
         return self
     
     def Alter( self, table, defs, opts=None, alter_clause='alter' ):
-        self.reset(alter_clause)
+        if self.clau != alter_clause: self.reset(alter_clause)
         table = self.refs( table, self.tbls )[0].full
         self.clus['alter_table'] = table
         if 'alter_defs' in self.clus and len(self.clus['alter_defs']) > 0:
@@ -1258,7 +1258,7 @@ class Dialect:
         return self
     
     def Drop( self, tables='*', drop_clause='drop' ):
-        self.reset(drop_clause)
+        if self.clau != drop_clause: self.reset(drop_clause)
         view = tables[0] if is_array( tbls ) else tables
         if (view in self.vews):
             # drop custom 'soft' view
@@ -1273,7 +1273,7 @@ class Dialect:
         return self
     
     def Select( self, columns='*', select_clause='select' ):
-        self.reset(select_clause)
+        if self.clau != select_clause: self.reset(select_clause)
         columns = self.refs( '*' if not columns else columns, self.cols )
         if ('select_columns' not in self.clus) or not len(self.clus['select_columns']):
             self.clus['select_columns'] = columns
@@ -1282,7 +1282,7 @@ class Dialect:
         return self
     
     def Insert( self, tables, columns, insert_clause='insert' ):
-        self.reset(insert_clause);
+        if self.clau != insert_clause: self.reset(insert_clause);
         view = tables[0] if is_array( tbls ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
@@ -1327,7 +1327,7 @@ class Dialect:
         return self
     
     def Update( self, tables, update_clause='update' ):
-        self.reset(update_clause)
+        if self.clau != update_clause: self.reset(update_clause)
         view = tables[0] if is_array( tables ) else tables
         if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
             # using custom 'soft' view
@@ -1380,7 +1380,7 @@ class Dialect:
         return self
     
     def Delete( self, delete_clause='delete' ):
-        self.reset(delete_clause)
+        if self.clau != delete_clause: self.reset(delete_clause)
         return self
     
     def From( self, tables ):

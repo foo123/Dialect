@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.0
+*   @version: 0.6.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1076,7 +1076,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.6.0";
+Dialect.VERSION = "0.6.1";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.GrammTpl = GrammTpl;
@@ -1538,7 +1538,8 @@ Dialect[PROTO] = {
     
     ,Create: function( table, defs, opts, create_clause ) {
         var self = this;
-        self.reset(create_clause||'create');
+        create_clause = create_clause || 'create';
+        if ( self.clau !== create_clause ) self.reset(create_clause);
         self.clus.create_table = self.refs( table, self.tbls );;
         if ( !!self.clus.create_defs )
             defs = self.clus.create_defs + ',' + defs;
@@ -1554,7 +1555,8 @@ Dialect[PROTO] = {
     
     ,Alter: function( table, defs, opts, alter_clause ) {
         var self = this;
-        self.reset(alter_clause||'alter');
+        alter_clause = alter_clause || 'alter';
+        if ( self.clau !== alter_clause ) self.reset(alter_clause);
         self.clus.alter_table = self.refs( table, self.tbls );
         if ( !!self.clus.alter_defs )
             defs = self.clus.alter_defs + ',' + defs;
@@ -1570,7 +1572,8 @@ Dialect[PROTO] = {
     
     ,Drop: function( tables, drop_clause ) {
         var self = this, view;
-        self.reset(drop_clause||'drop');
+        drop_clause = drop_clause || 'drop';
+        if ( self.clau !== drop_clause ) self.reset(drop_clause);
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) )
         {
@@ -1588,7 +1591,8 @@ Dialect[PROTO] = {
     
     ,Select: function( columns, select_clause ) {
         var self = this;
-        self.reset(select_clause||'select');
+        select_clause = select_clause || 'select';
+        if ( self.clau !== select_clause ) self.reset(select_clause);
         columns = self.refs( null==columns ? '*' : columns, self.cols );
         if ( !self.clus.select_columns )
             self.clus.select_columns = columns;
@@ -1599,7 +1603,8 @@ Dialect[PROTO] = {
     
     ,Insert: function( tables, columns, insert_clause ) {
         var self = this, view;
-        self.reset(insert_clause||'insert');
+        insert_clause = insert_clause || 'insert';
+        if ( self.clau !== insert_clause ) self.reset(insert_clause);
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
@@ -1670,7 +1675,8 @@ Dialect[PROTO] = {
     
     ,Update: function( tables, update_clause ) {
         var self = this, view;
-        self.reset(update_clause||'update');
+        update_clause = update_clause || 'update';
+        if ( self.clau !== update_clause ) self.reset(update_clause);
         view = is_array( tables ) ? tables[0] : tables;
         if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
         {
@@ -1760,7 +1766,8 @@ Dialect[PROTO] = {
     
     ,Delete: function( delete_clause ) {
         var self = this;
-        self.reset(delete_clause||'delete');
+        delete_clause = delete_clause || 'delete';
+        if ( self.clau !== delete_clause ) self.reset(delete_clause);
         return self;
     }
     

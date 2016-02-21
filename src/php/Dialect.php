@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.0
+*   @version: 0.6.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -781,7 +781,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.6.0";
+    const VERSION = "0.6.1";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -1350,7 +1350,7 @@ class Dialect
     
     public function Create( $table, $defs, $opts=null, $create_clause='create' )
     {
-        $this->reset($create_clause);
+        if ( $this->clau !== $create_clause ) $this->reset($create_clause);
         $this->clus['create_table'] = $this->refs( $table, $this->tbls );
         if ( !empty($this->clus['create_defs']) )
             $defs = $this->clus['create_defs'] . ',' . $defs;
@@ -1366,7 +1366,7 @@ class Dialect
     
     public function Alter( $table, $defs, $opts=null, $alter_clause='alter' )
     {
-        $this->reset($alter_clause);
+        if ( $this->clau !== $alter_clause ) $this->reset($alter_clause);
         $this->clus['alter_table'] = $this->refs( $table, $this->tbls );
         if ( !empty($this->clus['alter_defs']) )
             $defs = $this->clus['alter_defs'] . ',' . $defs;
@@ -1382,7 +1382,7 @@ class Dialect
     
     public function Drop( $tables='*', $drop_clause='drop' )
     {
-        $this->reset($drop_clause);
+        if ( $this->clau !== $drop_clause ) $this->reset($drop_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) )
         {
@@ -1400,7 +1400,7 @@ class Dialect
     
     public function Select( $columns='*', $select_clause='select' )
     {
-        $this->reset($select_clause);
+        if ( $this->clau !== $select_clause ) $this->reset($select_clause);
         $columns = $this->refs( empty($columns) ? '*' : $columns, $this->cols );
         if ( empty($this->clus['select_columns']) )
             $this->clus['select_columns'] = $columns;
@@ -1411,7 +1411,7 @@ class Dialect
     
     public function Insert( $tables, $columns, $insert_clause='insert' )
     {
-        $this->reset($insert_clause);
+        if ( $this->clau !== $insert_clause ) $this->reset($insert_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
@@ -1480,7 +1480,7 @@ class Dialect
     
     public function Update( $tables, $update_clause='update' )
     {
-        $this->reset($update_clause);
+        if ( $this->clau !== $update_clause ) $this->reset($update_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
         if ( isset($this->vews[ $view ]) && ($this->clau === $this->vews[ $view ]->clau) )
         {
@@ -1565,7 +1565,7 @@ class Dialect
     
     public function Delete( $delete_clause='delete' )
     {
-        $this->reset($delete_clause);
+        if ( $this->clau !== $delete_clause ) $this->reset($delete_clause);
         return $this;
     }
     
