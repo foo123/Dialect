@@ -799,8 +799,6 @@ class Ref:
         return self
 
 
-sql_func_arg_re = re.compile(r'<(\d+)>')
-
 class Dialect:
     """
     Dialect for Python,
@@ -828,8 +826,14 @@ class Dialect:
          'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
         # http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
         ,'functions'    : {
-         'strpos'       : 'POSITION(<1> IN <0>)'
-        ,'strlen'       : 'LENGTH(<0>)'
+         'strpos'       : ['POSITION(',1,' IN ',0,')']
+        ,'strlen'       : ['LENGTH(',0,')']
+        ,'strlower'     : ['LCASE(',0,')']
+        ,'strupper'     : ['UCASE(',0,')']
+        ,'trim'         : ['TRIM(',0,')']
+        ,'quote'        : ['QUOTE(',0,')']
+        ,'random'       : ['RAND()']
+        ,'now'          : ['NOW()']
         }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -850,8 +854,14 @@ class Dialect:
          'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
         # http://www.postgresql.org/docs/9.1/static/functions-string.html
         ,'functions'    : {
-         'strpos'       : 'position(<1> in <0>)'
-        ,'strlen'       : 'length(<0>)'
+         'strpos'       : ['position(',1,' in ',0,')']
+        ,'strlen'       : ['length(',0,')']
+        ,'strlower'     : ['lower(',0,')']
+        ,'strupper'     : ['upper(',0,')']
+        ,'trim'         : ['trim(',0,')']
+        ,'quote'        : ['quote(',0,')']
+        ,'random'       : ['random()']
+        ,'now'          : ['now()']
         }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -878,8 +888,14 @@ class Dialect:
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         # https://msdn.microsoft.com/en-us/library/ms186323.aspx
         ,'functions'    : {
-         'strpos'       : 'CHARINDEX(<1>,<0>)'
-        ,'strlen'       : 'LEN(<0>)'
+         'strpos'       : ['CHARINDEX(',1,',',0,')']
+        ,'strlen'       : ['LEN(',0,')']
+        ,'strlower'     : ['LOWER(',0,')']
+        ,'strupper'     : ['UPPER(',0,')']
+        ,'trim'         : ['LTRIM(RTRIM(',0,'))']
+        ,'quote'        : ['QUOTENAME(',0,',"\'")']
+        ,'random'       : ['RAND()']
+        ,'now'          : ['CURRENT_TIMESTAMP']
         }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -902,8 +918,14 @@ class Dialect:
          'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
         # https://www.sqlite.org/lang_corefunc.html
         ,'functions'    : {
-         'strpos'       : 'instr(<1>,<0>)'
-        ,'strlen'       : 'length(<0>)'
+         'strpos'       : ['instr(',1,',',0,')']
+        ,'strlen'       : ['length(',0,')']
+        ,'strlower'     : ['lower(',0,')']
+        ,'strupper'     : ['upper(',0,')']
+        ,'trim'         : ['trim(',0,')']
+        ,'quote'        : ['quote(',0,')']
+        ,'random'       : ['random()']
+        ,'now'          : ['datetime(\'now\')']
         }
         ,'clauses'      : {
          'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -1543,7 +1565,7 @@ class Dialect:
                         pass
                     else:
                         v = self.quote( v )
-                    conds.append(self.sql_func('strpos', [field,v]) + ' > 0')
+                    conds.append(self.sql_function('strpos', [field,v]) + ' > 0')
                 elif 'not_contains' in value:
                     v = str(value['not_contains'])
                     
@@ -1552,7 +1574,7 @@ class Dialect:
                         pass
                     else:
                         v = self.quote( v )
-                    conds.append(self.sql_func('strpos', [field,v]) + ' = 0')
+                    conds.append(self.sql_function('strpos', [field,v]) + ' = 0')
                 elif 'in' in value:
                     v = array( value['in'] )
                     
@@ -1834,11 +1856,18 @@ class Dialect:
         if is_array( v ): return [self.esc_like( x ) for x in v]
         return addslashes( str(v), '_%', '\\' )
     
-    def sql_func( self, f, v ):
-        global sql_func_arg_re
-        if not f or (f not in Dialect.dialects[ self.type ][ 'functions' ]): return ''
-        func = Dialect.dialects[ self.type ][ 'functions' ][ f ]
-        return re.sub(sql_func_arg_re, lambda m: v[int(m.group(1))] if len(v) > int(m.group(1)) else '', func)
+    def sql_function( self, f, args=None ):
+        if f not in Dialect.dialects[ self.type ][ 'functions' ]:
+            raise ValueError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"')
+        f = Dialect.dialects[ self.type ][ 'functions' ][ f ]
+        func = ''
+        args = [] if args is None else array(args)
+        argslen = len(args)
+        is_arg = False
+        for fi in f:
+            func += (args[fi] if fi<argslen else '') if is_arg else fi
+            is_arg = not is_arg
+        return func
 
 __all__ = ['Dialect']
 

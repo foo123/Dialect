@@ -976,8 +976,14 @@ var dialects = {
      'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
     // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
     ,'functions'    : {
-     'strpos'       : 'POSITION(<1> IN <0>)'
-    ,'strlen'       : 'LENGTH(<0>)'
+     'strpos'       : ['POSITION(',1,' IN ',0,')']
+    ,'strlen'       : ['LENGTH(',0,')']
+    ,'strlower'     : ['LCASE(',0,')']
+    ,'strupper'     : ['UCASE(',0,')']
+    ,'trim'         : ['TRIM(',0,')']
+    ,'quote'        : ['QUOTE(',0,')']
+    ,'random'       : ['RAND()']
+    ,'now'          : ['NOW()']
     }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -998,8 +1004,14 @@ var dialects = {
      'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
     // http://www.postgresql.org/docs/9.1/static/functions-string.html
     ,'functions'    : {
-     'strpos'       : 'position(<1> in <0>)'
-    ,'strlen'       : 'length(<0>)'
+     'strpos'       : ['position(',1,' in ',0,')']
+    ,'strlen'       : ['length(',0,')']
+    ,'strlower'     : ['lower(',0,')']
+    ,'strupper'     : ['upper(',0,')']
+    ,'trim'         : ['trim(',0,')']
+    ,'quote'        : ['quote(',0,')']
+    ,'random'       : ['random()']
+    ,'now'          : ['now()']
     }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -1029,8 +1041,14 @@ var dialects = {
      'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
     // https://msdn.microsoft.com/en-us/library/ms186323.aspx
     ,'functions'    : {
-     'strpos'       : 'CHARINDEX(<1>,<0>)'
-    ,'strlen'       : 'LEN(<0>)'
+     'strpos'       : ['CHARINDEX(',1,',',0,')']
+    ,'strlen'       : ['LEN(',0,')']
+    ,'strlower'     : ['LOWER(',0,')']
+    ,'strupper'     : ['UPPER(',0,')']
+    ,'trim'         : ['LTRIM(RTRIM(',0,'))']
+    ,'quote'        : ['QUOTENAME(',0,',"\'")']
+    ,'random'       : ['RAND()']
+    ,'now'          : ['CURRENT_TIMESTAMP']
     }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -1054,8 +1072,14 @@ var dialects = {
      'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
     // https://www.sqlite.org/lang_corefunc.html
     ,'functions'    : {
-     'strpos'       : 'instr(<1>,<0>)'
-    ,'strlen'       : 'length(<0>)'
+     'strpos'       : ['instr(',1,',',0,')']
+    ,'strlen'       : ['length(',0,')']
+    ,'strlower'     : ['lower(',0,')']
+    ,'strupper'     : ['upper(',0,')']
+    ,'trim'         : ['trim(',0,')']
+    ,'quote'        : ['quote(',0,')']
+    ,'random'       : ['random()']
+    ,'now'          : ['datetime(\'now\')']
     }
     ,'clauses'      : {
      'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -1069,7 +1093,6 @@ var dialects = {
 }
 };
 
-var sql_func_arg_re = /<(\d+)>/g;
 Dialect = function Dialect( type ) {
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
@@ -1991,7 +2014,7 @@ Dialect[PROTO] = {
                     {
                         v = self.quote( v );
                     }
-                    conds.push(self.sql_func('strpos', [field,v]) + ' > 0');
+                    conds.push(self.sql_function('strpos', [field,v]) + ' > 0');
                 }
                 else if ( value[HAS]('not_contains') )
                 {
@@ -2005,7 +2028,7 @@ Dialect[PROTO] = {
                     {
                         v = self.quote( v );
                     }
-                    conds.push(self.sql_func('strpos', [field,v]) + ' = 0');
+                    conds.push(self.sql_function('strpos', [field,v]) + ' = 0');
                 }
                 else if ( value[HAS]('in') )
                 {
@@ -2433,13 +2456,20 @@ Dialect[PROTO] = {
         return addslashes( v, '_%', '\\' );
     }
     
-    ,sql_func: function( f, v ) {
-        var self = this, func;
-        if ( !f || null == Dialect.dialects[ self.type ][ 'functions' ][ f ] ) return '';
-        func = Dialect.dialects[ self.type ][ 'functions' ][ f ];
-        return func.replace(sql_func_arg_re, function( m0, m1 ){
-            return v[HAS](m1) ? v[m1] : '';
-        });
+    ,sql_function: function( f, args ) {
+        var self = this, func, is_arg, i, l, argslen;
+        if ( null == Dialect.dialects[ self.type ][ 'functions' ][ f ] )
+            throw new TypeError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"');
+        f = Dialect.dialects[ self.type ][ 'functions' ][ f ];
+        args = null != args ? array(args) : [];
+        argslen = args.length;
+        func = ''; is_arg = false;
+        for(i=0,l=f.length; i<l; i++)
+        {
+            func += is_arg ? (f[i]<argslen ? args[f[i]] : '') : f[i];
+            is_arg = !is_arg;
+        }
+        return func;
     }
 };
 

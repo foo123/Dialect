@@ -798,8 +798,14 @@ class Dialect
      'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
     // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
     ,'functions'     => array(
-     'strpos'      => 'POSITION(<1> IN <0>)'
-    ,'strlen'      => 'LENGTH(<0>)'
+     'strpos'      => array('POSITION(',1,' IN ',0,')')
+    ,'strlen'      => array('LENGTH(',0,')')
+    ,'strlower'    => array('LCASE(',0,')')
+    ,'strupper'    => array('UCASE(',0,')')
+    ,'trim'        => array('TRIM(',0,')')
+    ,'quote'       => array('QUOTE(',0,')')
+    ,'random'      => array('RAND()')
+    ,'now'         => array('NOW()')
     )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -820,8 +826,14 @@ class Dialect
      'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
     // http://www.postgresql.org/docs/9.1/static/functions-string.html
     ,'functions'     => array(
-     'strpos'      => 'position(<1> in <0>)'
-    ,'strlen'      => 'length(<0>)'
+     'strpos'      => array('position(',1,' in ',0,')')
+    ,'strlen'      => array('length(',0,')')
+    ,'strlower'    => array('lower(',0,')')
+    ,'strupper'    => array('upper(',0,')')
+    ,'trim'        => array('trim(',0,')')
+    ,'quote'       => array('quote(',0,')')
+    ,'random'      => array('random()')
+    ,'now'         => array('now()')
     )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -848,8 +860,14 @@ class Dialect
      'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
     // https://msdn.microsoft.com/en-us/library/ms186323.aspx
     ,'functions'     => array(
-     'strpos'      => 'CHARINDEX(<1>,<0>)'
-    ,'strlen'      => 'LEN(<0>)'
+     'strpos'      => array('CHARINDEX(',1,',',0,')')
+    ,'strlen'      => array('LEN(',0,')')
+    ,'strlower'    => array('LOWER(',0,')')
+    ,'strupper'    => array('UPPER(',0,')')
+    ,'trim'        => array('LTRIM(RTRIM(',0,'))')
+    ,'quote'       => array('QUOTENAME(',0,',"\'")')
+    ,'random'      => array('RAND()')
+    ,'now'         => array('CURRENT_TIMESTAMP')
     )
     ,'clauses'       => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -872,8 +890,14 @@ class Dialect
      'quotes'       => array( array("'","'","''","''"), array('"','"'), array(''," ESCAPE '\\'") )
     // https://www.sqlite.org/lang_corefunc.html
     ,'functions'     => array(
-     'strpos'      => 'instr(<1>,<0>)'
-    ,'strlen'      => 'length(<0>)'
+     'strpos'      => array('instr(',1,',',0,')')
+    ,'strlen'      => array('length(',0,')')
+    ,'strlower'    => array('lower(',0,')')
+    ,'strupper'    => array('upper(',0,')')
+    ,'trim'        => array('trim(',0,')')
+    ,'quote'       => array('quote(',0,')')
+    ,'random'      => array('random()')
+    ,'now'         => array('datetime(\'now\')')
     )
     ,'clauses'      => array(
      'create'       => "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
@@ -897,8 +921,6 @@ class Dialect
     public $db = null;
     public $escdb = null;
     public $p = null;
-    
-    public $_args_ = null;
     
     public $type = null;
     public $clauses = null;
@@ -950,7 +972,6 @@ class Dialect
         $this->qn = null;
         $this->e = null;
         
-        $this->_args_ = null;
         return $this;
     }
     
@@ -1787,7 +1808,7 @@ class Dialect
                     {
                         $v = $this->quote( $v );
                     }
-                    $conds[] = $this->sql_func('strpos', array($field,$v)) . ' > 0';
+                    $conds[] = $this->sql_function('strpos', array($field,$v)) . ' > 0';
                 }
                 elseif ( isset($value['not_contains']) )
                 {
@@ -1801,7 +1822,7 @@ class Dialect
                     {
                         $v = $this->quote( $v );
                     }
-                    $conds[] = $this->sql_func('strpos', array($field,$v)) . ' = 0';
+                    $conds[] = $this->sql_function('strpos', array($field,$v)) . ' = 0';
                 }
                 elseif ( isset($value['in']) )
                 {
@@ -2228,17 +2249,20 @@ class Dialect
         return self::addslashes( $v, $chars, $esc );
     }
     
-    public function sql_func_rep( $m )
+    public function sql_function( $f, $args=array() )
     {
-        return isset($this->_args_[$m[1]]) ? $this->_args_[$m[1]] : '';
-    }
-    
-    public function sql_func( $f, $v )
-    {
-        if ( !$f || !isset(self::$dialects[ $this->type ][ 'functions' ][ $f ]) ) return '';
-        $this->_args_ = $v;
-        $func = self::$dialects[ $this->type ][ 'functions' ][ $f ];
-        return preg_replace_callback('/<(\d+)>/u', array($this,'sql_func_rep'), $func);
+        if ( !isset(self::$dialects[ $this->type ][ 'functions' ][ $f ]) )
+            throw new InvalidArgumentException('Dialect: SQL function "'.$f.'" does not exist for dialect "'.$this->type.'"');
+        $f = self::$dialects[ $this->type ][ 'functions' ][ $f ];
+        $args = (array)$args;
+        $argslen = count($args);
+        $func = ''; $is_arg = false;
+        foreach($f as $fi)
+        {
+            $func .= $is_arg ? ($fi<$argslen ? $args[$fi] : '') : $fi;
+            $is_arg = !$is_arg;
+        }
+        return $func;
     }
     
     public static function map_join( $arr, $prop, $sep=',' )
