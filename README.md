@@ -176,6 +176,8 @@ see below `API` examples
 ###API Reference
 
 
+* `Dialect` is also a `XPCOM JavaScript Component` (Firefox) (e.g to be used in firefox browser addons/plugins)
+
 ```javascript
 
 // -- instance methods --
