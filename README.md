@@ -3,6 +3,8 @@ Dialect
 
 **Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript**
 
+![Dialect](/dialect.jpg)
+
 
 **see also:**  
 
@@ -13,6 +15,7 @@ Dialect
 * [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/XPCOM/JS, PHP, Python, ActionScript
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
+* [GrammarTemplate](https://github.com/foo123/grammar-template) versatile and intuitive grammar-based templating for PHP, Python, Node/XPCOM/JS, ActionScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
