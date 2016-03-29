@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.1
+*   @version: 0.6.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -12,7 +12,7 @@
 **/
 if ( !class_exists('Dialect') )
 {
-class DialectTpl
+class DialectTemplate
 {    
     public static function multisplit($tpl, $reps, $as_array=false)
     {
@@ -128,17 +128,17 @@ class DialectTpl
     
     public $id = null;
     public $tpl = null;
+    protected $_args = null;
+    protected $_parsed = false;
     private $_renderer = null;
     
     public function __construct($tpl='', $replacements=null, $compiled=false)
     {
         $this->id = null;
         $this->_renderer = null;
-        if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
-        $this->tpl = is_string($replacements)
-                ? self::multisplit_re( $tpl, $replacements)
-                : self::multisplit( $tpl, (array)$replacements);
-        if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
+        $this->tpl = null;
+        $this->_args = array($tpl,!$replacements||empty($replacements)?self::$defaultArgs:$replacements,$compiled);
+        $this->_parsed = false;
     }
 
     public function __destruct()
@@ -150,13 +150,37 @@ class DialectTpl
     {
         $this->id = null;
         $this->tpl = null;
+        $this->_args = null;
+        $this->_parsed = null;
         $this->_renderer = null;
+        return $this;
+    }
+    
+    public function parse( )
+    {
+        if ( false === $this->_parsed )
+        {
+            // lazy init
+            $tpl = $this->_args[0]; $replacements = $this->_args[1]; $compiled = $this->_args[2];
+            $this->_args = null;
+            $this->tpl = is_string($replacements)
+                    ? self::multisplit_re( $tpl, $replacements)
+                    : self::multisplit( $tpl, (array)$replacements);
+            $this->_parsed = true;
+            if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
+        }
         return $this;
     }
     
     public function render($args=null)
     {
         if (!$args) $args = array();
+        
+        if ( false === $this->_parsed )
+        {
+            // lazy init
+            $this->parse( );
+        }
         
         if ($this->_renderer) 
         {
@@ -181,8 +205,11 @@ class DialectTpl
         return $out;
     }
 }    
-class DialectGrammTpl
+// adapted from https://github.com/foo123/GrammarTemplate
+class DialectGrammarTemplate
 {    
+    const VERSION = '1.0.0';
+    
     public static function multisplit( $tpl, $delims )
     {
         $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
@@ -331,12 +358,17 @@ class DialectGrammTpl
     
     public $id = null;
     public $tpl = null;
+    protected $_args = null;
+    protected $_parsed = false;
     
     public function __construct($tpl='', $delims=null)
     {
         $this->id = null;
+        $this->tpl = null;
         if ( empty($delims) ) $delims = self::$defaultDelims;
-        $this->tpl = self::multisplit( $tpl, $delims );
+        // lazy init
+        $this->_args = array($tpl, $delims);
+        $this->_parsed = false;
     }
 
     public function __destruct()
@@ -348,11 +380,31 @@ class DialectGrammTpl
     {
         $this->id = null;
         $this->tpl = null;
+        $this->_args = null;
+        $this->_parsed = null;
+        return $this;
+    }
+    
+    public function parse( )
+    {
+        if ( false === $this->_parsed )
+        {
+            // lazy init
+            $this->tpl = self::multisplit( $this->_args[0], $this->_args[1] );
+            $this->_args = null;
+            $this->_parsed = true;
+        }
         return $this;
     }
     
     public function render($args=null)
     {
+        if ( false === $this->_parsed )
+        {
+            // lazy init
+            $this->parse( );
+        }
+        
         if ( null === $args ) $args = array();
         
         $tpl = $this->tpl; $l = count($tpl); $stack = array();
@@ -781,7 +833,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.6.1";
+    const VERSION = "0.6.2";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -1027,8 +1079,8 @@ class Dialect
         $this->cols = array( );
         $this->clau = $clause;
         
-        if ( !($this->clauses[ $this->clau ] instanceof DialectGrammTpl) )
-            $this->clauses[ $this->clau ] = new DialectGrammTpl( $this->clauses[ $this->clau ] );
+        if ( !($this->clauses[ $this->clau ] instanceof DialectGrammarTemplate) )
+            $this->clauses[ $this->clau ] = new DialectGrammarTemplate( $this->clauses[ $this->clau ] );
         return $this;
     }
     
@@ -1177,36 +1229,17 @@ class Dialect
             
             if ( $use_internal_query )
             {
-                $sql = new DialectTpl( $this->sql( ), $pattern );
+                $sql = new DialectTemplate( $this->sql( ), $pattern );
                 //$this->clear( );
             }
             else
             {
-                $sql = new DialectTpl( $query, $pattern );
+                $sql = new DialectTemplate( $query, $pattern );
             }
             
-            $types = array();
-            // extract parameter types
-            foreach ($sql->tpl as &$tpli)
-            {
-                if ( !$tpli[ 0 ] )
-                {
-                    $k = explode( ':', $tpli[ 1 ] );
-                    if ( isset($k[1]) )
-                    {
-                        $types[ $k[1] ] = $k[0];
-                        $tpli[ 1 ] = $k[1];
-                    }
-                    else
-                    {
-                        $types[ $k[0] ] = "s";
-                        $tpli[ 1 ] = $k[0];
-                    }
-                }
-            }
             $this->tpls[ $tpl ] = (object)array(
                 'sql'=>$sql, 
-                'types'=>$types
+                'types'=>null
             );
         }
         return $this;
@@ -1218,6 +1251,32 @@ class Dialect
         {
             $sql = $this->tpls[$tpl]->sql;
             $types = $this->tpls[$tpl]->types;
+            if ( null === $types )
+            {
+                // lazy init
+                $sql->parse( );
+                $types = array();
+                // extract parameter types
+                foreach ($sql->tpl as &$tpli)
+                {
+                    if ( !$tpli[ 0 ] )
+                    {
+                        $k = explode( ':', $tpli[ 1 ] );
+                        if ( isset($k[1]) )
+                        {
+                            $types[ $k[1] ] = $k[0];
+                            $tpli[ 1 ] = $k[1];
+                        }
+                        else
+                        {
+                            $types[ $k[0] ] = "s";
+                            $tpli[ 1 ] = $k[0];
+                        }
+                    }
+                }
+                $this->tpls[$tpl]->types = $types;
+            }
+            
             $params = array( );
             foreach((array)$args as $k=>$v)
             {

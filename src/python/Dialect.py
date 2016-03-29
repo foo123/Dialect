@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.6.1
+#   @version: 0.6.2
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -173,7 +173,7 @@ def map_join( arr, prop, sep=',' ):
 #        return filtered
 
 
-class Tpl:
+class Template:
     
     def multisplit(tpl, reps, as_array=False):
         a = [ [1, tpl] ]
@@ -262,7 +262,7 @@ class Tpl:
             
                 notIsSub = tpli[ 0 ] 
                 s = tpli[ 1 ]
-                out += s if notIsSub else Tpl.arg(s)
+                out += s if notIsSub else Template.arg(s)
             
             out += ')'
             
@@ -274,7 +274,7 @@ class Tpl:
                 notIsSub = tpli[ 0 ]
                 s = tpli[ 1 ]
                 if notIsSub: out += "'" + re.sub(NEWLINE, "' + \"\\n\" + '", re.sub(SQUOTE, "\\'", s)) + "'"
-                else: out += " + str(" + Tpl.arg(s,"argslen") + ") + "
+                else: out += " + str(" + Template.arg(s,"argslen") + ") + "
             
             out += ')'
         
@@ -289,9 +289,8 @@ class Tpl:
         self.id = None
         self.tpl = None
         self._renderer = None
-        if not replacements: replacements = Tpl.defaultArgs
-        self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
-        if compiled is True: self._renderer = Tpl.compile( self.tpl )
+        self._args = [tpl,Template.defaultArgs if not replacements else replacements,compiled]
+        self._parsed = False
 
     def __del__(self):
         self.dispose()
@@ -300,11 +299,29 @@ class Tpl:
         self.id = None
         self.tpl = None
         self._renderer = None
+        self._args = None
+        self._parsed = None
+        return self
+    
+    def parse(self):
+        if self._parsed is False:
+            # lazy init
+            tpl = self._args[0]
+            replacements = self._args[1]
+            compiled = self._args[2]
+            self._args = None
+            self.tpl = Template.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Template.multisplit( tpl, replacements )
+            self._parsed = True
+            if compiled is True: self._renderer = Template.compile( self.tpl )
         return self
     
     def render(self, args=None):
         if None == args: args = [ ]
         
+        if self._parsed is False:
+            # lazy init
+            self.parse( )
+            
         if self._renderer: return self._renderer( args )
         
         out = ''
@@ -316,7 +333,14 @@ class Tpl:
         
         return out
 
-class GrammTpl:
+# adapted from https://github.com/foo123/GrammarTemplate
+class GrammarTemplate:
+    """
+    GrammarTemplate for Python,
+    https://github.com/foo123/GrammarTemplate
+    """
+    
+    VERSION = '1.0.0'
     
     def multisplit( tpl, delims ):
         IDL = delims[0]
@@ -452,7 +476,9 @@ class GrammTpl:
     def __init__(self, tpl='', delims=None):
         self.id = None
         self.tpl = None
-        self.tpl = GrammTpl.multisplit( tpl, delims if delims else GrammTpl.defaultDelims )
+        # lazy init
+        self._args = [ tpl, delims if delims else GrammarTemplate.defaultDelims ]
+        self._parsed = False
 
     def __del__(self):
         self.dispose()
@@ -460,9 +486,23 @@ class GrammTpl:
     def dispose(self):
         self.id = None
         self.tpl = None
+        self._args = None
+        self._parsed = None
+        return self
+    
+    def parse(self):
+        if self._parsed is False:
+            # lazy init
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] )
+            self._args = None
+            self._parsed = True
         return self
     
     def render(self, args=None):
+        if self._parsed is False:
+            # lazy init
+            self.parse( )
+        
         if None == args: args = { }
         tpl = self.tpl
         l = len(tpl)
@@ -550,7 +590,6 @@ class GrammTpl:
             #    ri = p[4]
         
         return out
-
 
 Ref_spc_re = re.compile(r'\s')
 Ref_num_re = re.compile(r'[0-9]')
@@ -805,11 +844,11 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.6.1'
+    VERSION = '0.6.2'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
-    Tpl = Tpl
-    GrammTpl = GrammTpl
+    Template = Template
+    GrammarTemplate = GrammarTemplate
     Ref = Ref
 
     dialects = {
@@ -1014,8 +1053,8 @@ class Dialect:
         self.tbls = { }
         self.cols = { }
         self.clau = clause
-        if not isinstance(self.clauses[ self.clau ], GrammTpl):
-            self.clauses[ self.clau ] = GrammTpl( self.clauses[ self.clau ] )
+        if not isinstance(self.clauses[ self.clau ], GrammarTemplate):
+            self.clauses[ self.clau ] = GrammarTemplate( self.clauses[ self.clau ] )
         return self
     
     def clear( self ):
@@ -1083,7 +1122,7 @@ class Dialect:
             select_columns = []
             for selected_column in selected_columns:
                 if '*' == selected_column.full:
-                    select_columns = select_columns + self.clus['select_columns'];
+                    select_columns = select_columns + self.clus['select_columns']
                 else:
                     select_columns.append( selected_column )
             self.clus['select_columns'] = select_columns
@@ -1128,27 +1167,14 @@ class Dialect:
             pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
             
             if use_internal_query:
-                sql = Tpl( self.sql( ), pattern )
+                sql = Template( self.sql( ), pattern )
                 #self.clear( )
             else:
-                sql = Tpl( query, pattern )
-            
-            types = { }
-            # extract parameter types
-            for i in range(len(sql.tpl)):
-                tpli = sql.tpl[ i ]
-                if not tpli[ 0 ]:
-                    k = tpli[ 1 ].split(':')
-                    if len(k) > 1:
-                        types[ k[1] ] = k[0]
-                        sql.tpl[ i ][ 1 ] = k[1]
-                    else:
-                        types[ k[0] ] = "s"
-                        sql.tpl[ i ][ 1 ] = k[0]
+                sql = Template( query, pattern )
             
             self.tpls[ tpl ] = {
                 'sql':sql, 
-                'types':types
+                'types':None
             }
         return self
     
@@ -1157,6 +1183,23 @@ class Dialect:
             
             sql = self.tpls[tpl]['sql']
             types = self.tpls[tpl]['types']
+            if types is None:
+                # lazy init
+                sql.parse( )
+                types = { }
+                # extract parameter types
+                for i in range(len(sql.tpl)):
+                    tpli = sql.tpl[ i ]
+                    if not tpli[ 0 ]:
+                        k = tpli[ 1 ].split(':')
+                        if len(k) > 1:
+                            types[ k[1] ] = k[0]
+                            sql.tpl[ i ][ 1 ] = k[1]
+                        else:
+                            types[ k[0] ] = "s"
+                            sql.tpl[ i ][ 1 ] = k[0]
+                self.tpls[tpl]['types'] = types
+            
             params = { }
             for k in args:
                 
@@ -1722,8 +1765,8 @@ class Dialect:
     
     def refs( self, refs, lookup, re_alias=False ):
         if re_alias is True:
-            i = 0
-            for ref in refs:
+            for i in range(len(refs)):
+                ref = refs[i]
                 alias = ref.alias
                 qualified = ref.qualified
                 qualified_full = ref.full
@@ -1769,7 +1812,6 @@ class Dialect:
                     
                     refs[i] = lookup[ alias ]
                 
-                i += 1
         else:
             rs = array( refs )
             refs = [ ]

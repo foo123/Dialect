@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.1
+*   @version: 0.6.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -33,7 +33,7 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty',
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
     NULL_CHAR = String.fromCharCode( 0 ),
-    Tpl, GrammTpl, Ref, Dialect
+    Template, GrammarTemplate, Ref, Dialect
 ;
 function F( a, c )
 {
@@ -218,20 +218,17 @@ function map_join( arr, prop, sep )
     return joined;
 }
 
-Tpl = function Tpl( tpl, replacements, compiled ) {
+Template = function Template( tpl, replacements, compiled ) {
     var self = this;
-    if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
+    if ( !(self instanceof Template) ) return new Template(tpl, replacements, compiled);
     self.id = null;
+    self.tpl = null;
     self._renderer = null;
-    replacements = replacements || Tpl.defaultArgs;
-    self.tpl = replacements instanceof RegExp 
-        ? Tpl.multisplit_re(tpl||'', replacements) 
-        : Tpl.multisplit( tpl||'', replacements );
-    if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
-    self.fixRenderer( );
+    self._args = [tpl||'',replacements || Template.defaultArgs,compiled];
+    self._parsed = false;
 };
-Tpl.defaultArgs = /\$(-?[0-9]+)/g;
-Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
+Template.defaultArgs = /\$(-?[0-9]+)/g;
+Template.multisplit = function multisplit( tpl, reps, as_array ) {
     var r, sr, s, i, j, a, b, c, al, bl;
     as_array = !!as_array;
     a = [ [1, tpl] ];
@@ -265,7 +262,7 @@ Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
     }
     return a;
 };
-Tpl.multisplit_re = function multisplit_re( tpl, re ) {
+Template.multisplit_re = function multisplit_re( tpl, re ) {
     re = re.global ? re : new RegExp(re.source, re.ignoreCase?"gi":"g"); /* make sure global flag is added */
     var a = [ ], i = 0, m;
     while ( m = re.exec( tpl ) )
@@ -277,7 +274,7 @@ Tpl.multisplit_re = function multisplit_re( tpl, re ) {
     a.push([1, tpl.slice(i)]);
     return a;
 };
-Tpl.arg = function( key, argslen ) { 
+Template.arg = function( key, argslen ) { 
     var i, k, kn, kl, givenArgsLen, out = 'args';
     
     if ( arguments.length && null != key )
@@ -305,7 +302,7 @@ Tpl.arg = function( key, argslen ) {
     }
     return out; 
 };
-Tpl.compile = function( tpl, raw ) {
+Template.compile = function( tpl, raw ) {
     var l = tpl.length, 
         i, notIsSub, s, out;
     
@@ -315,7 +312,7 @@ Tpl.compile = function( tpl, raw ) {
         for (i=0; i<l; i++)
         {
             notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
-            out += notIsSub ? s : Tpl.arg(s);
+            out += notIsSub ? s : Template.arg(s);
         }
         out += ');';
     }
@@ -326,36 +323,65 @@ Tpl.compile = function( tpl, raw ) {
         {
             notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
             if ( notIsSub ) out += "'" + s.replace(SQUOTE, "\\'").replace(NEWLINE, "' + \"\\n\" + '") + "'";
-            else out += " + String(" + Tpl.arg(s,"argslen") + ") + ";
+            else out += " + String(" + Template.arg(s,"argslen") + ") + ";
         }
         out += ');';
     }
     return F('args', out);
 };
-Tpl[PROTO] = {
-    constructor: Tpl
+Template[PROTO] = {
+    constructor: Template
     
     ,id: null
     ,tpl: null
+    ,_parsed: false
+    ,_args: null
     ,_renderer: null
     
     ,dispose: function( ) {
-        this.id = null;
-        this.tpl = null;
-        this._renderer = null;
-        return this;
+        var self = this;
+        self.id = null;
+        self.tpl = null;
+        self._parsed = null;
+        self._args = null;
+        self._renderer = null;
+        return self;
     }
     ,fixRenderer: function( ) {
-        if ( 'function' === typeof this._renderer )
-            this.render = this._renderer;
-        else
-            this.render = this.constructor[PROTO].render;
-        return this;
+        var self = this;
+        self.render = 'function' === typeof self._renderer ? self._renderer : self.constructor[PROTO].render;
+        return self;
+    }
+    ,parse: function( ) {
+        var self = this;
+        if ( false === self._parsed )
+        {
+            // lazy init
+            var tpl = self._args[0], replacements = self._args[1], compiled = self._args[2];
+            self._args = null;
+            self.tpl = replacements instanceof RegExp 
+                ? Template.multisplit_re(tpl, replacements) 
+                : Template.multisplit( tpl, replacements );
+            self._parsed = true;
+            if ( true === compiled )
+            {
+                self._renderer = Template.compile( self.tpl );
+                self.fixRenderer( );
+            }
+        }
+        return self;
     }
     ,render: function( args ) {
+        var self = this;
         args = args || [ ];
-        //if ( this._renderer ) return this._renderer( args );
-        var tpl = this.tpl, l = tpl.length,
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self.parse( );
+            if ( self._renderer ) return self._renderer( args );
+        }
+        //if ( self._renderer ) return self._renderer( args );
+        var tpl = self.tpl, l = tpl.length,
             argslen = args.length, i, t, s, out = ''
         ;
         for(i=0; i<l; i++)
@@ -368,7 +394,7 @@ Tpl[PROTO] = {
             else
             {
                 s = t[ 1 ];
-                if ( (+s === s) && s < 0 ) s = argslen+s;
+                if ( (+s === s) && (s < 0) ) s = argslen+s;
                 out += args[ s ];
             }
         }
@@ -376,14 +402,19 @@ Tpl[PROTO] = {
     }
 };
 
-GrammTpl = function GrammTpl( tpl, delims ) {
+// adapted from https://github.com/foo123/GrammarTemplate
+GrammarTemplate = function GrammarTemplate( tpl, delims ) {
     var self = this;
-    if ( !(self instanceof GrammTpl) ) return new GrammTpl(tpl, delims);
+    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims);
     self.id = null;
-    self.tpl = GrammTpl.multisplit( tpl||'', delims||GrammTpl.defaultDelims );
+    self.tpl = null;
+    // lazy init
+    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
+    self._parsed = false;
 };
-GrammTpl.defaultDelims = ['<','>','[',']'/*,'?','*','!','|','{','}'*/];
-GrammTpl.multisplit = function multisplit( tpl, delims ) {
+GrammarTemplate.VERSION = '1.0.0';
+GrammarTemplate.defaultDelims = ['<','>','[',']'/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.multisplit = function multisplit( tpl, delims ) {
     var IDL = delims[0], IDR = delims[1], OBL = delims[2], OBR = delims[3],
         lenIDL = IDL.length, lenIDR = IDR.length, lenOBL = OBL.length, lenOBR = OBR.length,
         OPT = '?', OPTR = '*', NEG = '!', DEF = '|', REPL = '{', REPR = '}',
@@ -521,20 +552,43 @@ GrammTpl.multisplit = function multisplit( tpl, delims ) {
     if ( s.length ) a[0].push([0, s]);
     return a[0];
 };
-GrammTpl[PROTO] = {
-    constructor: GrammTpl
+GrammarTemplate[PROTO] = {
+    constructor: GrammarTemplate
     
     ,id: null
     ,tpl: null
+    ,_parsed: false
+    ,_args: null
     
     ,dispose: function( ) {
-        this.id = null;
-        this.tpl = null;
-        return this;
+        var self = this;
+        self.id = null;
+        self.tpl = null;
+        self._args = null;
+        self._parsed = null;
+        return self;
+    }
+    ,parse: function( ) {
+        var self = this;
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] );
+            self._args = null;
+            self._parsed = true;
+        }
+        return self;
     }
     ,render: function( args ) {
+        var self = this;
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self.parse( );
+        }
+        
         args = args || { };
-        var tpl = this.tpl, l = tpl.length,
+        var tpl = self.tpl, l = tpl.length,
             stack = [], p, arr, MIN = Math.min,
             i, t, tt, s, rarg = null,
             ri = 0, rs, re, out = '',
@@ -1120,11 +1174,11 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.6.1";
+Dialect.VERSION = "0.6.2";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
-Dialect.GrammTpl = GrammTpl;
-Dialect.Tpl = Tpl;
+Dialect.GrammarTemplate = GrammarTemplate;
+Dialect.Template = Template;
 Dialect.Ref = Ref;
 Dialect[PROTO] = {
     constructor: Dialect
@@ -1211,8 +1265,8 @@ Dialect[PROTO] = {
         self.tbls = { };
         self.cols = { };
         self.clau = clause;
-        if ( !(self.clauses[ self.clau ] instanceof GrammTpl) )
-            self.clauses[ self.clau ] = new GrammTpl( self.clauses[ self.clau ] );
+        if ( !(self.clauses[ self.clau ] instanceof GrammarTemplate) )
+            self.clauses[ self.clau ] = new GrammarTemplate( self.clauses[ self.clau ] );
         return self;
     }
     
@@ -1317,7 +1371,7 @@ Dialect[PROTO] = {
     }
     
     ,prepareTpl: function( tpl /*, query, left, right*/ ) {
-        var self = this, pattern, sql, types, i, l, tpli, k, 
+        var self = this, pattern, sql, 
             args, argslen, query, left, right, use_internal_query;
         if ( !empty(tpl) )
         {
@@ -1361,48 +1415,54 @@ Dialect[PROTO] = {
             
             if ( use_internal_query )
             {
-                sql = new Tpl( self.sql( ), pattern );
+                sql = new Template( self.sql( ), pattern );
                 //self.clear( );
             }
             else
             {
-                sql = new Tpl( query, pattern );
+                sql = new Template( query, pattern );
             }
             
-            types = {};
-            // extract parameter types
-            for(i=0,l=sql.tpl.length; i<l; i++)
-            {
-                tpli = sql.tpl[ i ];
-                if ( 0 === tpli[ 0 ] )
-                {
-                    k = tpli[ 1 ].split(':');
-                    if ( k.length > 1 )
-                    {
-                        types[ k[1] ] = k[0];
-                        sql.tpl[ i ][ 1 ] = k[1];
-                    }
-                    else
-                    {
-                        types[ k[0] ] = "s";
-                        sql.tpl[ i ][ 1 ] = k[0];
-                    }
-                }
-            }
             self.tpls[ tpl ] = {
                 'sql':sql, 
-                'types':types
+                'types':null
             };
         }
         return self;
     }
     
     ,prepared: function( tpl, args ) {
-        var self = this, sql, types, type, params, k, v, tmp, i, l;
+        var self = this, sql, types, type, params, k, v, tmp, i, l, tpli, k;
         if ( !empty(tpl) && self.tpls[HAS](tpl) )
         {
             sql = self.tpls[tpl].sql;
             types = self.tpls[tpl].types;
+            if ( null === types )
+            {
+                // lazy init
+                sql.parse( );
+                types = {};
+                // extract parameter types
+                for(i=0,l=sql.tpl.length; i<l; i++)
+                {
+                    tpli = sql.tpl[ i ];
+                    if ( 0 === tpli[ 0 ] )
+                    {
+                        k = tpli[ 1 ].split(':');
+                        if ( k.length > 1 )
+                        {
+                            types[ k[1] ] = k[0];
+                            sql.tpl[ i ][ 1 ] = k[1];
+                        }
+                        else
+                        {
+                            types[ k[0] ] = "s";
+                            sql.tpl[ i ][ 1 ] = k[0];
+                        }
+                    }
+                }
+                self.tpls[tpl].types = types;
+            }
             params = { };
             for(k in args)
             {
