@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.2
+*   @version: 0.6.3
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -833,7 +833,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.6.2";
+    const VERSION = "0.6.3";
     const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -850,12 +850,12 @@ class Dialect
      'quotes'        => array( array("'","'","\\'","\\'"), array('`','`'), array('','') )
     // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
     ,'functions'     => array(
-     'strpos'      => array('POSITION(',1,' IN ',0,')')
-    ,'strlen'      => array('LENGTH(',0,')')
-    ,'strlower'    => array('LCASE(',0,')')
-    ,'strupper'    => array('UCASE(',0,')')
-    ,'trim'        => array('TRIM(',0,')')
-    ,'quote'       => array('QUOTE(',0,')')
+     'strpos'      => array('POSITION(',2,' IN ',1,')')
+    ,'strlen'      => array('LENGTH(',1,')')
+    ,'strlower'    => array('LCASE(',1,')')
+    ,'strupper'    => array('UCASE(',1,')')
+    ,'trim'        => array('TRIM(',1,')')
+    ,'quote'       => array('QUOTE(',1,')')
     ,'random'      => array('RAND()')
     ,'now'         => array('NOW()')
     )
@@ -878,12 +878,12 @@ class Dialect
      'quotes'        => array( array("E'","'","''","''"), array('"','"'), array('','') )
     // http://www.postgresql.org/docs/9.1/static/functions-string.html
     ,'functions'     => array(
-     'strpos'      => array('position(',1,' in ',0,')')
-    ,'strlen'      => array('length(',0,')')
-    ,'strlower'    => array('lower(',0,')')
-    ,'strupper'    => array('upper(',0,')')
-    ,'trim'        => array('trim(',0,')')
-    ,'quote'       => array('quote(',0,')')
+     'strpos'      => array('position(',2,' in ',1,')')
+    ,'strlen'      => array('length(',1,')')
+    ,'strlower'    => array('lower(',1,')')
+    ,'strupper'    => array('upper(',1,')')
+    ,'trim'        => array('trim(',1,')')
+    ,'quote'       => array('quote(',1,')')
     ,'random'      => array('random()')
     ,'now'         => array('now()')
     )
@@ -912,12 +912,12 @@ class Dialect
      'quotes'        => array( array("'","'","''","''"), array('[',']'), array(''," ESCAPE '\\'") )
     // https://msdn.microsoft.com/en-us/library/ms186323.aspx
     ,'functions'     => array(
-     'strpos'      => array('CHARINDEX(',1,',',0,')')
-    ,'strlen'      => array('LEN(',0,')')
-    ,'strlower'    => array('LOWER(',0,')')
-    ,'strupper'    => array('UPPER(',0,')')
-    ,'trim'        => array('LTRIM(RTRIM(',0,'))')
-    ,'quote'       => array('QUOTENAME(',0,',"\'")')
+     'strpos'      => array('CHARINDEX(',2,',',1,')')
+    ,'strlen'      => array('LEN(',1,')')
+    ,'strlower'    => array('LOWER(',1,')')
+    ,'strupper'    => array('UPPER(',1,')')
+    ,'trim'        => array('LTRIM(RTRIM(',1,'))')
+    ,'quote'       => array('QUOTENAME(',1,',"\'")')
     ,'random'      => array('RAND()')
     ,'now'         => array('CURRENT_TIMESTAMP')
     )
@@ -942,12 +942,12 @@ class Dialect
      'quotes'       => array( array("'","'","''","''"), array('"','"'), array(''," ESCAPE '\\'") )
     // https://www.sqlite.org/lang_corefunc.html
     ,'functions'     => array(
-     'strpos'      => array('instr(',1,',',0,')')
-    ,'strlen'      => array('length(',0,')')
-    ,'strlower'    => array('lower(',0,')')
-    ,'strupper'    => array('upper(',0,')')
-    ,'trim'        => array('trim(',0,')')
-    ,'quote'       => array('quote(',0,')')
+     'strpos'      => array('instr(',2,',',1,')')
+    ,'strlen'      => array('length(',1,')')
+    ,'strlower'    => array('lower(',1,')')
+    ,'strupper'    => array('upper(',1,')')
+    ,'trim'        => array('trim(',1,')')
+    ,'quote'       => array('quote(',1,')')
     ,'random'      => array('random()')
     ,'now'         => array('datetime(\'now\')')
     )
@@ -1806,6 +1806,28 @@ class Dialect
                     continue;
                 }
                 
+                if ( isset($value['or']) )
+                {
+                    $cases = array( );
+                    foreach((array)$value['or'] as $or_cl)
+                    {
+                        $cases[] = $this->conditions($or_cl, $can_use_alias);
+                    }
+                    $conds[] = implode(' OR ', $cases);
+                    continue;
+                }
+                
+                if ( isset($value['and']) )
+                {
+                    $cases = array( );
+                    foreach((array)$value['and'] as $and_cl)
+                    {
+                        $cases[] = $this->conditions($and_cl, $can_use_alias);
+                    }
+                    $conds[] = implode(' AND ', $cases);
+                    continue;
+                }
+                
                 if ( isset($value['either']) )
                 {
                     $cases = array( );
@@ -1814,6 +1836,17 @@ class Dialect
                         $cases[] = $this->conditions(array("$f"=>$either), $can_use_alias);
                     }
                     $conds[] = implode(' OR ', $cases);
+                    continue;
+                }
+                
+                if ( isset($value['together']) )
+                {
+                    $cases = array( );
+                    foreach((array)$value['together'] as $together)
+                    {
+                        $cases[] = $this->conditions(array("$f"=>$together), $can_use_alias);
+                    }
+                    $conds[] = implode(' AND ', $cases);
                     continue;
                 }
                 
@@ -1923,37 +1956,113 @@ class Dialect
                 {
                     $v = (array) $value['between'];
                     
-                    if ( 'raw' === $type )
+                    // partial between clause
+                    if ( !isset($v[0]) || (null === $v[0]) )
                     {
-                        // raw, do nothing
+                        // switch to lte clause
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || is_int($v[1]) )
+                        {
+                            $v[1] = $this->intval( $v[1] );
+                        }
+                        else
+                        {
+                            $v[1] = $this->quote( $v[1] );
+                        }
+                        $conds[] = $field . " <= " . $v[1];
                     }
-                    elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                    elseif ( !isset($v[1]) || (null === $v[1]) )
                     {
-                        $v = $this->intval( $v );
+                        // switch to gte clause
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || is_int($v[0]) )
+                        {
+                            $v[0] = $this->intval( $v[0] );
+                        }
+                        else
+                        {
+                            $v[0] = $this->quote( $v[0] );
+                        }
+                        $conds[] = $field . " >= " . $v[0];
                     }
                     else
                     {
-                        $v = $this->quote( $v );
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                        {
+                            $v = $this->intval( $v );
+                        }
+                        else
+                        {
+                            $v = $this->quote( $v );
+                        }
+                        $conds[] = "$field BETWEEN {$v[0]} AND {$v[1]}";
                     }
-                    $conds[] = "$field BETWEEN {$v[0]} AND {$v[1]}";
                 }
                 elseif ( isset($value['not_between']) )
                 {
                     $v = (array) $value['not_between'];
                     
-                    if ( 'raw' === $type )
+                    // partial between clause
+                    if ( !isset($v[0]) || (null === $v[0]) )
                     {
-                        // raw, do nothing
+                        // switch to gt clause
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || is_int($v[1]) )
+                        {
+                            $v[1] = $this->intval( $v[1] );
+                        }
+                        else
+                        {
+                            $v[1] = $this->quote( $v[1] );
+                        }
+                        $conds[] = $field . " > " . $v[1];
                     }
-                    elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                    elseif ( !isset($v[1]) || (null === $v[1]) )
                     {
-                        $v = $this->intval( $v );
+                        // switch to lt clause
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || is_int($v[0]) )
+                        {
+                            $v[0] = $this->intval( $v[0] );
+                        }
+                        else
+                        {
+                            $v[0] = $this->quote( $v[0] );
+                        }
+                        $conds[] = $field . " < " . $v[0];
                     }
                     else
                     {
-                        $v = $this->quote( $v );
+                        if ( 'raw' === $type )
+                        {
+                            // raw, do nothing
+                        }
+                        elseif ( 'integer' === $type || (is_int($v[0]) && is_int($v[1])) )
+                        {
+                            $v = $this->intval( $v );
+                        }
+                        else
+                        {
+                            $v = $this->quote( $v );
+                        }
+                        $conds[] = "$field < {$v[0]} OR $field > {$v[1]}";
                     }
-                    $conds[] = "$field < {$v[0]} OR $field > {$v[1]}";
                 }
                 elseif ( isset($value['gt']) || isset($value['gte']) )
                 {
@@ -2318,7 +2427,7 @@ class Dialect
         $func = ''; $is_arg = false;
         foreach($f as $fi)
         {
-            $func .= $is_arg ? ($fi<$argslen ? $args[$fi] : '') : $fi;
+            $func .= $is_arg ? (0<$fi && $argslen>=$fi ? $args[$fi-1] : '') : $fi;
             $is_arg = !$is_arg;
         }
         return $func;

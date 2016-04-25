@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.6.2
+#   @version: 0.6.3
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -844,7 +844,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.6.2'
+    VERSION = '0.6.3'
     
     TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     Template = Template
@@ -865,12 +865,12 @@ class Dialect:
          'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
         # http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
         ,'functions'    : {
-         'strpos'       : ['POSITION(',1,' IN ',0,')']
-        ,'strlen'       : ['LENGTH(',0,')']
-        ,'strlower'     : ['LCASE(',0,')']
-        ,'strupper'     : ['UCASE(',0,')']
-        ,'trim'         : ['TRIM(',0,')']
-        ,'quote'        : ['QUOTE(',0,')']
+         'strpos'       : ['POSITION(',2,' IN ',1,')']
+        ,'strlen'       : ['LENGTH(',1,')']
+        ,'strlower'     : ['LCASE(',1,')']
+        ,'strupper'     : ['UCASE(',1,')']
+        ,'trim'         : ['TRIM(',1,')']
+        ,'quote'        : ['QUOTE(',1,')']
         ,'random'       : ['RAND()']
         ,'now'          : ['NOW()']
         }
@@ -893,12 +893,12 @@ class Dialect:
          'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
         # http://www.postgresql.org/docs/9.1/static/functions-string.html
         ,'functions'    : {
-         'strpos'       : ['position(',1,' in ',0,')']
-        ,'strlen'       : ['length(',0,')']
-        ,'strlower'     : ['lower(',0,')']
-        ,'strupper'     : ['upper(',0,')']
-        ,'trim'         : ['trim(',0,')']
-        ,'quote'        : ['quote(',0,')']
+         'strpos'       : ['position(',2,' in ',1,')']
+        ,'strlen'       : ['length(',1,')']
+        ,'strlower'     : ['lower(',1,')']
+        ,'strupper'     : ['upper(',1,')']
+        ,'trim'         : ['trim(',1,')']
+        ,'quote'        : ['quote(',1,')']
         ,'random'       : ['random()']
         ,'now'          : ['now()']
         }
@@ -927,12 +927,12 @@ class Dialect:
          'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
         # https://msdn.microsoft.com/en-us/library/ms186323.aspx
         ,'functions'    : {
-         'strpos'       : ['CHARINDEX(',1,',',0,')']
-        ,'strlen'       : ['LEN(',0,')']
-        ,'strlower'     : ['LOWER(',0,')']
-        ,'strupper'     : ['UPPER(',0,')']
-        ,'trim'         : ['LTRIM(RTRIM(',0,'))']
-        ,'quote'        : ['QUOTENAME(',0,',"\'")']
+         'strpos'       : ['CHARINDEX(',2,',',1,')']
+        ,'strlen'       : ['LEN(',1,')']
+        ,'strlower'     : ['LOWER(',1,')']
+        ,'strupper'     : ['UPPER(',1,')']
+        ,'trim'         : ['LTRIM(RTRIM(',1,'))']
+        ,'quote'        : ['QUOTENAME(',1,',"\'")']
         ,'random'       : ['RAND()']
         ,'now'          : ['CURRENT_TIMESTAMP']
         }
@@ -957,12 +957,12 @@ class Dialect:
          'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
         # https://www.sqlite.org/lang_corefunc.html
         ,'functions'    : {
-         'strpos'       : ['instr(',1,',',0,')']
-        ,'strlen'       : ['length(',0,')']
-        ,'strlower'     : ['lower(',0,')']
-        ,'strupper'     : ['upper(',0,')']
-        ,'trim'         : ['trim(',0,')']
-        ,'quote'        : ['quote(',0,')']
+         'strpos'       : ['instr(',2,',',1,')']
+        ,'strlen'       : ['length(',1,')']
+        ,'strlower'     : ['lower(',1,')']
+        ,'strupper'     : ['upper(',1,')']
+        ,'trim'         : ['trim(',1,')']
+        ,'quote'        : ['quote(',1,')']
         ,'random'       : ['random()']
         ,'now'          : ['datetime(\'now\')']
         }
@@ -1570,6 +1570,20 @@ class Dialect:
                     conds.append(str(value['raw']))
                     continue
                 
+                if 'or' in value:
+                    cases = []
+                    for or_cl in value['or']:
+                        cases.append(self.conditions(or_cl, can_use_alias))
+                    conds.append(' OR '.join(cases))
+                    continue
+                
+                if 'and' in value:
+                    cases = []
+                    for and_cl in value['and']:
+                        cases.append(self.conditions(and_cl, can_use_alias))
+                    conds.append(' AND '.join(cases))
+                    continue
+                
                 if 'either' in value:
                     cases = []
                     for either in value['either']:
@@ -1577,6 +1591,15 @@ class Dialect:
                         case_i[f] = either
                         cases.append(self.conditions(case_i, can_use_alias))
                     conds.append(' OR '.join(cases))
+                    continue
+                
+                if 'together' in value:
+                    cases = []
+                    for together in value['together']:
+                        case_i = {}
+                        case_i[f] = together
+                        cases.append(self.conditions(case_i, can_use_alias))
+                    conds.append(' AND '.join(cases))
                     continue
                 
                 field = getattr(self.refs( f, COLS )[0], fmt)
@@ -1643,25 +1666,69 @@ class Dialect:
                 elif 'between' in value:
                     v = array( value['between'] )
                     
-                    if 'raw' == type:
-                        # raw, do nothing
-                        pass
-                    elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
-                        v = self.intval( v )
+                    # partial between clause
+                    if v[0] is None:
+                        # switch to lte clause
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or is_int(v[1]):
+                            v[1] = self.intval( v[1] )
+                        else:
+                            v[1] = self.quote( v[1] )
+                        conds.append( field + " <= " + str(v[1]) )
+                    elif v[1] is None:
+                        # switch to gte clause
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or is_int(v[0]):
+                            v[0] = self.intval( v[0] )
+                        else:
+                            v[0] = self.quote( v[0] )
+                        conds.append( field + " >= " + str(v[0]) )
                     else:
-                        v = self.quote( v )
-                    conds.append( field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]) )
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
+                            v = self.intval( v )
+                        else:
+                            v = self.quote( v )
+                        conds.append( field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]) )
                 elif 'not_between' in value:
                     v = array( value['not_between'] )
                     
-                    if 'raw' == type:
-                        # raw, do nothing
-                        pass
-                    elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
-                        v = self.intval( v )
+                    # partial between clause
+                    if v[0] is None:
+                        # switch to gt clause
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or is_int(v[1]):
+                            v[1] = self.intval( v[1] )
+                        else:
+                            v[1] = self.quote( v[1] )
+                        conds.append( field + " > " + str(v[1]) )
+                    elif v[1] is None:
+                        # switch to lt clause
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or is_int(v[0]):
+                            v[0] = self.intval( v[0] )
+                        else:
+                            v[0] = self.quote( v[0] )
+                        conds.append( field + " < " + str(v[0]) )
                     else:
-                        v = self.quote( v )
-                    conds.append( field + " < " + str(v[0]) + " OR " + field + " > " + str(v[1]) )
+                        if 'raw' == type:
+                            # raw, do nothing
+                            pass
+                        elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
+                            v = self.intval( v )
+                        else:
+                            v = self.quote( v )
+                        conds.append( field + " < " + str(v[0]) + " OR " + field + " > " + str(v[1]) )
                 elif ('gt' in value) or ('gte' in value):
                     op = 'gt' if 'gt' in value else "gte"
                     v = value[ op ]
@@ -1907,7 +1974,7 @@ class Dialect:
         argslen = len(args)
         is_arg = False
         for fi in f:
-            func += (args[fi] if fi<argslen else '') if is_arg else fi
+            func += (args[fi-1] if 0<fi and argslen>=fi else '') if is_arg else fi
             is_arg = not is_arg
         return func
 

@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.2
+*   @version: 0.6.3
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1030,12 +1030,12 @@ var dialects = {
      'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
     // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
     ,'functions'    : {
-     'strpos'       : ['POSITION(',1,' IN ',0,')']
-    ,'strlen'       : ['LENGTH(',0,')']
-    ,'strlower'     : ['LCASE(',0,')']
-    ,'strupper'     : ['UCASE(',0,')']
-    ,'trim'         : ['TRIM(',0,')']
-    ,'quote'        : ['QUOTE(',0,')']
+     'strpos'       : ['POSITION(',2,' IN ',1,')']
+    ,'strlen'       : ['LENGTH(',1,')']
+    ,'strlower'     : ['LCASE(',1,')']
+    ,'strupper'     : ['UCASE(',1,')']
+    ,'trim'         : ['TRIM(',1,')']
+    ,'quote'        : ['QUOTE(',1,')']
     ,'random'       : ['RAND()']
     ,'now'          : ['NOW()']
     }
@@ -1058,12 +1058,12 @@ var dialects = {
      'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
     // http://www.postgresql.org/docs/9.1/static/functions-string.html
     ,'functions'    : {
-     'strpos'       : ['position(',1,' in ',0,')']
-    ,'strlen'       : ['length(',0,')']
-    ,'strlower'     : ['lower(',0,')']
-    ,'strupper'     : ['upper(',0,')']
-    ,'trim'         : ['trim(',0,')']
-    ,'quote'        : ['quote(',0,')']
+     'strpos'       : ['position(',2,' in ',1,')']
+    ,'strlen'       : ['length(',1,')']
+    ,'strlower'     : ['lower(',1,')']
+    ,'strupper'     : ['upper(',1,')']
+    ,'trim'         : ['trim(',1,')']
+    ,'quote'        : ['quote(',1,')']
     ,'random'       : ['random()']
     ,'now'          : ['now()']
     }
@@ -1095,12 +1095,12 @@ var dialects = {
      'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
     // https://msdn.microsoft.com/en-us/library/ms186323.aspx
     ,'functions'    : {
-     'strpos'       : ['CHARINDEX(',1,',',0,')']
-    ,'strlen'       : ['LEN(',0,')']
-    ,'strlower'     : ['LOWER(',0,')']
-    ,'strupper'     : ['UPPER(',0,')']
-    ,'trim'         : ['LTRIM(RTRIM(',0,'))']
-    ,'quote'        : ['QUOTENAME(',0,',"\'")']
+     'strpos'       : ['CHARINDEX(',2,',',1,')']
+    ,'strlen'       : ['LEN(',1,')']
+    ,'strlower'     : ['LOWER(',1,')']
+    ,'strupper'     : ['UPPER(',1,')']
+    ,'trim'         : ['LTRIM(RTRIM(',1,'))']
+    ,'quote'        : ['QUOTENAME(',1,',"\'")']
     ,'random'       : ['RAND()']
     ,'now'          : ['CURRENT_TIMESTAMP']
     }
@@ -1126,12 +1126,12 @@ var dialects = {
      'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
     // https://www.sqlite.org/lang_corefunc.html
     ,'functions'    : {
-     'strpos'       : ['instr(',1,',',0,')']
-    ,'strlen'       : ['length(',0,')']
-    ,'strlower'     : ['lower(',0,')']
-    ,'strupper'     : ['upper(',0,')']
-    ,'trim'         : ['trim(',0,')']
-    ,'quote'        : ['quote(',0,')']
+     'strpos'       : ['instr(',2,',',1,')']
+    ,'strlen'       : ['length(',1,')']
+    ,'strlower'     : ['lower(',1,')']
+    ,'strupper'     : ['upper(',1,')']
+    ,'trim'         : ['trim(',1,')']
+    ,'quote'        : ['quote(',1,')']
     ,'random'       : ['random()']
     ,'now'          : ['datetime(\'now\')']
     }
@@ -1174,7 +1174,7 @@ Dialect = function Dialect( type ) {
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 };
-Dialect.VERSION = "0.6.2";
+Dialect.VERSION = "0.6.3";
 Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.GrammarTemplate = GrammarTemplate;
@@ -2011,6 +2011,30 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
+                if ( value[HAS]('or') )
+                {
+                    cases = [];
+                    for(var i=0,il=value['or'].length; i<il; i++)
+                    {
+                        case_i = value['or'][i];
+                        cases.push(self.conditions(case_i, can_use_alias));
+                    }
+                    conds.push(cases.join(' OR '));
+                    continue;
+                }
+                
+                if ( value[HAS]('and') )
+                {
+                    cases = [];
+                    for(var i=0,il=value['and'].length; i<il; i++)
+                    {
+                        case_i = value['and'][i];
+                        cases.push(self.conditions(case_i, can_use_alias));
+                    }
+                    conds.push(cases.join(' AND '));
+                    continue;
+                }
+                
                 if ( value[HAS]('either') )
                 {
                     cases = [];
@@ -2020,6 +2044,18 @@ Dialect[PROTO] = {
                         cases.push(self.conditions(case_i, can_use_alias));
                     }
                     conds.push(cases.join(' OR '));
+                    continue;
+                }
+                
+                if ( value[HAS]('together') )
+                {
+                    cases = [];
+                    for(var i=0,il=value['together'].length; i<il; i++)
+                    {
+                        case_i = {}; case_i[f] = value['together'][i];
+                        cases.push(self.conditions(case_i, can_use_alias));
+                    }
+                    conds.push(cases.join(' AND '));
                     continue;
                 }
                 
@@ -2130,37 +2166,113 @@ Dialect[PROTO] = {
                 {
                     v = array( value.between );
                     
-                    if ( 'raw' === type )
+                    // partial between clause
+                    if ( null == v[0] )
                     {
-                        // raw, do nothing
+                        // switch to lte clause
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[1]) )
+                        {
+                            v[1] = self.intval( v[1] );
+                        }
+                        else
+                        {
+                            v[1] = self.quote( v[1] );
+                        }
+                        conds.push( field + " <= " + v[1] );
                     }
-                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                    else if ( null == v[1] )
                     {
-                        v = self.intval( v );
+                        // switch to gte clause
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[0]) )
+                        {
+                            v[0] = self.intval( v[0] );
+                        }
+                        else
+                        {
+                            v[0] = self.quote( v[0] );
+                        }
+                        conds.push( field + " >= " + v[0] );
                     }
                     else
                     {
-                        v = self.quote( v );
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
                     }
-                    conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
                 }
                 else if ( value[HAS]('not_between') )
                 {
                     v = array( value.not_between );
                     
-                    if ( 'raw' === type )
+                    // partial between clause
+                    if ( null == v[0] )
                     {
-                        // raw, do nothing
+                        // switch to gt clause
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[1]) )
+                        {
+                            v[1] = self.intval( v[1] );
+                        }
+                        else
+                        {
+                            v[1] = self.quote( v[1] );
+                        }
+                        conds.push( field + " > " + v[1] );
                     }
-                    else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                    else if ( null == v[1] )
                     {
-                        v = self.intval( v );
+                        // switch to lt clause
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || is_int(v[0]) )
+                        {
+                            v[0] = self.intval( v[0] );
+                        }
+                        else
+                        {
+                            v[0] = self.quote( v[0] );
+                        }
+                        conds.push( field + " < " + v[0] );
                     }
                     else
                     {
-                        v = self.quote( v );
+                        if ( 'raw' === type )
+                        {
+                            // raw, do nothing
+                        }
+                        else if ( 'integer' === type || (is_int(v[0]) && is_int(v[1])) )
+                        {
+                            v = self.intval( v );
+                        }
+                        else
+                        {
+                            v = self.quote( v );
+                        }
+                        conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
                     }
-                    conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
                 }
                 else if ( value[HAS]('gt') || value[HAS]('gte') )
                 {
@@ -2517,7 +2629,7 @@ Dialect[PROTO] = {
     }
     
     ,sql_function: function( f, args ) {
-        var self = this, func, is_arg, i, l, argslen;
+        var self = this, func, is_arg, i, l, fi, argslen;
         if ( null == Dialect.dialects[ self.type ][ 'functions' ][ f ] )
             throw new TypeError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"');
         f = Dialect.dialects[ self.type ][ 'functions' ][ f ];
@@ -2526,7 +2638,8 @@ Dialect[PROTO] = {
         func = ''; is_arg = false;
         for(i=0,l=f.length; i<l; i++)
         {
-            func += is_arg ? (f[i]<argslen ? args[f[i]] : '') : f[i];
+            fi = f[i];
+            func += is_arg ? (0<fi && argslen>=fi ? args[fi-1] : '') : fi;
             is_arg = !is_arg;
         }
         return func;

@@ -16,6 +16,7 @@ Dialect
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
 * [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Node/XPCOM/JS, ActionScript
+* [GrammarPattern](https://github.com/foo123/GrammarPattern) versatile grammar-based pattern-matching for Node/XPCOM/JS (IN PROGRESS)
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
@@ -63,7 +64,7 @@ Dialect
 
 **Grammar Templates**
 
-`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: `grammar templates`, to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
+`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: [`grammar templates`](https://github.com/foo123/GrammarTemplate), to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
 
 
 `Dialect` uses a similar *grammar-like* template format, as a **description and generation** tool to produce `sql code` output relevant to a specific `sql` dialect.
@@ -128,6 +129,12 @@ by defining the `grammar` of `sql clauses` (sometimes even directly from the `SQ
 
 
 The whole point of `Dialect` from the start was to use intuitive configuration to describe `sql` clauses and `sql` normalisation instead of those being hidden behind deep, kludgy and/or cryptic source code abstractions and extensions (plus avoid loading multiple files through interfaces to get the right `sql` emulator). **You** build you own descriptions for `SQL` dialects (and choice of emulations, optimisations, normalisations to use) and **not** the other way around. The library will just try to ease the burden off (some, at least for now) boilerplate code and automate trivial tasks, letting you focus on the important stuff.
+
+
+
+**Native SQL functions support**
+
+`Dialect` supports **native SQL functions** (per db vendor) defined in the configuration settings per db vendor and accessed / used genericaly in the `Dialect API` (see text examples)
 
 
 
