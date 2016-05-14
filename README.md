@@ -5,6 +5,8 @@ Dialect
 
 ![Dialect](/dialect.jpg)
 
+[Etymology of *"dialect"*](http://www.etymonline.com/index.php?term=dialect)
+
 
 **see also:**  
 
