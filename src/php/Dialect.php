@@ -3,17 +3,20 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.3
+*   @version: 0.7.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
 *   Support multiple DB vendors
 *   Intuitive and Flexible API
 **/
-if ( !class_exists('Dialect') )
+
+// https://github.com/foo123/StringTemplate
+if ( !class_exists('StringTemplate') )
 {
-class DialectTemplate
+class StringTemplate
 {    
+    const VERSION = '1.0.0';
     public static function multisplit($tpl, $reps, $as_array=false)
     {
         $a = array( array(1, $tpl) );
@@ -205,30 +208,143 @@ class DialectTemplate
         return $out;
     }
 }    
-// adapted from https://github.com/foo123/GrammarTemplate
-class DialectGrammarTemplate
+}
+
+// https://github.com/foo123/GrammarTemplate
+if ( !class_exists('GrammarTemplate') )
+{
+class GrammarTemplateStackEntry
+{
+    public $value = null;
+    public $prev = null;
+    
+    public function __construct($stack=null, $value=null)
+    {
+        $this->prev = $stack;
+        $this->value = $value;
+    }
+}
+class GrammarTemplateTplEntry
+{
+    public $node = null;
+    public $prev = null;
+    public $next = null;
+    
+    public function __construct($node=null, $tpl=null)
+    {
+        if ( $tpl ) $tpl->next = $this;
+        $this->node = $node;
+        $this->prev = $tpl;
+        $this->next = null;
+    }
+}
+
+class GrammarTemplate
 {    
-    const VERSION = '1.0.0';
+    const VERSION = '2.0.0';
+    private static $TPL_ID = 0;
+    
+    private static function guid( )
+    {
+        return 'grtpl--'.time().'--'.(++self::$TPL_ID);
+    }
+    
+    private static function is_array( $a )
+    {
+        if ( (null != $a) && is_array( $a ) )
+        {
+            $array_keys = array_keys( $a );
+            return !empty($array_keys) && (array_keys($array_keys) === $array_keys);
+        }
+        return false;
+    }
+    
+    private static function walk( $obj, $keys )
+    {
+        $o = $obj; $l = count($keys); $i = 0;
+        while( $i < $l )
+        {
+            $k = $keys[$i++];
+            if ( isset($o) )
+            {
+                if ( is_array($o) && isset($o[$k]) )
+                    $o = $o[$k];
+                elseif ( is_object($o) && isset($o->{$k}) )
+                    $o = $o->{$k};
+                else return null;
+            }
+            else return null;
+        }
+        return $o;
+    }
     
     public static function multisplit( $tpl, $delims )
     {
-        $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
-        $lenIDL = strlen($IDL); $lenIDR = strlen($IDR); $lenOBL = strlen($OBL); $lenOBR = strlen($OBR);
-        $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $REPL = '{'; $REPR = '}';
-        $default_value = null; $negative = 0; $optional = 0; $start_i = 0; $end_i = 0;
+        $IDL = $delims[0]; $IDR = $delims[1];
+        $OBL = $delims[2]; $OBR = $delims[3]; $TPL = $delims[4];
+        $lenIDL = strlen($IDL); $lenIDR = strlen($IDR);
+        $lenOBL = strlen($OBL); $lenOBR = strlen($OBR); $lenTPL = strlen($TPL);
+        $ESC = '\\'; $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|';
+        $REPL = '{'; $REPR = '}'; $DOT = '.'; $REF = ':';
+        $default_value = null; $negative = 0; $optional = 0;
         $l = strlen($tpl);
-        $i = 0; $a = array(array(), null, 0, 0, 0, 0, null); $stack = array(); $s = '';
+        
+        $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> ''));
+        $cur_arg = (object)array(
+            'type'    => 1,
+            'name'    => null,
+            'key'     => null,
+            'stpl'    => null,
+            'dval'    => null,
+            'opt'     => 0,
+            'neg'     => 0,
+            'start'   => 0,
+            'end'     => 0
+        );
+        $roottpl = $a; $block = null;
+        $opt_args = null; $subtpl = array(); $cur_tpl = null; $arg_tpl = array(); $start_tpl = null;
+        $stack = null; $s = ''; $escaped = false;
+        
+        $i = 0;
         while( $i < $l )
         {
+            $ch = $tpl[$i];
+            if ( $ESC === $ch )
+            {
+                $escaped = !$escaped;
+                $i += 1;
+            }
+            
             if ( $IDL === substr($tpl,$i,$lenIDL) )
             {
                 $i += $lenIDL;
-                if ( strlen($s) ) $a[0][] = array(0, $s);
+                
+                if ( $escaped )
+                {
+                    $s .= $IDL;
+                    $escaped = false;
+                    continue;
+                }
+                
+                if ( strlen($s) )
+                {
+                    if ( 0 === $a->node->type ) $a->node->val .= $s;
+                    else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                }
+                
                 $s = '';
             }
-            elseif ( $IDR === substr($tpl,$i,$lenIDR) )
+            else if ( $IDR === substr($tpl,$i,$lenIDR) )
             {
                 $i += $lenIDR;
+                
+                if ( $escaped )
+                {
+                    $s .= $IDR;
+                    $escaped = false;
+                    continue;
+                }
+                
                 // argument
                 $argument = $s; $s = '';
                 $p = strpos($argument, $DEF);
@@ -302,59 +418,297 @@ class DialectGrammarTemplate
                 }
                 if ( $negative && (null === $default_value) ) $default_value = '';
                 
-                if ( $optional && !$a[2] )
+                $template = false !== strpos($argument, $REF) ? explode($REF, $argument) : array($argument,null);
+                $argument = $template[0]; $template = $template[1];
+                $nested = false !== strpos($argument, $DOT) ? explode($DOT, $argument) : null;
+                
+                if ( $cur_tpl && !isset($arg_tpl[$cur_tpl]) ) $arg_tpl[$cur_tpl] = array();
+                
+                if ( $TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL) )
                 {
-                    $a[1] = $argument;
-                    $a[2] = $optional;
-                    $a[3] = $negative;
-                    $a[4] = $start_i;
-                    $a[5] = $end_i;
+                    // template definition
+                    $i += $lenTPL;
+                    $template = $template&&strlen($template) ? $template : self::guid( );
+                    $start_tpl = $template;
+                    if ( $cur_tpl && strlen($argument))
+                        $arg_tpl[$cur_tpl][$argument] = $template;
+                }
+                
+                if ( !strlen($argument) ) continue; // template definition only
+                
+                if ( (null==$template) && $cur_tpl && isset($arg_tpl[$cur_tpl]) && isset($arg_tpl[$cur_tpl][$argument]) )
+                    $template = $arg_tpl[$cur_tpl][$argument];
+                
+                if ( $optional && !$cur_arg->opt )
+                {
+                    $cur_arg->name = $argument;
+                    $cur_arg->key = $nested;
+                    $cur_arg->stpl = $template;
+                    $cur_arg->dval = $default_value;
+                    $cur_arg->opt = $optional;
+                    $cur_arg->neg = $negative;
+                    $cur_arg->start = $start_i;
+                    $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $a[6] = array(array($argument,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplateStackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
                 }
-                elseif( $optional )
+                else if ( $optional )
                 {
                     // handle multiple optional arguments for same optional block
-                    $a[6][] = array($argument,$negative,$start_i,$end_i);
+                    $opt_args = new GrammarTemplateStackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i));
                 }
-                elseif ( !$optional && (null === $a[1]) )
+                else if ( !$optional && (null === $cur_arg->name) )
                 {
-                    $a[1] = $argument;
-                    $a[2] = 0;
-                    $a[3] = $negative;
-                    $a[4] = $start_i;
-                    $a[5] = $end_i;
-                    $a[6] = array(array($argument,$negative,$start_i,$end_i));
+                    $cur_arg->name = $argument;
+                    $cur_arg->key = $nested;
+                    $cur_arg->stpl = $template;
+                    $cur_arg->dval = $default_value;
+                    $cur_arg->opt = 0;
+                    $cur_arg->neg = $negative;
+                    $cur_arg->start = $start_i;
+                    $cur_arg->end = $end_i;
+                    // handle multiple optional arguments for same optional block
+                    $opt_args = new GrammarTemplateStackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
                 }
-                $a[0][] = array(1, $argument, $default_value, $optional, $negative, $start_i, $end_i);
+                $a = new GrammarTemplateTplEntry((object)array(
+                    'type'    => 1,
+                    'name'    => $argument,
+                    'key'     => $nested,
+                    'stpl'    => $template,
+                    'dval'    => $default_value,
+                    'start'   => $start_i,
+                    'end'     => $end_i
+                ), $a);
             }
-            elseif ( $OBL === substr($tpl,$i,$lenOBL) )
+            else if ( $OBL === substr($tpl,$i,$lenOBL) )
             {
                 $i += $lenOBL;
+                
+                if ( $escaped )
+                {
+                    $s .= $OBL;
+                    $escaped = false;
+                    continue;
+                }
+                
                 // optional block
-                if ( strlen($s) ) $a[0][] = array(0, $s);
+                if ( strlen($s) )
+                {
+                    if ( 0 === $a->node->type ) $a->node->val .= $s;
+                    else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                }
+                
                 $s = '';
-                $stack[] = $a;
-                $a = array(array(), null, 0, 0, 0, 0, null);
+                $stack = new GrammarTemplateStackEntry($stack, array($a, $block, $cur_arg, $opt_args, $cur_tpl, $start_tpl));
+                if ( $start_tpl ) $cur_tpl = $start_tpl;
+                $start_tpl = null;
+                $cur_arg = (object)array(
+                    'type'    => 1,
+                    'name'    => null,
+                    'key'     => null,
+                    'stpl'    => null,
+                    'dval'    => null,
+                    'opt'     => 0,
+                    'neg'     => 0,
+                    'start'   => 0,
+                    'end'     => 0
+                );
+                $opt_args = null;
+                $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> ''));
+                $block = $a;
             }
-            elseif ( $OBR === substr($tpl,$i,$lenOBR) )
+            else if ( $OBR === substr($tpl,$i,$lenOBR) )
             {
                 $i += $lenOBR;
-                $b = $a; $a = array_pop($stack);
-                if ( strlen($s) ) $b[0][] = array(0, $s);
+                
+                if ( $escaped )
+                {
+                    $s .= $OBR;
+                    $escaped = false;
+                    continue;
+                }
+                
+                $b = $a;
+                $cur_block = $block;
+                $prev_arg = $cur_arg;
+                $prev_opt_args = $opt_args;
+                if ( $stack )
+                {
+                    $a = $stack->value[0];
+                    $block = $stack->value[1];
+                    $cur_arg = $stack->value[2];
+                    $opt_args = $stack->value[3];
+                    $cur_tpl = $stack->value[4];
+                    $start_tpl = $stack->value[5];
+                    $stack = $stack->prev;
+                }
+                else
+                {
+                    $a = null;
+                }
+                if ( strlen($s) )
+                {
+                    if ( 0 === $b->node->type ) $b->node->val .= $s;
+                    else $b = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $b);
+                }
+                
                 $s = '';
-                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[4], $b[5], $b[6], $b[0]);
+                if ( $start_tpl )
+                {
+                    $subtpl[$start_tpl] = new GrammarTemplateTplEntry((object)array(
+                        'type'    => 2,
+                        'name'    => $prev_arg->name,
+                        'key'     => $prev_arg->key,
+                        'start'   => 0,
+                        'end'     => 0,
+                        'opt_args'=> null,
+                        'tpl'     => $cur_block
+                    ));
+                    $start_tpl = null;
+                }
+                else
+                {
+                    $a = new GrammarTemplateTplEntry((object)array(
+                        'type'    => -1,
+                        'name'    => $prev_arg->name,
+                        'key'     => $prev_arg->key,
+                        'start'   => $prev_arg->start,
+                        'end'     => $prev_arg->end,
+                        'opt_args'=> $prev_opt_args,
+                        'tpl'     => $cur_block
+                    ), $a);
+                }
             }
             else
             {
-                $s .= $tpl[$i++];
+                if ( $ESC === $ch ) $s .= $ch;
+                else $s .= $tpl[$i++];
             }
         }
-        if ( strlen($s) ) $a[0][] = array(0, $s);
-        return $a[0];
+        if ( strlen($s) )
+        {
+            if ( 0 === $a->node->type ) $a->node->val .= $s;
+            else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+        }
+        return array($roottpl, &$subtpl);
+    }
+
+    public static function optional_block( &$SUB, $args, $block, $index=null )
+    {
+        $out = '';
+        
+        if ( -1 === $block->type )
+        {
+            // optional block, check if optional variables can be rendered
+            $opt_vars = $block->opt_args; if ( !$opt_vars ) return '';
+            while( $opt_vars )
+            {
+                $opt_v = $opt_vars->value;
+                $opt_arg = self::walk( $args, $opt_v[1] ? $opt_v[1] : array($opt_v[0]) );
+                if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
+                $opt_vars = $opt_vars->prev;
+            }
+        }
+        
+        if ( $block->key )
+        {
+            $opt_arg = self::walk( $args, $block->key )/*nested key*/;
+            if ( (null === $opt_arg) && isset($args[$block->name]) ) $opt_arg = $args[$block->name];
+        }
+        else
+        {
+            $opt_arg = self::walk( $args, array($block->name) )/*plain key*/;
+        }
+        $arr = self::is_array( $opt_arg ); $len = $arr ? count($opt_arg) : -1;
+        if ( $arr && ($len > $block->start) )
+        {
+            for($rs=$block->start,$re=(-1===$block->end?$len-1:min($block->end, $len-1)),$ri=$rs; $ri<=$re; $ri++)
+                $out .= self::main( $SUB, $args, $block->tpl, $ri );
+        }
+        else if ( !$arr && ($block->start === $block->end) )
+        {
+            $out = self::main( $SUB, $args, $block->tpl, null );
+        }
+        return $out;
+    }
+    public static function non_terminal( &$SUB, $args, $symbol, $index=null )
+    {
+        $out = '';
+        if ( !empty($SUB) && $symbol->stpl && isset($SUB[$symbol->stpl]) )
+        {
+            // using sub-template
+            if ( $symbol->key )
+            {
+                $opt_arg = self::walk( $args, $symbol->key )/*nested key*/;
+                if ( (null === $opt_arg) && isset($args[$symbol->name]) ) $opt_arg = $args[$symbol->name];
+            }
+            else
+            {
+                $opt_arg = self::walk( $args, array($symbol->name) )/*plain key*/;
+            }
+            if ( (null !== $index) && self::is_array($opt_arg) )
+            {
+                $opt_arg = count($opt_arg) > $index ? $opt_arg[$index] : null;
+            }
+            if ( (null === $opt_arg) && (null !== $symbol->dval) )
+            {
+                // default value if missing
+                $out = $symbol->dval;
+            }
+            else
+            {
+                // try to associate sub-template parameters to actual input arguments
+                $tpl = $SUB[$symbol->stpl]->node; $tpl_args = array();
+                if ( null !== $opt_arg )
+                {
+                    /*if ( isset($opt_arg[$tpl->name]) && !isset($opt_arg[$symbol->name]) ) $tpl_args = $opt_arg;
+                    else $tpl_args[$tpl->name] = $opt_arg;*/
+                    if ( self::is_array($opt_arg) ) $tpl_args[$tpl->name] = $opt_arg;
+                    else $tpl_args = $opt_arg;
+                }
+                $out = self::optional_block( $SUB, $tpl_args, $tpl, null );
+            }
+        }
+        else
+        {
+            // plain symbol argument
+            if ( $symbol->key )
+            {
+                $opt_arg = self::walk( $args, $symbol->key )/*nested key*/;
+                if ( (null === $opt_arg) && isset($args[$symbol->name]) ) $opt_arg = $args[$symbol->name];
+            }
+            else
+            {
+                $opt_arg = self::walk( $args, array($symbol->name) )/*plain key*/;
+            }
+            // default value if missing
+            if ( self::is_array($opt_arg) )
+            {
+                $index = null !== $index ? $index : $symbol->start;
+                $opt_arg = count($opt_arg) > $index ? $opt_arg[$index] : null;
+            }
+            $out = (null === $opt_arg) && (null !== $symbol->dval) ? $symbol->dval : strval($opt_arg);
+        }
+        return $out;
+    }
+    public static function main( &$SUB, $args, $tpl, $index=null )
+    {
+        $out = '';
+        while ( $tpl )
+        {
+            $tt = $tpl->node->type;
+            $out .= (-1 === $tt
+                ? self::optional_block( $SUB, $args, $tpl->node, $index ) /* optional code-block */
+                : (1 === $tt
+                ? self::non_terminal( $SUB, $args, $tpl->node, $index ) /* non-terminal */
+                : $tpl->node->val /* terminal */
+            ));
+            $tpl = $tpl->next;
+        }
+        return $out;
     }
     
-    public static $defaultDelims = array('<','>','[',']'/*,'?','*','!','|','{','}'*/);
+    public static $defaultDelims = array('<','>','[',']',':='/*,'?','*','!','|','{','}'*/);
     
     public $id = null;
     public $tpl = null;
@@ -390,120 +744,24 @@ class DialectGrammarTemplate
         if ( false === $this->_parsed )
         {
             // lazy init
+            $this->_parsed = true;
             $this->tpl = self::multisplit( $this->_args[0], $this->_args[1] );
             $this->_args = null;
-            $this->_parsed = true;
         }
         return $this;
     }
     
     public function render($args=null)
     {
-        if ( false === $this->_parsed )
-        {
-            // lazy init
-            $this->parse( );
-        }
-        
-        if ( null === $args ) $args = array();
-        
-        $tpl = $this->tpl; $l = count($tpl); $stack = array();
-        $rarg = null; $ri = 0; $out = '';
-        $i = 0;
-        while ( $i < $l || !empty($stack) )
-        {
-            if ( $i >= $l )
-            {
-                $p = array_pop($stack);
-                $tpl = $p[0]; $i = $p[1]; $l = $p[2];
-                $rarg = $p[3]; $ri = $p[4];
-                continue;
-            }
-            
-            $t = $tpl[ $i ]; $tt = $t[ 0 ]; $s = $t[ 1 ];
-            if ( -1 === $tt )
-            {
-                // optional block
-                $opts_vars = $t[ 6 ];
-                if ( !empty($opts_vars) )
-                {
-                    $render = true;
-                    foreach($opts_vars as $opt_v)
-                    {
-                        if ( (0 === $opt_v[1] && !isset($args[$opt_v[0]])) ||
-                            (1 === $opt_v[1] && isset($args[$opt_v[0]]))
-                        )
-                        {
-                            $render = false;
-                            break;
-                        }
-                    }
-                    if ( $render )
-                    {
-                        if ( 1 === $t[ 3 ] )
-                        {
-                            $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                            $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
-                            $rarg = null; $ri = 0;
-                            continue;
-                        }
-                        else
-                        {
-                            $arr = is_array( $args[$s] ); $arr_len = $arr ? count($args[$s]) : 1;
-                            if ( $arr && ($t[4] !== $t[5]) && ($arr_len > $t[ 4 ]) )
-                            {
-                                $rs = $t[ 4 ];
-                                $re = -1 === $t[ 5 ] ? $arr_len-1 : min($t[ 5 ], $arr_len-1);
-                                if ( $re >= $rs )
-                                {
-                                    $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                                    $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
-                                    $rarg = $s;
-                                    for($ri=$re; $ri>$rs; $ri--) $stack[] = array($tpl, 0, $l, $rarg, $ri);
-                                    $ri = $rs;
-                                    continue;
-                                }
-                            }
-                            else if ( !$arr && ($t[4] === $t[5]) )
-                            {
-                                $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
-                                $tpl = $t[ 7 ]; $i = 0; $l = count($tpl);
-                                $rarg = $s; $ri = 0;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-            else if ( 1 === $tt )
-            {
-                //TODO: handle nested/structured/deep arguments
-                // default value if missing
-                $out .= !isset($args[$s]) && null !== $t[ 2 ]
-                    ? $t[ 2 ]
-                    : (is_array($args[ $s ])
-                    ? ($s === $rarg
-                    ? $args[$s][$t[5]===$t[6]?$t[5]:$ri]
-                    : $args[$s][$t[5]])
-                    : $args[$s])
-                ;
-            }
-            else /*if ( 0 === $tt )*/
-            {
-                $out .= $s;
-            }
-            $i++;
-            /*if ( $i >= $l && !empty($stack) )
-            {
-                $p = array_pop($stack);
-                $tpl = $p[0]; $i = $p[1]; $l = $p[2];
-                $rarg = $p[3]; $ri = $p[4];
-            }*/
-        }
-        return $out;
+        // lazy init
+        if ( false === $this->_parsed ) $this->parse( );
+        return self::main( $this->tpl[1], null === $args ? array() : $args, $this->tpl[0] );
     }
 }    
+}
 
+if ( !class_exists('Dialect') )
+{
 class DialectRef
 {
     public static function parse( $r, $d ) 
@@ -833,8 +1091,8 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.6.3";
-    const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
+    const VERSION = "0.7.0";
+    //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
     'mysql'            => array(
@@ -1079,8 +1337,8 @@ class Dialect
         $this->cols = array( );
         $this->clau = $clause;
         
-        if ( !($this->clauses[ $this->clau ] instanceof DialectGrammarTemplate) )
-            $this->clauses[ $this->clau ] = new DialectGrammarTemplate( $this->clauses[ $this->clau ] );
+        if ( !($this->clauses[ $this->clau ] instanceof GrammarTemplate) )
+            $this->clauses[ $this->clau ] = new GrammarTemplate( $this->clauses[ $this->clau ] );
         return $this;
     }
     
@@ -1229,12 +1487,12 @@ class Dialect
             
             if ( $use_internal_query )
             {
-                $sql = new DialectTemplate( $this->sql( ), $pattern );
+                $sql = new StringTemplate( $this->sql( ), $pattern );
                 //$this->clear( );
             }
             else
             {
-                $sql = new DialectTemplate( $query, $pattern );
+                $sql = new StringTemplate( $query, $pattern );
             }
             
             $this->tpls[ $tpl ] = (object)array(

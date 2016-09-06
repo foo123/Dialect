@@ -2,19 +2,20 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.6.3
+#   @version: 0.7.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
 #   Support multiple DB vendors
 #   Intuitive and Flexible API
 ##
-import re, math, copy
+
+# https://github.com/foo123/StringTemplate
+import re, math
 
 NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
 SQUOTE = re.compile(r"'")
-T_REGEXP = type(NEWLINE)
-NULL_CHAR = chr(0)
+T_REGEXP = type(SQUOTE)
 
 # static
 CNT = 0
@@ -117,63 +118,17 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
     # return the compiled function object
     return fct
 
-def is_int( v ):
-    return isinstance(v, int)
 
-def is_string( v ):
-    return isinstance(v, str)
-
-def is_obj( v ):
-    return isinstance(v, dict)
-
-def is_array( v ):
-    return isinstance(v, (list,tuple))
+class StringTemplate:
     
-def array( v ):
-    return v if isinstance(v, list) else [v]
-
-def empty( v ):
-    return v == None or (isinstance(v, (tuple,list,str,dict)) and 0 == len(v))
-
-def addslashes( s, chars=None, esc='\\' ):
-    global NULL_CHAR
-    s2 = ''
-    if chars is None: chars = '\\"\'' + NULL_CHAR
-    for c in s:
-        s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
-    return s2
-
-def defaults( data, defau, overwrite=False, array_copy=False ):
-    overwrite = overwrite is True
-    array_copy = array_copy is True
-    for k in defau:
-        if overwrite or not(k in data):
-            data[ k ] = defau[ k ][:] if array_copy and isinstance(defau[ k ],list) else defau[ k ]
-    return data
-
-def map_join( arr, prop, sep=',' ):
-    joined = ''
-    if arr and len(arr):
-        joined = getattr(arr[0], prop)
-        for i in range(1,len(arr)): joined += sep + getattr(arr[i], prop)
-    return joined
-
-#def filter( data, filt, positive=True ):
-#    if positive is not False:
-#        filtered = { }
-#        for field in filt:
-#            if field in data:
-#                filtered[field] = data[field]
-#        return filtered
-#    else:
-#        filtered = { }
-#        for field in data:
-#            if field not in filt:
-#                filtered[field] = data[field]
-#        return filtered
-
-
-class Template:
+    """
+    StringTemplate for Python,
+    https://github.com/foo123/StringTemplate
+    """
+    
+    VERSION = '1.0.0'
+    
+    createFunction = createFunction
     
     def multisplit(tpl, reps, as_array=False):
         a = [ [1, tpl] ]
@@ -262,7 +217,7 @@ class Template:
             
                 notIsSub = tpli[ 0 ] 
                 s = tpli[ 1 ]
-                out += s if notIsSub else Template.arg(s)
+                out += s if notIsSub else StringTemplate.arg(s)
             
             out += ')'
             
@@ -274,7 +229,7 @@ class Template:
                 notIsSub = tpli[ 0 ]
                 s = tpli[ 1 ]
                 if notIsSub: out += "'" + re.sub(NEWLINE, "' + \"\\n\" + '", re.sub(SQUOTE, "\\'", s)) + "'"
-                else: out += " + str(" + Template.arg(s,"argslen") + ") + "
+                else: out += " + str(" + StringTemplate.arg(s,"argslen") + ") + "
             
             out += ')'
         
@@ -289,7 +244,7 @@ class Template:
         self.id = None
         self.tpl = None
         self._renderer = None
-        self._args = [tpl,Template.defaultArgs if not replacements else replacements,compiled]
+        self._args = [tpl,StringTemplate.defaultArgs if not replacements else replacements,compiled]
         self._parsed = False
 
     def __del__(self):
@@ -310,9 +265,9 @@ class Template:
             replacements = self._args[1]
             compiled = self._args[2]
             self._args = None
-            self.tpl = Template.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Template.multisplit( tpl, replacements )
+            self.tpl = StringTemplate.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else StringTemplate.multisplit( tpl, replacements )
             self._parsed = True
-            if compiled is True: self._renderer = Template.compile( self.tpl )
+            if compiled is True: self._renderer = StringTemplate.compile( self.tpl )
         return self
     
     def render(self, args=None):
@@ -333,145 +288,433 @@ class Template:
         
         return out
 
-# adapted from https://github.com/foo123/GrammarTemplate
+# https://github.com/foo123/GrammarTemplate
+import time
+TPL_ID = 0
+def guid( ):
+    global TPL_ID
+    TPL_ID += 1
+    return 'grtpl--'+str(int(time.time()))+'--'+str(TPL_ID)
+
+def is_array( v ):
+    return isinstance(v, (list,tuple))
+    
+
+def walk( obj, keys ):
+    o = obj
+    l = len(keys)
+    i = 0
+    while i < l:
+        k = keys[i]
+        i += 1
+        if o is not None:
+            if isinstance(o,(list,tuple)) and int(k)<len(o):
+                o = o[k]
+            elif isinstance(o,dict) and (k in o):
+                o = o[k]
+            else:
+                try:
+                    o = getattr(o, k)
+                except AttributeError:
+                    return None
+        else: return None
+    return o
+    
+
+class StackEntry:
+    def __init__(self, stack=None, value=None):
+        self.prev = stack
+        self.value = value
+
+class TplEntry:
+    def __init__(self, node=None, tpl=None ):
+        if tpl: tpl.next = self
+        self.node = node
+        self.prev = tpl
+        self.next = None
+
+def multisplit( tpl, delims ):
+    IDL = delims[0]
+    IDR = delims[1]
+    OBL = delims[2]
+    OBR = delims[3]
+    TPL = delims[4]
+    lenIDL = len(IDL)
+    lenIDR = len(IDR)
+    lenOBL = len(OBL)
+    lenOBR = len(OBR)
+    lenTPL = len(TPL)
+    ESC = '\\'
+    OPT = '?'
+    OPTR = '*'
+    NEG = '!'
+    DEF = '|'
+    REPL = '{'
+    REPR = '}'
+    DOT = '.'
+    REF = ':'
+    default_value = None
+    negative = 0
+    optional = 0
+    l = len(tpl)
+    
+    a = TplEntry({'type': 0, 'val': ''})
+    cur_arg = {
+        'type'    : 1,
+        'name'    : None,
+        'key'     : None,
+        'stpl'    : None,
+        'dval'    : None,
+        'opt'     : 0,
+        'neg'     : 0,
+        'start'   : 0,
+        'end'     : 0
+    }
+    roottpl = a
+    block = None
+    opt_args = None
+    subtpl = {}
+    cur_tpl = None
+    arg_tpl = {}
+    start_tpl = None
+    stack = None
+    s = ''
+    escaped = False
+    
+    i = 0
+    while i < l:
+        
+        ch = tpl[i]
+        
+        if ESC == ch:
+            escaped = not escaped
+            i += 1
+        
+        if IDL == tpl[i:i+lenIDL]:
+            i += lenIDL
+            
+            if escaped:
+                s += IDL
+                escaped = False
+                continue
+            
+            if len(s):
+                if 0 == a.node['type']: a.node['val'] += s
+                else: a = TplEntry({'type': 0, 'val': s}, a)
+            
+            s = ''
+        
+        elif IDR == tpl[i:i+lenIDR]:
+            i += lenIDR
+            
+            if escaped:
+                s += IDR
+                escaped = False
+                continue
+            
+            # argument
+            argument = s
+            s = ''
+            p = argument.find(DEF)
+            if -1 < p:
+                default_value = argument[p+1:]
+                argument = argument[0:p]
+            else:
+                default_value = None
+            
+            c = argument[0]
+            if OPT == c or OPTR == c:
+                optional = 1
+                if OPTR == c:
+                    start_i = 1
+                    end_i = -1
+                else:
+                    start_i = 0
+                    end_i = 0
+                argument = argument[1:]
+                if NEG == argument[0]:
+                    negative = 1
+                    argument = argument[1:]
+                else:
+                    negative = 0
+            elif REPL == c:
+                s = ''
+                j = 1
+                jl = len(argument)
+                while j < jl and REPR != argument[j]:
+                    s += argument[j]
+                    j += 1
+                argument = argument[j+1:]
+                s = s.split(',')
+                if len(s) > 1:
+                    start_i = s[0].strip()
+                    start_i = int(start_i,10) if len(start_i) else 0
+                    end_i = s[1].strip()
+                    end_i = int(end_i,10) if len(end_i) else -1
+                    optional = 1
+                else:
+                    start_i = s[0].strip()
+                    start_i = int(start_i,10) if len(start_i) else 0
+                    end_i = start_i
+                    optional = 0
+                s = ''
+                negative = 0
+            else:
+                optional = 0
+                negative = 0
+                start_i = 0
+                end_i = 0
+            if negative and default_value is None: default_value = ''
+            
+            p = argument.find(REF)
+            template = argument.split(REF) if -1 < p else [argument,None]
+            argument = template[0]
+            template = template[1]
+            p = argument.find(DOT)
+            nested = argument.split(DOT) if -1 < p else None
+            
+            if cur_tpl and (cur_tpl not in arg_tpl): arg_tpl[cur_tpl] = {}
+            
+            if TPL+OBL == tpl[i:i+lenTPL+lenOBL]:
+                # template definition
+                i += lenTPL
+                template = template if template and len(template) else guid()
+                start_tpl = template
+                if cur_tpl and len(argument):
+                    arg_tpl[cur_tpl][argument] = template
+            
+            if not len(argument): continue # template definition only
+            
+            if (template is None) and cur_tpl and (cur_tpl in arg_tpl) and (argument in arg_tpl[cur_tpl]):
+                template = arg_tpl[cur_tpl][argument]
+            
+            if optional and not cur_arg['opt']:
+                cur_arg['name'] = argument
+                cur_arg['key'] = nested
+                cur_arg['stpl'] = template
+                cur_arg['dval'] = default_value
+                cur_arg['opt'] = optional
+                cur_arg['neg'] = negative
+                cur_arg['start'] = start_i
+                cur_arg['end'] = end_i
+                # handle multiple optional arguments for same optional block
+                opt_args = StackEntry(None, [argument,nested,negative,start_i,end_i])
+                
+            elif optional:
+                # handle multiple optional arguments for same optional block
+                opt_args = StackEntry(opt_args, [argument,nested,negative,start_i,end_i])
+            
+            elif (not optional) and (cur_arg['name'] is None):
+                cur_arg['name'] = argument
+                cur_arg['key'] = nested
+                cur_arg['stpl'] = template
+                cur_arg['dval'] = default_value
+                cur_arg['opt'] = 0
+                cur_arg['neg'] = negative
+                cur_arg['start'] = start_i
+                cur_arg['end'] = end_i
+                # handle multiple optional arguments for same optional block
+                opt_args = StackEntry(None, [argument,nested,negative,start_i,end_i])
+            
+            a = TplEntry({
+                'type'    : 1,
+                'name'    : argument,
+                'key'     : nested,
+                'stpl'    : template,
+                'dval'    : default_value,
+                'start'   : start_i,
+                'end'     : end_i
+            }, a)
+        
+        elif OBL == tpl[i:i+lenOBL]:
+            i += lenOBL
+            
+            if escaped:
+                s += OBL
+                escaped = False
+                continue
+            
+            # optional block
+            if len(s):
+                if 0 == a.node['type']: a.node['val'] += s
+                else: a = TplEntry({'type': 0, 'val': s}, a)
+            
+            s = ''
+            stack = StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl])
+            if start_tpl: cur_tpl = start_tpl
+            start_tpl = None
+            cur_arg = {
+                'type'    : 1,
+                'name'    : None,
+                'key'     : None,
+                'stpl'    : None,
+                'dval'    : None,
+                'opt'     : 0,
+                'neg'     : 0,
+                'start'   : 0,
+                'end'     : 0
+            }
+            opt_args = None
+            a = TplEntry({'type': 0, 'val': ''})
+            block = a
+        
+        elif OBR == tpl[i:i+lenOBR]:
+            i += lenOBR
+            
+            if escaped:
+                s += OBR
+                escaped = False
+                continue
+            
+            b = a
+            cur_block = block
+            prev_arg = cur_arg
+            prev_opt_args = opt_args
+            if stack:
+                a = stack.value[0]
+                block = stack.value[1]
+                cur_arg = stack.value[2]
+                opt_args = stack.value[3]
+                cur_tpl = stack.value[4]
+                start_tpl = stack.value[5]
+                stack = stack.prev
+            else:
+                a = None
+            
+            if len(s):
+                if 0 == b.node['type']: b.node['val'] += s
+                else: b = TplEntry({'type': 0, 'val': s}, b)
+            
+            s = ''
+            if start_tpl:
+                subtpl[start_tpl] = TplEntry({
+                    'type'    : 2,
+                    'name'    : prev_arg['name'],
+                    'key'     : prev_arg['key'],
+                    'start'   : 0,#cur_arg.start
+                    'end'     : 0,#cur_arg.end
+                    'opt_args': None,#opt_args
+                    'tpl'     : cur_block
+                })
+                start_tpl = None
+            else:
+                a = TplEntry({
+                    'type'    : -1,
+                    'name'    : prev_arg['name'],
+                    'key'     : prev_arg['key'],
+                    'start'   : prev_arg['start'],
+                    'end'     : prev_arg['end'],
+                    'opt_args': prev_opt_args,
+                    'tpl'     : cur_block
+                }, a)
+        
+        else:
+            if ESC == ch:
+                s += ch
+            else:
+                s += tpl[i]
+                i += 1
+    
+    if len(s):
+        if 0 == a.node['type']: a.node['val'] += s
+        else: a = TplEntry({'type': 0, 'val': s}, a)
+    
+    return [roottpl, subtpl]
+
+def optional_block( SUB, args, block, index=None ):
+    out = ''
+    
+    if -1 == block['type']:
+        # optional block, check if optional variables can be rendered
+        opt_vars = block['opt_args']
+        if not opt_vars: return ''
+        while opt_vars:
+            opt_v = opt_vars.value
+            opt_arg = walk( args, opt_v[1] if opt_v[1] else [opt_v[0]] )
+            if ((0 == opt_v[2]) and (opt_arg is None)) or ((1 == opt_v[2]) and (opt_arg is not None)): return ''
+            opt_vars = opt_vars.prev
+    
+    if block['key']:
+        opt_arg = walk( args, block['key'] )#nested key
+        if (opt_arg is None) and (block['name'] in args): opt_arg = args[block['name']]
+    else:
+        opt_arg = walk( args, [block['name']] )#plain key
+    
+    arr = is_array( opt_arg )
+    if arr and (len(opt_arg) > block['start']):
+        rs = block['start']
+        re = len(opt_arg)-1 if -1==block['end'] else min(block['end'], len(opt_arg)-1)
+        ri = rs
+        while ri <= re:
+            out += main( SUB, args, block['tpl'], ri )
+            ri += 1
+    elif (not arr) and (block['start'] == block['end']):
+        out = main( SUB, args, block['tpl'], None )
+    
+    return out
+
+def non_terminal( SUB, args, symbol, index=None ):
+    out = ''
+    if SUB and symbol['stpl'] and (symbol['stpl'] in SUB):
+        # using sub-template
+        if symbol['key']:
+            opt_arg = walk( args, symbol['key'] )
+            if (opt_arg is None) and (symbol['name'] in args): opt_arg = args[symbol['name']]
+        else:
+            opt_arg = walk( args, [symbol['name']] )
+        
+        if (index is not None) and is_array(opt_arg):
+            opt_arg = opt_arg[index]
+        
+        if (opt_arg is None) and (symbol['dval'] is not None):
+            # default value if missing
+            out = symbol['dval']
+        else:
+            # try to associate sub-template parameters to actual input arguments
+            tpl = SUB[symbol['stpl']].node
+            tpl_args = {}
+            if opt_arg is not None:
+                #if (tpl['name'] in opt_arg) and (symbol['name'] not in opt_arg): tpl_args = opt_arg
+                #else: tpl_args[tpl['name']] = opt_arg
+                if is_array(opt_arg): tpl_args[tpl['name']] = opt_arg
+                else: tpl_args = opt_arg
+            out = optional_block( SUB, tpl_args, tpl, None )
+    else:
+        # plain symbol argument
+        if symbol['key']:
+            opt_arg = walk( args, symbol['key'] )
+            if (opt_arg is None) and (symbol['name'] in args): opt_arg = args[symbol['name']]
+        else:
+            opt_arg = walk( args, [symbol['name']] )
+        # default value if missing
+        if is_array(opt_arg):
+            opt_arg = opt_arg[index] if index is not None else opt_arg[symbol['start']]
+        out = symbol['dval'] if (opt_arg is None) and (symbol['dval'] is not None) else str(opt_arg)
+    
+    return out
+
+def main( SUB, args, tpl, index=None ):
+    out = ''
+    while tpl:
+        tt = tpl.node['type']
+        out += (optional_block( SUB, args, tpl.node, index ) if -1 == tt else (non_terminal( SUB, args, tpl.node, index ) if 1 == tt else tpl.node['val']))
+        tpl = tpl.next
+    return out
+
+
 class GrammarTemplate:
     """
     GrammarTemplate for Python,
     https://github.com/foo123/GrammarTemplate
     """
     
-    VERSION = '1.0.0'
+    VERSION = '2.0.0'
     
-    def multisplit( tpl, delims ):
-        IDL = delims[0]
-        IDR = delims[1]
-        OBL = delims[2]
-        OBR = delims[3]
-        lenIDL = len(IDL)
-        lenIDR = len(IDR)
-        lenOBL = len(OBL)
-        lenOBR = len(OBR)
-        OPT = '?'
-        OPTR = '*'
-        NEG = '!'
-        DEF = '|'
-        REPL = '{'
-        REPR = '}'
-        default_value = None
-        negative = 0
-        optional = 0
-        rest = 0
-        l = len(tpl)
-        i = 0
-        a = [[], None, 0, 0, 0, 0, None]
-        stack = []
-        s = ''
-        while i < l:
-            
-            if IDL == tpl[i:i+lenIDL]:
-                i += lenIDL
-                if len(s): a[0].append([0, s])
-                s = ''
-            
-            elif IDR == tpl[i:i+lenIDR]:
-                i += lenIDR
-                # argument
-                argument = s
-                s = ''
-                p = argument.find(DEF)
-                if -1 < p:
-                    default_value = argument[p+1:]
-                    argument = argument[0:p]
-                else:
-                    default_value = None
-                c = argument[0]
-                if OPT == c or OPTR == c:
-                    optional = 1
-                    if OPTR == c:
-                        start_i = 1
-                        end_i = -1
-                    else:
-                        start_i = 0
-                        end_i = 0
-                    argument = argument[1:]
-                    if NEG == argument[0]:
-                        negative = 1
-                        argument = argument[1:]
-                    else:
-                        negative = 0
-                elif REPL == c:
-                    s = ''
-                    j = 1
-                    jl = len(argument)
-                    while j < jl and REPR != argument[j]:
-                        s += argument[j]
-                        j += 1
-                    argument = argument[j+1:]
-                    s = s.split(',')
-                    if len(s) > 1:
-                        start_i = s[0].strip()
-                        start_i = int(start_i,10) if len(start_i) else 0
-                        end_i = s[1].strip()
-                        end_i = int(end_i,10) if len(end_i) else -1
-                        optional = 1
-                    else:
-                        start_i = s[0].strip()
-                        start_i = int(start_i,10) if len(start_i) else 0
-                        end_i = start_i
-                        optional = 0
-                    s = ''
-                    negative = 0
-                else:
-                    optional = 0
-                    negative = 0
-                    start_i = 0
-                    end_i = 0
-                if negative and default_value is None: default_value = ''
-                
-                if optional and not a[2]:
-                    a[1] = argument
-                    a[2] = optional
-                    a[3] = negative
-                    a[4] = start_i
-                    a[5] = end_i
-                    # handle multiple optional arguments for same optional block
-                    a[6] = [[argument,negative,start_i,end_i]]
-                elif optional:
-                    # handle multiple optional arguments for same optional block
-                    a[6].append([argument,negative,start_i,end_i])
-                elif (not optional) and (a[1] is None):
-                    a[1] = argument
-                    a[2] = 0
-                    a[3] = negative
-                    a[4] = start_i
-                    a[5] = end_i
-                    a[6] = [[argument,negative,start_i,end_i]]
-                a[0].append([1, argument, default_value, optional, negative, start_i, end_i])
-            
-            elif OBL == tpl[i:i+lenOBL]:
-                i += lenOBL
-                # optional block
-                if len(s): a[0].append([0, s])
-                s = ''
-                stack.append(a)
-                a = [[], None, 0, 0, 0, 0, None]
-            
-            elif OBR == tpl[i:i+lenOBR]:
-                i += lenOBR
-                b = a
-                a = stack.pop(-1)
-                if len(s): b[0].append([0, s])
-                s = ''
-                a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[6], b[0]])
-            else:
-                s += tpl[i]
-                i += 1
-        
-        if len(s): a[0].append([0, s])
-        return a[0]
 
-    #defaultDelims = ['<','>','[',']','?','*','!','|','{','}']
-    defaultDelims = ['<','>','[',']']
+    #defaultDelims = ['<','>','[',']',':=','?','*','!','|','{','}']
+    defaultDelims = ['<','>','[',']',':=']
+    multisplit = multisplit
+    main = main
     
     def __init__(self, tpl='', delims=None):
         self.id = None
@@ -493,103 +736,74 @@ class GrammarTemplate:
     def parse(self):
         if self._parsed is False:
             # lazy init
+            self._parsed = True
             self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] )
             self._args = None
-            self._parsed = True
         return self
     
     def render(self, args=None):
-        if self._parsed is False:
-            # lazy init
-            self.parse( )
-        
-        if None == args: args = { }
-        tpl = self.tpl
-        l = len(tpl)
-        stack = []
-        rarg = None
-        ri = 0
-        out = ''
-        i = 0
-        while i < l or len(stack):
-            if i >= l:
-                p = stack.pop(-1)
-                tpl = p[0]
-                i = p[1]
-                l = p[2]
-                rarg = p[3]
-                ri = p[4]
-                continue
-            
-            t = tpl[ i ]
-            tt = t[ 0 ]
-            s = t[ 1 ]
-            
-            if -1 == tt:
-                
-                # optional block
-                opts_vars = t[ 6 ]
-                if opts_vars and len(opts_vars):
-                    
-                    render = True
-                    for opt_v in opts_vars:
-                        if (0 == opt_v[1] and (opt_v[0] not in args)) or (1 == opt_v[1] and (opt_v[0] in args)):
-                            render = False
-                            break
-                    
-                    if render:
-                        
-                        if 1 == t[ 3 ]:
-                            stack.append([tpl, i+1, l, rarg, ri])
-                            tpl = t[ 7 ]
-                            i = 0
-                            l = len(tpl)
-                            rarg = None
-                            ri = 0
-                            continue
-                        
-                        else:
-                            arr = is_array( args[s] )
-                            if arr and (t[4] != t[5]) and len(args[s]) > t[ 4 ]:
-                                rs = t[ 4 ]
-                                re = len(args[s])-1 if -1 == t[ 5 ] else min(t[ 5 ], len(args[s])-1)
-                                if re >= rs:
-                                    stack.append([tpl, i+1, l, rarg, ri])
-                                    tpl = t[ 7 ]
-                                    i = 0
-                                    l = len(tpl)
-                                    rarg = s
-                                    for ri in range(re,rs,-1): stack.append([tpl, 0, l, rarg, ri])
-                                    ri = rs
-                                    continue
-                                    
-                            elif (not arr) and (t[4] == t[5]):
-                                stack.append([tpl, i+1, l, rarg, ri])
-                                tpl = t[ 7 ]
-                                i = 0
-                                l = len(tpl)
-                                rarg = s
-                                ri = 0
-                                continue
-            
-            elif 1 == tt:
-                #TODO: handle nested/structured/deep arguments
-                # default value if missing
-                out += str(t[2]) if (s not in args) and t[ 2 ] is not None else (str(args[s][(t[5] if t[5]==t[6] else ri)] if s == rarg else args[s][t[5]]) if is_array(args[ s ]) else str(args[s]))
-            
-            else: #if 0 == tt
-                out += s
-            
-            i += 1
-            #if i >= l and len(stack):
-            #    p = stack.pop(-1)
-            #    tpl = p[0]
-            #    i = p[1]
-            #    l = p[2]
-            #    rarg = p[3]
-            #    ri = p[4]
-        
-        return out
+        # lazy init
+        if self._parsed is False: self.parse( )
+        return GrammarTemplate.main( self.tpl[1], {} if None == args else args, self.tpl[0] )
+
+
+import copy
+NULL_CHAR = chr(0)
+
+def is_int( v ):
+    return isinstance(v, int)
+
+def is_string( v ):
+    return isinstance(v, str)
+
+def is_obj( v ):
+    return isinstance(v, dict)
+
+def is_array( v ):
+    return isinstance(v, (list,tuple))
+    
+def array( v ):
+    return v if isinstance(v, list) else [v]
+
+def empty( v ):
+    return v == None or (isinstance(v, (tuple,list,str,dict)) and 0 == len(v))
+
+def addslashes( s, chars=None, esc='\\' ):
+    global NULL_CHAR
+    s2 = ''
+    if chars is None: chars = '\\"\'' + NULL_CHAR
+    for c in s:
+        s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
+    return s2
+
+def defaults( data, defau, overwrite=False, array_copy=False ):
+    overwrite = overwrite is True
+    array_copy = array_copy is True
+    for k in defau:
+        if overwrite or not(k in data):
+            data[ k ] = defau[ k ][:] if array_copy and isinstance(defau[ k ],list) else defau[ k ]
+    return data
+
+def map_join( arr, prop, sep=',' ):
+    joined = ''
+    if arr and len(arr):
+        joined = getattr(arr[0], prop)
+        for i in range(1,len(arr)): joined += sep + getattr(arr[i], prop)
+    return joined
+
+#def filter( data, filt, positive=True ):
+#    if positive is not False:
+#        filtered = { }
+#        for field in filt:
+#            if field in data:
+#                filtered[field] = data[field]
+#        return filtered
+#    else:
+#        filtered = { }
+#        for field in data:
+#            if field not in filt:
+#                filtered[field] = data[field]
+#        return filtered
 
 Ref_spc_re = re.compile(r'\s')
 Ref_num_re = re.compile(r'[0-9]')
@@ -844,10 +1058,10 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.6.3'
+    VERSION = '0.7.0'
     
-    TPL_RE = re.compile(r'\$\(([^\)]+)\)')
-    Template = Template
+    #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
+    StringTemplate = StringTemplate
     GrammarTemplate = GrammarTemplate
     Ref = Ref
 
@@ -1053,8 +1267,8 @@ class Dialect:
         self.tbls = { }
         self.cols = { }
         self.clau = clause
-        if not isinstance(self.clauses[ self.clau ], GrammarTemplate):
-            self.clauses[ self.clau ] = GrammarTemplate( self.clauses[ self.clau ] )
+        if not isinstance(self.clauses[ self.clau ], Dialect.GrammarTemplate):
+            self.clauses[ self.clau ] = Dialect.GrammarTemplate( self.clauses[ self.clau ] )
         return self
     
     def clear( self ):
@@ -1167,10 +1381,10 @@ class Dialect:
             pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
             
             if use_internal_query:
-                sql = Template( self.sql( ), pattern )
+                sql = Dialect.StringTemplate( self.sql( ), pattern )
                 #self.clear( )
             else:
-                sql = Template( query, pattern )
+                sql = Dialect.StringTemplate( query, pattern )
             
             self.tpls[ tpl ] = {
                 'sql':sql, 

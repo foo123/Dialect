@@ -2,27 +2,28 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.6.3
+*   @version: 0.7.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
 *   Support multiple DB vendors
 *   Intuitive and Flexible API
 **/
-!function( root, name, factory ) {
+!function( root, name, factory ){
 "use strict";
-var m;
 if ( ('undefined'!==typeof Components)&&('object'===typeof Components.classes)&&('object'===typeof Components.classesByID)&&Components.utils&&('function'===typeof Components.utils['import']) ) /* XPCOM */
-    (root.EXPORTED_SYMBOLS = [ name ]) && (root[ name ] = factory.call( root ));
+    (root.$deps = root.$deps||{}) && (root.EXPORTED_SYMBOLS = [name]) && (root[name] = root.$deps[name] = factory.call(root));
 else if ( ('object'===typeof module)&&module.exports ) /* CommonJS */
-    module.exports = factory.call( root );
-else if ( ('function'===typeof(define))&&define.amd&&('function'===typeof(require))&&('function'===typeof(require.specified))&&require.specified(name) ) /* AMD */
-    define(name,['require','exports','module'],function( ){return factory.call( root );});
+    (module.$deps = module.$deps||{}) && (module.exports = module.$deps[name] = factory.call(root));
+else if ( ('undefined'!==typeof System)&&('function'===typeof System.register)&&('function'===typeof System['import']) ) /* ES6 module */
+    System.register(name,[],function($__export){$__export(name, factory.call(root));});
+else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require)&&('function'===typeof require.specified)&&require.specified(name) /*&& !require.defined(name)*/ ) /* AMD */
+    define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
 else if ( !(name in root) ) /* Browser/WebWorker/.. */
-    (root[ name ] = (m=factory.call( root )))&&('function'===typeof(define))&&define.amd&&define(function( ){return m;} );
+    (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];} );
 }(  /* current root */          this, 
     /* module name */           "Dialect",
-    /* module factory */        function( exports, undef ) {
+    /* module factory */        function ModuleFactory__Dialect( undef ){
 "use strict";
 
 var PROTO = 'prototype', HAS = 'hasOwnProperty', 
@@ -32,9 +33,704 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty',
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
-    NULL_CHAR = String.fromCharCode( 0 ),
-    Template, GrammarTemplate, Ref, Dialect
-;
+    NULL_CHAR = String.fromCharCode( 0 ), TPL_ID = 0;
+
+// https://github.com/foo123/StringTemplate
+function StringTemplate( tpl, replacements, compiled )
+{
+    var self = this;
+    if ( !(self instanceof StringTemplate) ) return new StringTemplate(tpl, replacements, compiled);
+    self.id = null;
+    self.tpl = null;
+    self._renderer = null;
+    self._args = [tpl||'',replacements || StringTemplate.defaultArgs,compiled];
+    self._parsed = false;
+}
+StringTemplate.VERSION = '1.0.0';
+StringTemplate.defaultArgs = /\$(-?[0-9]+)/g;
+StringTemplate.multisplit = function multisplit( tpl, reps, as_array ) {
+    var r, sr, s, i, j, a, b, c, al, bl;
+    as_array = !!as_array;
+    a = [ [1, tpl] ];
+    for ( r in reps )
+    {
+        if ( reps.hasOwnProperty( r ) )
+        {
+            c = [ ]; sr = as_array ? reps[ r ] : r; s = [0, reps[ r ]];
+            for (i=0,al=a.length; i<al; i++)
+            {
+                if ( 1 === a[ i ][ 0 ] )
+                {
+                    b = a[ i ][ 1 ].split( sr ); bl = b.length;
+                    c.push( [1, b[0]] );
+                    if ( bl > 1 )
+                    {
+                        for (j=0; j<bl-1; j++)
+                        {
+                            c.push( s );
+                            c.push( [1, b[j+1]] );
+                        }
+                    }
+                }
+                else
+                {
+                    c.push( a[ i ] );
+                }
+            }
+            a = c;
+        }
+    }
+    return a;
+};
+StringTemplate.multisplit_re = function multisplit_re( tpl, re ) {
+    re = re.global ? re : new RegExp(re.source, re.ignoreCase?"gi":"g"); /* make sure global flag is added */
+    var a = [ ], i = 0, m;
+    while ( m = re.exec( tpl ) )
+    {
+        a.push([1, tpl.slice(i, re.lastIndex - m[0].length)]);
+        a.push([0, m[1] ? m[1] : m[0]]);
+        i = re.lastIndex;
+    }
+    a.push([1, tpl.slice(i)]);
+    return a;
+};
+StringTemplate.arg = function( key, argslen ) { 
+    var i, k, kn, kl, givenArgsLen, out = 'args';
+    
+    if ( arguments.length && null != key )
+    {
+        if ( key.substr ) 
+            key = key.length ? key.split('.') : [];
+        else 
+            key = [key];
+        kl = key.length;
+        givenArgsLen = !!(argslen && argslen.substr);
+        
+        for (i=0; i<kl; i++)
+        {
+            k = key[ i ]; kn = +k;
+            if ( !isNaN(kn) ) 
+            {
+                if ( kn < 0 ) k = givenArgsLen ? (argslen+(-kn)) : (out+'.length-'+(-kn));
+                out += '[' + k + ']';
+            }
+            else
+            {
+                out += '["' + k + '"]';
+            }
+        }
+    }
+    return out; 
+};
+StringTemplate.compile = function( tpl, raw ) {
+    var l = tpl.length, 
+        i, notIsSub, s, out;
+    
+    if ( true === raw )
+    {
+        out = '"use strict"; return (';
+        for (i=0; i<l; i++)
+        {
+            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
+            out += notIsSub ? s : StringTemplate.arg(s);
+        }
+        out += ');';
+    }
+    else
+    {
+        out = '"use strict"; var argslen=args.length; return (';
+        for (i=0; i<l; i++)
+        {
+            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
+            if ( notIsSub ) out += "'" + s.replace(SQUOTE, "\\'").replace(NEWLINE, "' + \"\\n\" + '") + "'";
+            else out += " + String(" + StringTemplate.arg(s,"argslen") + ") + ";
+        }
+        out += ');';
+    }
+    return new Function('args', out);
+};
+StringTemplate[PROTO] = {
+    constructor: StringTemplate
+    
+    ,id: null
+    ,tpl: null
+    ,_parsed: false
+    ,_args: null
+    ,_renderer: null
+    
+    ,dispose: function( ) {
+        var self = this;
+        self.id = null;
+        self.tpl = null;
+        self._parsed = null;
+        self._args = null;
+        self._renderer = null;
+        return self;
+    }
+    ,fixRenderer: function( ) {
+        var self = this;
+        self.render = 'function' === typeof self._renderer ? self._renderer : self.constructor[PROTO].render;
+        return self;
+    }
+    ,parse: function( ) {
+        var self = this;
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self._parsed = true;
+            var tpl = self._args[0], replacements = self._args[1], compiled = self._args[2];
+            self._args = null;
+            self.tpl = replacements instanceof RegExp 
+                ? StringTemplate.multisplit_re(tpl, replacements) 
+                : StringTemplate.multisplit( tpl, replacements );
+            if ( true === compiled )
+            {
+                self._renderer = StringTemplate.compile( self.tpl );
+                self.fixRenderer( );
+            }
+        }
+        return self;
+    }
+    ,render: function( args ) {
+        var self = this;
+        args = args || [ ];
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self.parse( );
+            if ( self._renderer ) return self._renderer( args );
+        }
+        //if ( self._renderer ) return self._renderer( args );
+        var tpl = self.tpl, l = tpl.length,
+            argslen = args.length, i, t, s, out = ''
+        ;
+        for(i=0; i<l; i++)
+        {
+            t = tpl[ i ];
+            if ( 1 === t[ 0 ] )
+            {
+                out += t[ 1 ];
+            }
+            else
+            {
+                s = t[ 1 ];
+                if ( (+s === s) && (s < 0) ) s = argslen+s;
+                out += args[ s ];
+            }
+        }
+        return out;
+    }
+};
+
+// https://github.com/foo123/GrammarTemplate
+function guid( )
+{
+    return 'grtpl--'+new Date().getTime()+'--'+(++TPL_ID);
+}
+function is_array( o )
+{
+    return o instanceof Array || '[object Array]' === toString.call(o);
+}
+function walk( obj, keys )
+{
+    var o = obj, l = keys.length, i = 0, k;
+    while( i < l )
+    {
+        k = keys[i++];
+        if ( (null != o) && (null != o[k]) ) o = o[k];
+        else return null;
+    }
+    return o;
+}
+function StackEntry( stack, value )
+{
+    this.prev = stack || null;
+    this.value = value || null;
+}
+function TplEntry( node, tpl )
+{
+    if ( tpl ) tpl.next = this;
+    this.node = node || null;
+    this.prev = tpl || null;
+    this.next = null;
+}
+
+function multisplit( tpl, delims )
+{
+    var IDL = delims[0], IDR = delims[1],
+        OBL = delims[2], OBR = delims[3], TPL = delims[4],
+        lenIDL = IDL.length, lenIDR = IDR.length,
+        lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
+        ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
+        REPL = '{', REPR = '}', DOT = '.', REF = ':',
+        default_value = null, negative = 0, optional = 0, nested, start_i, end_i, template,
+        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
+        subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
+        roottpl, block, cur_block, prev_arg, prev_opt_args;
+    
+    a = new TplEntry({type: 0, val: ''});
+    cur_arg = {
+        type    : 1,
+        name    : null,
+        key     : null,
+        stpl    : null,
+        dval    : null,
+        opt     : 0,
+        neg     : 0,
+        start   : 0,
+        end     : 0
+    };
+    roottpl = a; block = null;
+    opt_args = null; subtpl = {}; cur_tpl = null; arg_tpl = {}; start_tpl = null;
+    stack = null; s = ''; escaped = false;
+    
+    i = 0;
+    while( i < l )
+    {
+        ch = tpl[CHAR](i);
+        if ( ESC === ch )
+        {
+            escaped = !escaped;
+            i += 1;
+        }
+        
+        if ( IDL === tpl.substr(i,lenIDL) )
+        {
+            i += lenIDL;
+            
+            if ( escaped )
+            {
+                s += IDL;
+                escaped = false;
+                continue;
+            }
+            
+            if ( s.length )
+            {
+                if ( 0 === a.node.type ) a.node.val += s;
+                else a = new TplEntry({type: 0, val: s}, a);
+            }
+            s = '';
+        }
+        else if ( IDR === tpl.substr(i,lenIDR) )
+        {
+            i += lenIDR;
+            
+            if ( escaped )
+            {
+                s += IDR;
+                escaped = false;
+                continue;
+            }
+            
+            // argument
+            argument = s; s = '';
+            if ( -1 < (p=argument.indexOf(DEF)) )
+            {
+                default_value = argument.slice( p+1 );
+                argument = argument.slice( 0, p );
+            }
+            else
+            {
+                default_value = null;
+            }
+            c = argument[CHAR](0);
+            if ( OPT === c || OPTR === c )
+            {
+                optional = 1;
+                if ( OPTR === c )
+                {
+                    start_i = 1;
+                    end_i = -1;
+                }
+                else
+                {
+                    start_i = 0;
+                    end_i = 0;
+                }
+                argument = argument.slice(1);
+                if ( NEG === argument[CHAR](0) )
+                {
+                    negative = 1;
+                    argument = argument.slice(1);
+                }
+                else
+                {
+                    negative = 0;
+                }
+            }
+            else if ( REPL === c )
+            {
+                s = ''; j = 1; jl = argument.length;
+                while ( j < jl && REPR !== argument[CHAR](j) ) s += argument[CHAR](j++);
+                argument = argument.slice( j+1 );
+                s = s.split(',');
+                if ( s.length > 1 )
+                {
+                    start_i = trim(s[0]);
+                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    end_i = trim(s[1]);
+                    end_i = end_i.length ? parseInt(end_i,10)||0 : -1;
+                    optional = 1;
+                }
+                else
+                {
+                    start_i = trim(s[0]);
+                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    end_i = start_i;
+                    optional = 0;
+                }
+                s = '';
+                negative = 0;
+            }
+            else
+            {
+                optional = 0;
+                negative = 0;
+                start_i = 0;
+                end_i = 0;
+            }
+            if ( negative && (null === default_value) ) default_value = '';
+            
+            template = -1 < argument.indexOf(REF) ? argument.split(REF) : [argument,null];
+            argument = template[0]; template = template[1];
+            nested = -1 < argument.indexOf(DOT) ? argument.split(DOT) : null;
+            
+            if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
+            
+            if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
+            {
+                // template definition
+                i += lenTPL;
+                template = template&&template.length ? template : guid( );
+                start_tpl = template;
+                if ( cur_tpl && argument.length)
+                    arg_tpl[cur_tpl][argument] = template;
+            }
+            
+            if ( !argument.length ) continue; // template definition only
+            
+            if ( (null==template) && cur_tpl && arg_tpl[cur_tpl] && arg_tpl[cur_tpl][argument] )
+                template = arg_tpl[cur_tpl][argument];
+            
+            if ( optional && !cur_arg.opt )
+            {
+                cur_arg.name = argument;
+                cur_arg.key = nested;
+                cur_arg.stpl = template;
+                cur_arg.dval = default_value;
+                cur_arg.opt = optional;
+                cur_arg.neg = negative;
+                cur_arg.start = start_i;
+                cur_arg.end = end_i;
+                // handle multiple optional arguments for same optional block
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+            }
+            else if ( optional )
+            {
+                // handle multiple optional arguments for same optional block
+                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i]);
+            }
+            else if ( !optional && (null === cur_arg.name) )
+            {
+                cur_arg.name = argument;
+                cur_arg.key = nested;
+                cur_arg.stpl = template;
+                cur_arg.dval = default_value;
+                cur_arg.opt = 0;
+                cur_arg.neg = negative;
+                cur_arg.start = start_i;
+                cur_arg.end = end_i;
+                // handle multiple optional arguments for same optional block
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+            }
+            a = new TplEntry({
+                type    : 1,
+                name    : argument,
+                key     : nested,
+                stpl    : template,
+                dval    : default_value,
+                start   : start_i,
+                end     : end_i
+            }, a);
+        }
+        else if ( OBL === tpl.substr(i,lenOBL) )
+        {
+            i += lenOBL;
+            
+            if ( escaped )
+            {
+                s += OBL;
+                escaped = false;
+                continue;
+            }
+            
+            // optional block
+            if ( s.length )
+            {
+                if ( 0 === a.node.type ) a.node.val += s;
+                else a = new TplEntry({type: 0, val: s}, a);
+            }
+            s = '';
+            stack = new StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl]);
+            if ( start_tpl ) cur_tpl = start_tpl;
+            start_tpl = null;
+            cur_arg = {
+                type    : 1,
+                name    : null,
+                key     : null,
+                stpl    : null,
+                dval    : null,
+                opt     : 0,
+                neg     : 0,
+                start   : 0,
+                end     : 0
+            };
+            opt_args = null;
+            a = new TplEntry({type: 0, val: ''});
+            block = a;
+        }
+        else if ( OBR === tpl.substr(i,lenOBR) )
+        {
+            i += lenOBR;
+            
+            if ( escaped )
+            {
+                s += OBR;
+                escaped = false;
+                continue;
+            }
+            
+            b = a;
+            cur_block = block;
+            prev_arg = cur_arg;
+            prev_opt_args = opt_args;
+            if ( stack )
+            {
+                a = stack.value[0];
+                block = stack.value[1];
+                cur_arg = stack.value[2];
+                opt_args = stack.value[3];
+                cur_tpl = stack.value[4];
+                start_tpl = stack.value[5];
+                stack = stack.prev;
+            }
+            else
+            {
+                a = null;
+            }
+            if ( s.length )
+            {
+                if ( 0 === b.node.type ) b.node.val += s;
+                else b = new TplEntry({type: 0, val: s}, b);
+            }
+            s = '';
+            if ( start_tpl )
+            {
+                subtpl[start_tpl] = new TplEntry({
+                    type    : 2,
+                    name    : prev_arg.name,
+                    key     : prev_arg.key,
+                    start   : 0/*cur_arg.start*/,
+                    end     : 0/*cur_arg.end*/,
+                    opt_args: null/*opt_args*/,
+                    tpl     : cur_block
+                });
+                start_tpl = null;
+            }
+            else
+            {
+                a = new TplEntry({
+                    type    : -1,
+                    name    : prev_arg.name,
+                    key     : prev_arg.key,
+                    start   : prev_arg.start,
+                    end     : prev_arg.end,
+                    opt_args: prev_opt_args,
+                    tpl     : cur_block
+                }, a);
+            }
+        }
+        else
+        {
+            if ( ESC === ch ) s += ch;
+            else s += tpl[CHAR](i++);
+        }
+    }
+    if ( s.length )
+    {
+        if ( 0 === a.node.type ) a.node.val += s;
+        else a = new TplEntry({type: 0, val: s}, a);
+    }
+    return [roottpl, subtpl];
+}
+
+function optional_block( SUB, args, block, index )
+{
+    var opt_vars, opt_v, opt_arg, arr, rs, re, ri, out = '';
+    
+    if ( -1 === block.type )
+    {
+        // optional block, check if optional variables can be rendered
+        opt_vars = block.opt_args; if ( !opt_vars ) return '';
+        while( opt_vars )
+        {
+            opt_v = opt_vars.value;
+            opt_arg = opt_v[1] ? walk( args, opt_v[1] ) : args[opt_v[0]];
+            if ( (0 === opt_v[2] && null == opt_arg) ||
+                (1 === opt_v[2] && null != opt_arg)
+            )
+                return '';
+            opt_vars = opt_vars.prev;
+        }
+    }
+    
+    if ( block.key )
+    {
+        opt_arg = walk( args, block.key )/*nested key*/;
+        if ( (null == opt_arg) && args[HAS](block.name) ) opt_arg = args[block.name];
+    }
+    else
+    {
+        opt_arg = args[block.name]/*plain key*/;
+    }
+    arr = is_array( opt_arg );
+    if ( arr && (opt_arg.length > block.start) )
+    {
+        for(rs=block.start,re=(-1===block.end?opt_arg.length-1:Math.min(block.end, opt_arg.length-1)),ri=rs; ri<=re; ri++)
+            out += main( SUB, args, block.tpl, ri );
+    }
+    else if ( !arr && (block.start === block.end) )
+    {
+        out = main( SUB, args, block.tpl, null );
+    }
+    return out;
+}
+function non_terminal( SUB, args, symbol, index )
+{
+    var opt_arg, tpl_args, tpl, out = '';
+    if ( SUB && symbol.stpl && SUB[symbol.stpl] )
+    {
+        // using sub-template
+        if ( symbol.key )
+        {
+            opt_arg = walk( args, symbol.key )/*nested key*/;
+            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
+        }
+        else
+        {
+            opt_arg = args[symbol.name]/*plain key*/;
+        }
+        if ( null != index && is_array(opt_arg) )
+        {
+            opt_arg = opt_arg[index];
+        }
+        if ( (null == opt_arg) && (null !== symbol.dval) )
+        {
+            // default value if missing
+            out = symbol.dval;
+        }
+        else
+        {
+            // try to associate sub-template parameters to actual input arguments
+            tpl = SUB[symbol.stpl].node; tpl_args = {};
+            if ( null != opt_arg )
+            {
+                /*if ( opt_arg[HAS](tpl.name) && !opt_arg[HAS](symbol.name) ) tpl_args = opt_arg;
+                else tpl_args[tpl.name] = opt_arg;*/
+                if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
+                else tpl_args = opt_arg;
+            }
+            out = optional_block( SUB, tpl_args, tpl, null );
+        }
+    }
+    else
+    {
+        // plain symbol argument
+        if ( symbol.key )
+        {
+            opt_arg = walk( args, symbol.key )/*nested key*/;
+            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
+        }
+        else
+        {
+            opt_arg = args[symbol.name]/*plain key*/;
+        }
+        // default value if missing
+        if ( is_array(opt_arg) )
+        {
+            opt_arg = null != index ? opt_arg[index] : opt_arg[symbol.start];
+        }
+        out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
+    }
+    return out;
+}
+function main( SUB, args, tpl, index )
+{
+    var tt, out = '';
+    while ( tpl )
+    {
+        tt = tpl.node.type;
+        out += (-1 === tt
+            ? optional_block( SUB, args, tpl.node, index ) /* optional code-block */
+            : (1 === tt
+            ? non_terminal( SUB, args, tpl.node, index ) /* non-terminal */
+            : tpl.node.val /* terminal */
+        ));
+        tpl = tpl.next;
+    }
+    return out;
+}
+
+function GrammarTemplate( tpl, delims )
+{
+    var self = this;
+    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims);
+    self.id = null;
+    self.tpl = null;
+    // lazy init
+    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
+    self._parsed = false;
+};
+GrammarTemplate.VERSION = '2.0.0';
+GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.multisplit = multisplit;
+GrammarTemplate.main = main;
+GrammarTemplate[PROTO] = {
+    constructor: GrammarTemplate
+    
+    ,id: null
+    ,tpl: null
+    ,_parsed: false
+    ,_args: null
+    
+    ,dispose: function( ) {
+        var self = this;
+        self.id = null;
+        self.tpl = null;
+        self._args = null;
+        self._parsed = null;
+        return self;
+    }
+    ,parse: function( ) {
+        var self = this;
+        if ( false === self._parsed )
+        {
+            // lazy init
+            self._parsed = true;
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] );
+            self._args = null;
+        }
+        return self;
+    }
+    ,render: function( args ) {
+        var self = this;
+        // lazy init
+        if ( false === self._parsed ) self.parse( );
+        return GrammarTemplate.main( self.tpl[1], null==args ? {} : args, self.tpl[0] );
+    }
+};
+
 function F( a, c )
 {
     return new Function(a, c);
@@ -55,10 +751,10 @@ function is_string( o )
 {
     return "string" === typeof o;
 }
-function is_array( o )
+/*function is_array( o )
 {
     return o instanceof Array || '[object Array]' === toString.call(o);
-}
+}*/
 function is_obj( o )
 {
     return o instanceof Object || '[object Object]' === toString.call(o);
@@ -112,32 +808,6 @@ function defaults( data, def, overwrite, array_copy )
     }
     return data;
 }
-/*function filter( data, filt, positive )
-{
-    var filtered, i, l, field;
-    if ( false !== positive )
-    {
-        filtered = { };
-        for (i=0,l=filt.length; i<l; i++)
-        {
-            field = filt[i];
-            if ( data[HAS](field) ) 
-                filtered[field] = data[field];
-        }
-        return filtered;
-    }
-    else
-    {
-        filtered = { };
-        for (field in data)
-        {
-            if ( !data[HAS](field) ) continue;
-            if ( 0 > filt.indexOf( field ) ) 
-                filtered[field] = data[field];
-        }
-        return filtered;
-    }
-}*/
 function fmap( x, F )
 {
     var l = x.length;
@@ -218,479 +888,8 @@ function map_join( arr, prop, sep )
     return joined;
 }
 
-Template = function Template( tpl, replacements, compiled ) {
-    var self = this;
-    if ( !(self instanceof Template) ) return new Template(tpl, replacements, compiled);
-    self.id = null;
-    self.tpl = null;
-    self._renderer = null;
-    self._args = [tpl||'',replacements || Template.defaultArgs,compiled];
-    self._parsed = false;
-};
-Template.defaultArgs = /\$(-?[0-9]+)/g;
-Template.multisplit = function multisplit( tpl, reps, as_array ) {
-    var r, sr, s, i, j, a, b, c, al, bl;
-    as_array = !!as_array;
-    a = [ [1, tpl] ];
-    for ( r in reps )
-    {
-        if ( reps.hasOwnProperty( r ) )
-        {
-            c = [ ]; sr = as_array ? reps[ r ] : r; s = [0, reps[ r ]];
-            for (i=0,al=a.length; i<al; i++)
-            {
-                if ( 1 === a[ i ][ 0 ] )
-                {
-                    b = a[ i ][ 1 ].split( sr ); bl = b.length;
-                    c.push( [1, b[0]] );
-                    if ( bl > 1 )
-                    {
-                        for (j=0; j<bl-1; j++)
-                        {
-                            c.push( s );
-                            c.push( [1, b[j+1]] );
-                        }
-                    }
-                }
-                else
-                {
-                    c.push( a[ i ] );
-                }
-            }
-            a = c;
-        }
-    }
-    return a;
-};
-Template.multisplit_re = function multisplit_re( tpl, re ) {
-    re = re.global ? re : new RegExp(re.source, re.ignoreCase?"gi":"g"); /* make sure global flag is added */
-    var a = [ ], i = 0, m;
-    while ( m = re.exec( tpl ) )
-    {
-        a.push([1, tpl.slice(i, re.lastIndex - m[0].length)]);
-        a.push([0, m[1] ? m[1] : m[0]]);
-        i = re.lastIndex;
-    }
-    a.push([1, tpl.slice(i)]);
-    return a;
-};
-Template.arg = function( key, argslen ) { 
-    var i, k, kn, kl, givenArgsLen, out = 'args';
-    
-    if ( arguments.length && null != key )
-    {
-        if ( key.substr ) 
-            key = key.length ? key.split('.') : [];
-        else 
-            key = [key];
-        kl = key.length;
-        givenArgsLen = !!(argslen && argslen.substr);
-        
-        for (i=0; i<kl; i++)
-        {
-            k = key[ i ]; kn = +k;
-            if ( !isNaN(kn) ) 
-            {
-                if ( kn < 0 ) k = givenArgsLen ? (argslen+(-kn)) : (out+'.length-'+(-kn));
-                out += '[' + k + ']';
-            }
-            else
-            {
-                out += '["' + k + '"]';
-            }
-        }
-    }
-    return out; 
-};
-Template.compile = function( tpl, raw ) {
-    var l = tpl.length, 
-        i, notIsSub, s, out;
-    
-    if ( true === raw )
-    {
-        out = '"use strict"; return (';
-        for (i=0; i<l; i++)
-        {
-            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
-            out += notIsSub ? s : Template.arg(s);
-        }
-        out += ');';
-    }
-    else
-    {
-        out = '"use strict"; var argslen=args.length; return (';
-        for (i=0; i<l; i++)
-        {
-            notIsSub = tpl[ i ][ 0 ]; s = tpl[ i ][ 1 ];
-            if ( notIsSub ) out += "'" + s.replace(SQUOTE, "\\'").replace(NEWLINE, "' + \"\\n\" + '") + "'";
-            else out += " + String(" + Template.arg(s,"argslen") + ") + ";
-        }
-        out += ');';
-    }
-    return F('args', out);
-};
-Template[PROTO] = {
-    constructor: Template
-    
-    ,id: null
-    ,tpl: null
-    ,_parsed: false
-    ,_args: null
-    ,_renderer: null
-    
-    ,dispose: function( ) {
-        var self = this;
-        self.id = null;
-        self.tpl = null;
-        self._parsed = null;
-        self._args = null;
-        self._renderer = null;
-        return self;
-    }
-    ,fixRenderer: function( ) {
-        var self = this;
-        self.render = 'function' === typeof self._renderer ? self._renderer : self.constructor[PROTO].render;
-        return self;
-    }
-    ,parse: function( ) {
-        var self = this;
-        if ( false === self._parsed )
-        {
-            // lazy init
-            var tpl = self._args[0], replacements = self._args[1], compiled = self._args[2];
-            self._args = null;
-            self.tpl = replacements instanceof RegExp 
-                ? Template.multisplit_re(tpl, replacements) 
-                : Template.multisplit( tpl, replacements );
-            self._parsed = true;
-            if ( true === compiled )
-            {
-                self._renderer = Template.compile( self.tpl );
-                self.fixRenderer( );
-            }
-        }
-        return self;
-    }
-    ,render: function( args ) {
-        var self = this;
-        args = args || [ ];
-        if ( false === self._parsed )
-        {
-            // lazy init
-            self.parse( );
-            if ( self._renderer ) return self._renderer( args );
-        }
-        //if ( self._renderer ) return self._renderer( args );
-        var tpl = self.tpl, l = tpl.length,
-            argslen = args.length, i, t, s, out = ''
-        ;
-        for(i=0; i<l; i++)
-        {
-            t = tpl[ i ];
-            if ( 1 === t[ 0 ] )
-            {
-                out += t[ 1 ];
-            }
-            else
-            {
-                s = t[ 1 ];
-                if ( (+s === s) && (s < 0) ) s = argslen+s;
-                out += args[ s ];
-            }
-        }
-        return out;
-    }
-};
-
-// adapted from https://github.com/foo123/GrammarTemplate
-GrammarTemplate = function GrammarTemplate( tpl, delims ) {
-    var self = this;
-    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims);
-    self.id = null;
-    self.tpl = null;
-    // lazy init
-    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
-    self._parsed = false;
-};
-GrammarTemplate.VERSION = '1.0.0';
-GrammarTemplate.defaultDelims = ['<','>','[',']'/*,'?','*','!','|','{','}'*/];
-GrammarTemplate.multisplit = function multisplit( tpl, delims ) {
-    var IDL = delims[0], IDR = delims[1], OBL = delims[2], OBR = delims[3],
-        lenIDL = IDL.length, lenIDR = IDR.length, lenOBL = OBL.length, lenOBR = OBR.length,
-        OPT = '?', OPTR = '*', NEG = '!', DEF = '|', REPL = '{', REPR = '}',
-        default_value = null, negative = 0, optional = 0, start_i, end_i,
-        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl;
-    i = 0; a = [[], null, 0, 0, 0, 0, null]; stack = []; s = '';
-    while( i < l )
-    {
-        if ( IDL === tpl.substr(i,lenIDL) )
-        {
-            i += lenIDL;
-            if ( s.length ) a[0].push([0, s]);
-            s = '';
-        }
-        else if ( IDR === tpl.substr(i,lenIDR) )
-        {
-            i += lenIDR;
-            // argument
-            argument = s; s = '';
-            if ( -1 < (p=argument.indexOf(DEF)) )
-            {
-                default_value = argument.slice( p+1 );
-                argument = argument.slice( 0, p );
-            }
-            else
-            {
-                default_value = null;
-            }
-            c = argument[CHAR](0);
-            if ( OPT === c || OPTR === c )
-            {
-                optional = 1;
-                if ( OPTR === c )
-                {
-                    start_i = 1;
-                    end_i = -1;
-                }
-                else
-                {
-                    start_i = 0;
-                    end_i = 0;
-                }
-                argument = argument.slice(1);
-                if ( NEG === argument[CHAR](0) )
-                {
-                    negative = 1;
-                    argument = argument.slice(1);
-                }
-                else
-                {
-                    negative = 0;
-                }
-            }
-            else if ( REPL === c )
-            {
-                s = ''; j = 1; jl = argument.length;
-                while ( j < jl && REPR !== argument[CHAR](j) ) s += argument[CHAR](j++);
-                argument = argument.slice( j+1 );
-                s = s.split(',');
-                if ( s.length > 1 )
-                {
-                    start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
-                    end_i = trim(s[1]);
-                    end_i = end_i.length ? parseInt(end_i,10)||0 : -1;
-                    optional = 1;
-                }
-                else
-                {
-                    start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
-                    end_i = start_i;
-                    optional = 0;
-                }
-                s = '';
-                negative = 0;
-            }
-            else
-            {
-                optional = 0;
-                negative = 0;
-                start_i = 0;
-                end_i = 0;
-            }
-            if ( negative && null === default_value ) default_value = '';
-            
-            if ( optional && !a[2] )
-            {
-                a[1] = argument;
-                a[2] = optional;
-                a[3] = negative;
-                a[4] = start_i;
-                a[5] = end_i;
-                // handle multiple optional arguments for same optional block
-                a[6] = [[argument,negative,start_i,end_i]];
-            }
-            else if( optional )
-            {
-                // handle multiple optional arguments for same optional block
-                a[6].push([argument,negative,start_i,end_i]);
-            }
-            else if ( !optional && (null === a[1]) )
-            {
-                a[1] = argument;
-                a[2] = 0;
-                a[3] = negative;
-                a[4] = start_i;
-                a[5] = end_i;
-                a[6] = [[argument,negative,start_i,end_i]];
-            }
-            a[0].push([1, argument, default_value, optional, negative, start_i, end_i]);
-        }
-        else if ( OBL === tpl.substr(i,lenOBL) )
-        {
-            i += lenOBL;
-            // optional block
-            if ( s.length ) a[0].push([0, s]);
-            s = '';
-            stack.push(a);
-            a = [[], null, 0, 0, 0, 0, null];
-        }
-        else if ( OBR === tpl.substr(i,lenOBR) )
-        {
-            i += lenOBR;
-            b = a; a = stack.pop( );
-            if ( s.length ) b[0].push([0, s]);
-            s = '';
-            a[0].push([-1, b[1], b[2], b[3], b[4], b[5], b[6], b[0]]);
-        }
-        else
-        {
-            s += tpl[CHAR](i++);
-        }
-    }
-    if ( s.length ) a[0].push([0, s]);
-    return a[0];
-};
-GrammarTemplate[PROTO] = {
-    constructor: GrammarTemplate
-    
-    ,id: null
-    ,tpl: null
-    ,_parsed: false
-    ,_args: null
-    
-    ,dispose: function( ) {
-        var self = this;
-        self.id = null;
-        self.tpl = null;
-        self._args = null;
-        self._parsed = null;
-        return self;
-    }
-    ,parse: function( ) {
-        var self = this;
-        if ( false === self._parsed )
-        {
-            // lazy init
-            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] );
-            self._args = null;
-            self._parsed = true;
-        }
-        return self;
-    }
-    ,render: function( args ) {
-        var self = this;
-        if ( false === self._parsed )
-        {
-            // lazy init
-            self.parse( );
-        }
-        
-        args = args || { };
-        var tpl = self.tpl, l = tpl.length,
-            stack = [], p, arr, MIN = Math.min,
-            i, t, tt, s, rarg = null,
-            ri = 0, rs, re, out = '',
-            opts_vars, render, oi, ol, opt_v
-        ;
-        i = 0;
-        while ( i < l || stack.length )
-        {
-            if ( i >= l )
-            {
-                p = stack.pop( );
-                tpl = p[0]; i = p[1]; l = p[2];
-                rarg = p[3]||null; ri = p[4]||0;
-                continue;
-            }
-            
-            t = tpl[ i ]; tt = t[ 0 ]; s = t[ 1 ];
-            if ( -1 === tt )
-            {
-                // optional block
-                opts_vars = t[ 6 ];
-                if ( !!opts_vars && opts_vars.length )
-                {
-                    render = true;
-                    for(oi=0,ol=opts_vars.length; oi<ol; oi++)
-                    {
-                        opt_v = opts_vars[oi];
-                        if ( (0 === opt_v[1] && !args[HAS](opt_v[0])) ||
-                            (1 === opt_v[1] && args[HAS](opt_v[0]))
-                        )
-                        {
-                            render = false;
-                            break;
-                        }
-                    }
-                    if ( render )
-                    {
-                        if ( 1 === t[ 3 ] )
-                        {
-                            stack.push([tpl, i+1, l, rarg, ri]);
-                            tpl = t[ 7 ]; i = 0; l = tpl.length;
-                            rarg = null; ri = 0;
-                            continue;
-                        }
-                        else
-                        {
-                            arr = is_array( args[s] );
-                            if ( arr && (t[4] !== t[5]) && args[s].length > t[ 4 ] )
-                            {
-                                rs = t[ 4 ];
-                                re = -1 === t[ 5 ] ? args[s].length-1 : MIN(t[ 5 ], args[s].length-1);
-                                if ( re >= rs )
-                                {
-                                    stack.push([tpl, i+1, l, rarg, ri]);
-                                    tpl = t[ 7 ]; i = 0; l = tpl.length;
-                                    rarg = s;
-                                    for(ri=re; ri>rs; ri--) stack.push([tpl, 0, l, rarg, ri]);
-                                    ri = rs;
-                                    continue;
-                                }
-                            }
-                            else if ( !arr && (t[4] === t[5]) )
-                            {
-                                stack.push([tpl, i+1, l, rarg, ri]);
-                                tpl = t[ 7 ]; i = 0; l = tpl.length;
-                                rarg = s; ri = 0;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-            else if ( 1 === tt )
-            {
-                //TODO: handle nested/structured/deep arguments
-                // default value if missing
-                out += !args[HAS](s) && null !== t[ 2 ]
-                    ? t[ 2 ]
-                    : (is_array(args[ s ])
-                    ? (s === rarg
-                    ? args[s][t[5]===t[6]?t[5]:ri]
-                    : args[s][t[5]])
-                    : args[s])
-                ;
-            }
-            else /*if ( 0 === tt )*/
-            {
-                out += s;
-            }
-            i++;
-            /*if ( i >= l && stack.length )
-            {
-                p = stack.pop( );
-                tpl = p[0]; i = p[1]; l = p[2];
-                rarg = p[3]||null; ri = p[4]||0;
-            }*/
-        }
-        return out;
-    }
-};
-
-Ref = function( _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func ) {
+function Ref( _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func )
+{
     var self = this;
     self._col = _col;
     self.col = col;
@@ -717,7 +916,7 @@ Ref = function( _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _fu
         self.alias = self.full;
         self.aliased = self.full;
     }
-};
+}
 var Ref_spc_re = /\s/, Ref_num_re = /[0-9]/, Ref_alf_re = /[a-z_]/i;
 Ref.parse = function( r, d ) {
     // should handle field formats like:
@@ -1147,7 +1346,8 @@ var dialects = {
 }
 };
 
-Dialect = function Dialect( type ) {
+function Dialect( type )
+{
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
     if ( !arguments.length ) type = 'mysql';
@@ -1173,12 +1373,12 @@ Dialect = function Dialect( type ) {
     self.q  = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ];
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
-};
-Dialect.VERSION = "0.6.3";
-Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
+}
+Dialect.VERSION = "0.7.0";
+//Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
+Dialect.StringTemplate = StringTemplate;
 Dialect.GrammarTemplate = GrammarTemplate;
-Dialect.Template = Template;
 Dialect.Ref = Ref;
 Dialect[PROTO] = {
     constructor: Dialect
@@ -1265,8 +1465,8 @@ Dialect[PROTO] = {
         self.tbls = { };
         self.cols = { };
         self.clau = clause;
-        if ( !(self.clauses[ self.clau ] instanceof GrammarTemplate) )
-            self.clauses[ self.clau ] = new GrammarTemplate( self.clauses[ self.clau ] );
+        if ( !(self.clauses[ self.clau ] instanceof Dialect.GrammarTemplate) )
+            self.clauses[ self.clau ] = new Dialect.GrammarTemplate( self.clauses[ self.clau ] );
         return self;
     }
     
@@ -1415,12 +1615,12 @@ Dialect[PROTO] = {
             
             if ( use_internal_query )
             {
-                sql = new Template( self.sql( ), pattern );
+                sql = new Dialect.StringTemplate( self.sql( ), pattern );
                 //self.clear( );
             }
             else
             {
-                sql = new Template( query, pattern );
+                sql = new Dialect.StringTemplate( query, pattern );
             }
             
             self.tpls[ tpl ] = {
