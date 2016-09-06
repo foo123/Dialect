@@ -33,7 +33,12 @@ var PROTO = 'prototype', HAS = 'hasOwnProperty',
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
-    NULL_CHAR = String.fromCharCode( 0 ), TPL_ID = 0;
+    NULL_CHAR = String.fromCharCode( 0 ), GUID = 0;
+
+function guid( )
+{
+    return ''+new Date().getTime()+'--'+(++GUID);
+}
 
 // https://github.com/foo123/StringTemplate
 function StringTemplate( tpl, replacements, compiled )
@@ -48,6 +53,7 @@ function StringTemplate( tpl, replacements, compiled )
 }
 StringTemplate.VERSION = '1.0.0';
 StringTemplate.defaultArgs = /\$(-?[0-9]+)/g;
+StringTemplate.guid = guid;
 StringTemplate.multisplit = function multisplit( tpl, reps, as_array ) {
     var r, sr, s, i, j, a, b, c, al, bl;
     as_array = !!as_array;
@@ -223,14 +229,6 @@ StringTemplate[PROTO] = {
 };
 
 // https://github.com/foo123/GrammarTemplate
-function guid( )
-{
-    return 'grtpl--'+new Date().getTime()+'--'+(++TPL_ID);
-}
-function is_array( o )
-{
-    return o instanceof Array || '[object Array]' === toString.call(o);
-}
 function walk( obj, keys )
 {
     var o = obj, l = keys.length, i = 0, k;
@@ -402,7 +400,7 @@ function multisplit( tpl, delims )
             {
                 // template definition
                 i += lenTPL;
-                template = template&&template.length ? template : guid( );
+                template = template&&template.length ? template : 'grtpl--'+guid( );
                 start_tpl = template;
                 if ( cur_tpl && argument.length)
                     arg_tpl[cur_tpl][argument] = template;
@@ -682,6 +680,7 @@ function main( SUB, args, tpl, index )
     return out;
 }
 
+
 function GrammarTemplate( tpl, delims )
 {
     var self = this;
@@ -694,6 +693,7 @@ function GrammarTemplate( tpl, delims )
 };
 GrammarTemplate.VERSION = '2.0.0';
 GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.guid = guid;
 GrammarTemplate.multisplit = multisplit;
 GrammarTemplate.main = main;
 GrammarTemplate[PROTO] = {
@@ -731,10 +731,6 @@ GrammarTemplate[PROTO] = {
     }
 };
 
-function F( a, c )
-{
-    return new Function(a, c);
-}
 function RE( r, f )
 {
     return new RegExp(r, f||'');
@@ -751,10 +747,10 @@ function is_string( o )
 {
     return "string" === typeof o;
 }
-/*function is_array( o )
+function is_array( o )
 {
     return o instanceof Array || '[object Array]' === toString.call(o);
-}*/
+}
 function is_obj( o )
 {
     return o instanceof Object || '[object Object]' === toString.call(o);

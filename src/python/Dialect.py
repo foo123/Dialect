@@ -11,21 +11,23 @@
 ##
 
 # https://github.com/foo123/StringTemplate
-import re, math
+import re, math, time
 
 NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
 SQUOTE = re.compile(r"'")
 T_REGEXP = type(SQUOTE)
 
-# static
-CNT = 0
+GUID = 0
+def guid( ):
+    global GUID
+    GUID += 1
+    return str(int(time.time()))+'--'+str(GUID)
+
 
 def createFunction( args, sourceCode, additional_symbols=dict() ):
     # http://code.activestate.com/recipes/550804-create-a-restricted-python-function-from-a-string/
     
-    global CNT
-    CNT += 1
-    funcName = 'dialect_dyna_func_' + str(CNT)
+    funcName = 'py_dyna_func_' + guid( )
     
     # The list of symbols that are included by default in the generated
     # function's environment
@@ -128,6 +130,7 @@ class StringTemplate:
     
     VERSION = '1.0.0'
     
+    guid = guid
     createFunction = createFunction
     
     def multisplit(tpl, reps, as_array=False):
@@ -289,17 +292,6 @@ class StringTemplate:
         return out
 
 # https://github.com/foo123/GrammarTemplate
-import time
-TPL_ID = 0
-def guid( ):
-    global TPL_ID
-    TPL_ID += 1
-    return 'grtpl--'+str(int(time.time()))+'--'+str(TPL_ID)
-
-def is_array( v ):
-    return isinstance(v, (list,tuple))
-    
-
 def walk( obj, keys ):
     o = obj
     l = len(keys)
@@ -478,7 +470,7 @@ def multisplit( tpl, delims ):
             if TPL+OBL == tpl[i:i+lenTPL+lenOBL]:
                 # template definition
                 i += lenTPL
-                template = template if template and len(template) else guid()
+                template = template if template and len(template) else 'grtpl--'+guid()
                 start_tpl = template
                 if cur_tpl and len(argument):
                     arg_tpl[cur_tpl][argument] = template
@@ -713,6 +705,7 @@ class GrammarTemplate:
 
     #defaultDelims = ['<','>','[',']',':=','?','*','!','|','{','}']
     defaultDelims = ['<','>','[',']',':=']
+    guid = guid
     multisplit = multisplit
     main = main
     

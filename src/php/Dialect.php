@@ -17,6 +17,13 @@ if ( !class_exists('StringTemplate') )
 class StringTemplate
 {    
     const VERSION = '1.0.0';
+    private static $GUID = 0;
+    
+    private static function guid( )
+    {
+        return time().'--'.(++self::$GUID);
+    }
+    
     public static function multisplit($tpl, $reps, $as_array=false)
     {
         $a = array( array(1, $tpl) );
@@ -213,7 +220,7 @@ class StringTemplate
 // https://github.com/foo123/GrammarTemplate
 if ( !class_exists('GrammarTemplate') )
 {
-class GrammarTemplateStackEntry
+class GrammarTemplate__StackEntry
 {
     public $value = null;
     public $prev = null;
@@ -224,7 +231,7 @@ class GrammarTemplateStackEntry
         $this->value = $value;
     }
 }
-class GrammarTemplateTplEntry
+class GrammarTemplate__TplEntry
 {
     public $node = null;
     public $prev = null;
@@ -242,11 +249,11 @@ class GrammarTemplateTplEntry
 class GrammarTemplate
 {    
     const VERSION = '2.0.0';
-    private static $TPL_ID = 0;
+    private static $GUID = 0;
     
     private static function guid( )
     {
-        return 'grtpl--'.time().'--'.(++self::$TPL_ID);
+        return time().'--'.(++self::$GUID);
     }
     
     private static function is_array( $a )
@@ -289,7 +296,7 @@ class GrammarTemplate
         $default_value = null; $negative = 0; $optional = 0;
         $l = strlen($tpl);
         
-        $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> ''));
+        $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> ''));
         $cur_arg = (object)array(
             'type'    => 1,
             'name'    => null,
@@ -329,7 +336,7 @@ class GrammarTemplate
                 if ( strlen($s) )
                 {
                     if ( 0 === $a->node->type ) $a->node->val .= $s;
-                    else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
                 }
                 
                 $s = '';
@@ -428,7 +435,7 @@ class GrammarTemplate
                 {
                     // template definition
                     $i += $lenTPL;
-                    $template = $template&&strlen($template) ? $template : self::guid( );
+                    $template = $template&&strlen($template) ? $template : 'grtpl--'.self::guid( );
                     $start_tpl = $template;
                     if ( $cur_tpl && strlen($argument))
                         $arg_tpl[$cur_tpl][$argument] = $template;
@@ -450,12 +457,12 @@ class GrammarTemplate
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplateStackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
                 }
                 else if ( $optional )
                 {
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplateStackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i));
                 }
                 else if ( !$optional && (null === $cur_arg->name) )
                 {
@@ -468,9 +475,9 @@ class GrammarTemplate
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplateStackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
                 }
-                $a = new GrammarTemplateTplEntry((object)array(
+                $a = new GrammarTemplate__TplEntry((object)array(
                     'type'    => 1,
                     'name'    => $argument,
                     'key'     => $nested,
@@ -495,11 +502,11 @@ class GrammarTemplate
                 if ( strlen($s) )
                 {
                     if ( 0 === $a->node->type ) $a->node->val .= $s;
-                    else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
                 }
                 
                 $s = '';
-                $stack = new GrammarTemplateStackEntry($stack, array($a, $block, $cur_arg, $opt_args, $cur_tpl, $start_tpl));
+                $stack = new GrammarTemplate__StackEntry($stack, array($a, $block, $cur_arg, $opt_args, $cur_tpl, $start_tpl));
                 if ( $start_tpl ) $cur_tpl = $start_tpl;
                 $start_tpl = null;
                 $cur_arg = (object)array(
@@ -514,7 +521,7 @@ class GrammarTemplate
                     'end'     => 0
                 );
                 $opt_args = null;
-                $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> ''));
+                $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> ''));
                 $block = $a;
             }
             else if ( $OBR === substr($tpl,$i,$lenOBR) )
@@ -549,13 +556,13 @@ class GrammarTemplate
                 if ( strlen($s) )
                 {
                     if ( 0 === $b->node->type ) $b->node->val .= $s;
-                    else $b = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $b);
+                    else $b = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $b);
                 }
                 
                 $s = '';
                 if ( $start_tpl )
                 {
-                    $subtpl[$start_tpl] = new GrammarTemplateTplEntry((object)array(
+                    $subtpl[$start_tpl] = new GrammarTemplate__TplEntry((object)array(
                         'type'    => 2,
                         'name'    => $prev_arg->name,
                         'key'     => $prev_arg->key,
@@ -568,7 +575,7 @@ class GrammarTemplate
                 }
                 else
                 {
-                    $a = new GrammarTemplateTplEntry((object)array(
+                    $a = new GrammarTemplate__TplEntry((object)array(
                         'type'    => -1,
                         'name'    => $prev_arg->name,
                         'key'     => $prev_arg->key,
@@ -588,7 +595,7 @@ class GrammarTemplate
         if ( strlen($s) )
         {
             if ( 0 === $a->node->type ) $a->node->val .= $s;
-            else $a = new GrammarTemplateTplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+            else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
         }
         return array($roottpl, &$subtpl);
     }
