@@ -266,23 +266,141 @@ class GrammarTemplate
         return false;
     }
     
-    private static function walk( $obj, $keys )
+    private static function walk( $obj, $keys, $keys_alt=null, $obj_alt=null )
     {
-        $o = $obj; $l = count($keys); $i = 0;
-        while( $i < $l )
+        $found = 0;
+        if ( $keys )
         {
-            $k = $keys[$i++];
-            if ( isset($o) )
+            $o = $obj;
+            $l = count($keys);
+            $i = 0;
+            $found = 1;
+            while( $i < $l )
             {
-                if ( is_array($o) && isset($o[$k]) )
-                    $o = $o[$k];
-                elseif ( is_object($o) && isset($o->{$k}) )
-                    $o = $o->{$k};
-                else return null;
+                $k = $keys[$i++];
+                if ( isset($o) )
+                {
+                    if ( is_array($o) && isset($o[$k]) )
+                    {
+                        $o = $o[$k];
+                    }
+                    elseif ( is_object($o) && isset($o->{$k}) )
+                    {
+                        $o = $o->{$k};
+                    }
+                    else
+                    {
+                        $found = 0;
+                        break;
+                    }
+                }
+                else
+                {
+                    $found = 0;
+                    break;
+                }
             }
-            else return null;
         }
-        return $o;
+        if ( !$found && $keys_alt )
+        {
+            $o = $obj;
+            $l = count($keys_alt);
+            $i = 0;
+            $found = 1;
+            while( $i < $l )
+            {
+                $k = $keys_alt[$i++];
+                if ( isset($o) )
+                {
+                    if ( is_array($o) && isset($o[$k]) )
+                    {
+                        $o = $o[$k];
+                    }
+                    elseif ( is_object($o) && isset($o->{$k}) )
+                    {
+                        $o = $o->{$k};
+                    }
+                    else
+                    {
+                        $found = 0;
+                        break;
+                    }
+                }
+                else
+                {
+                    $found = 0;
+                    break;
+                }
+            }
+        }
+        if ( !$found && (null !== $obj_alt) && ($obj_alt !== $obj) )
+        {
+            if ( $keys )
+            {
+                $o = $obj_alt;
+                $l = count($keys);
+                $i = 0;
+                $found = 1;
+                while( $i < $l )
+                {
+                    $k = $keys[$i++];
+                    if ( isset($o) )
+                    {
+                        if ( is_array($o) && isset($o[$k]) )
+                        {
+                            $o = $o[$k];
+                        }
+                        elseif ( is_object($o) && isset($o->{$k}) )
+                        {
+                            $o = $o->{$k};
+                        }
+                        else
+                        {
+                            $found = 0;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        $found = 0;
+                        break;
+                    }
+                }
+            }
+            if ( !$found && $keys_alt )
+            {
+                $o = $obj_alt;
+                $l = count($keys_alt);
+                $i = 0;
+                $found = 1;
+                while( $i < $l )
+                {
+                    $k = $keys_alt[$i++];
+                    if ( isset($o) )
+                    {
+                        if ( is_array($o) && isset($o[$k]) )
+                        {
+                            $o = $o[$k];
+                        }
+                        elseif ( is_object($o) && isset($o->{$k}) )
+                        {
+                            $o = $o->{$k};
+                        }
+                        else
+                        {
+                            $found = 0;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        $found = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        return $found ? $o : null;
     }
     
     public static function multisplit( $tpl, $delims )
@@ -600,9 +718,10 @@ class GrammarTemplate
         return array($roottpl, &$subtpl);
     }
 
-    public static function optional_block( &$SUB, $args, $block, $index=null )
+    public static function optional_block( $args, $block, &$SUB, $index=null, $orig_args=null )
     {
         $out = '';
+        $block_arg = null;
         
         if ( -1 === $block->type )
         {
@@ -611,48 +730,38 @@ class GrammarTemplate
             while( $opt_vars )
             {
                 $opt_v = $opt_vars->value;
-                $opt_arg = self::walk( $args, $opt_v[1] ? $opt_v[1] : array($opt_v[0]) );
+                $opt_arg = self::walk( $args, $opt_v[1], array($opt_v[0]), $orig_args );
+                if ( (null === $block_arg) && ($block->name === $opt_v[0]) ) $block_arg = $opt_arg;
+                
                 if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
                 $opt_vars = $opt_vars->prev;
             }
         }
-        
-        if ( $block->key )
-        {
-            $opt_arg = self::walk( $args, $block->key )/*nested key*/;
-            if ( (null === $opt_arg) && isset($args[$block->name]) ) $opt_arg = $args[$block->name];
-        }
         else
         {
-            $opt_arg = self::walk( $args, array($block->name) )/*plain key*/;
+            $block_arg = self::walk( $args, $block->key, array($block->name), $orig_args );
         }
-        $arr = self::is_array( $opt_arg ); $len = $arr ? count($opt_arg) : -1;
+        
+        $arr = self::is_array( $block_arg ); $len = $arr ? count($block_arg) : -1;
         if ( $arr && ($len > $block->start) )
         {
-            for($rs=$block->start,$re=(-1===$block->end?$len-1:min($block->end, $len-1)),$ri=$rs; $ri<=$re; $ri++)
-                $out .= self::main( $SUB, $args, $block->tpl, $ri );
+            for($rs=$block->start,$re=(-1===$block->end?$len-1:min($block->end,$len-1)),$ri=$rs; $ri<=$re; $ri++)
+                $out .= self::main( $args, $block->tpl, $SUB, $ri, $orig_args );
         }
         else if ( !$arr && ($block->start === $block->end) )
         {
-            $out = self::main( $SUB, $args, $block->tpl, null );
+            $out = self::main( $args, $block->tpl, $SUB, null, $orig_args );
         }
         return $out;
     }
-    public static function non_terminal( &$SUB, $args, $symbol, $index=null )
+    public static function non_terminal( $args, $symbol, &$SUB, $index=null, $orig_args=null )
     {
         $out = '';
         if ( !empty($SUB) && $symbol->stpl && isset($SUB[$symbol->stpl]) )
         {
             // using sub-template
-            if ( $symbol->key )
-            {
-                $opt_arg = self::walk( $args, $symbol->key )/*nested key*/;
-                if ( (null === $opt_arg) && isset($args[$symbol->name]) ) $opt_arg = $args[$symbol->name];
-            }
-            else
-            {
-                $opt_arg = self::walk( $args, array($symbol->name) )/*plain key*/;
-            }
+            $opt_arg = self::walk( $args, $symbol->key, array($symbol->name), $orig_args );
+            
             if ( (null !== $index) && self::is_array($opt_arg) )
             {
                 $opt_arg = count($opt_arg) > $index ? $opt_arg[$index] : null;
@@ -673,41 +782,34 @@ class GrammarTemplate
                     if ( self::is_array($opt_arg) ) $tpl_args[$tpl->name] = $opt_arg;
                     else $tpl_args = $opt_arg;
                 }
-                $out = self::optional_block( $SUB, $tpl_args, $tpl, null );
+                $out = self::optional_block( $tpl_args, $tpl, $SUB, null, null === $orig_args ? $args : $orig_args );
             }
         }
         else
         {
             // plain symbol argument
-            if ( $symbol->key )
-            {
-                $opt_arg = self::walk( $args, $symbol->key )/*nested key*/;
-                if ( (null === $opt_arg) && isset($args[$symbol->name]) ) $opt_arg = $args[$symbol->name];
-            }
-            else
-            {
-                $opt_arg = self::walk( $args, array($symbol->name) )/*plain key*/;
-            }
+            $opt_arg = self::walk( $args, $symbol->key, array($symbol->name), $orig_args );
+            
             // default value if missing
             if ( self::is_array($opt_arg) )
             {
                 $index = null !== $index ? $index : $symbol->start;
-                $opt_arg = count($opt_arg) > $index ? $opt_arg[$index] : null;
+                $opt_arg = $index < count($opt_arg) ? $opt_arg[$index] : null;
             }
             $out = (null === $opt_arg) && (null !== $symbol->dval) ? $symbol->dval : strval($opt_arg);
         }
         return $out;
     }
-    public static function main( &$SUB, $args, $tpl, $index=null )
+    public static function main( $args, $tpl, &$SUB=null, $index=null, $orig_args=null )
     {
         $out = '';
         while ( $tpl )
         {
             $tt = $tpl->node->type;
             $out .= (-1 === $tt
-                ? self::optional_block( $SUB, $args, $tpl->node, $index ) /* optional code-block */
+                ? self::optional_block( $args, $tpl->node, $SUB, $index, $orig_args ) /* optional code-block */
                 : (1 === $tt
-                ? self::non_terminal( $SUB, $args, $tpl->node, $index ) /* non-terminal */
+                ? self::non_terminal( $args, $tpl->node, $SUB, $index, $orig_args ) /* non-terminal */
                 : $tpl->node->val /* terminal */
             ));
             $tpl = $tpl->next;
@@ -762,7 +864,7 @@ class GrammarTemplate
     {
         // lazy init
         if ( false === $this->_parsed ) $this->parse( );
-        return self::main( $this->tpl[1], null === $args ? array() : $args, $this->tpl[0] );
+        return self::main( null === $args ? array() : $args, $this->tpl[0], $this->tpl[1] );
     }
 }    
 }

@@ -229,16 +229,93 @@ StringTemplate[PROTO] = {
 };
 
 // https://github.com/foo123/GrammarTemplate
-function walk( obj, keys )
+function walk( obj, keys, keys_alt, obj_alt )
 {
-    var o = obj, l = keys.length, i = 0, k;
-    while( i < l )
+    var o, l, i, k, found = 0;
+    if ( keys )
     {
-        k = keys[i++];
-        if ( (null != o) && (null != o[k]) ) o = o[k];
-        else return null;
+        o = obj;
+        l = keys.length;
+        i = 0;
+        found = 1;
+        while( i < l )
+        {
+            k = keys[i++];
+            if ( (null != o) && (null != o[k]) )
+            {
+                o = o[k];
+            }
+            else
+            {
+                found = 0;
+                break;
+            }
+        }
     }
-    return o;
+    if ( !found && keys_alt )
+    {
+        o = obj;
+        l = keys_alt.length;
+        i = 0;
+        found = 1;
+        while( i < l )
+        {
+            k = keys_alt[i++];
+            if ( (null != o) && (null != o[k]) )
+            {
+                o = o[k];
+            }
+            else
+            {
+                found = 0;
+                break;
+            }
+        }
+    }
+    if ( !found && (null != obj_alt) && (obj_alt !== obj) )
+    {
+        if ( keys )
+        {
+            o = obj_alt;
+            l = keys.length;
+            i = 0;
+            found = 1;
+            while( i < l )
+            {
+                k = keys[i++];
+                if ( (null != o) && (null != o[k]) )
+                {
+                    o = o[k];
+                }
+                else
+                {
+                    found = 0;
+                    break;
+                }
+            }
+        }
+        if ( !found && keys_alt )
+        {
+            o = obj_alt;
+            l = keys_alt.length;
+            i = 0;
+            found = 1;
+            while( i < l )
+            {
+                k = keys_alt[i++];
+                if ( (null != o) && (null != o[k]) )
+                {
+                    o = o[k];
+                }
+                else
+                {
+                    found = 0;
+                    break;
+                }
+            }
+        }
+    }
+    return found ? o : null;
 }
 function StackEntry( stack, value )
 {
@@ -563,9 +640,9 @@ function multisplit( tpl, delims )
     return [roottpl, subtpl];
 }
 
-function optional_block( SUB, args, block, index )
+function optional_block( args, block, SUB, index, orig_args )
 {
-    var opt_vars, opt_v, opt_arg, arr, rs, re, ri, out = '';
+    var opt_vars, opt_v, opt_arg, arr, rs, re, ri, len, block_arg = null, out = '';
     
     if ( -1 === block.type )
     {
@@ -574,7 +651,9 @@ function optional_block( SUB, args, block, index )
         while( opt_vars )
         {
             opt_v = opt_vars.value;
-            opt_arg = opt_v[1] ? walk( args, opt_v[1] ) : args[opt_v[0]];
+            opt_arg = walk( args, opt_v[1], [opt_v[0]], orig_args );
+            if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
+            
             if ( (0 === opt_v[2] && null == opt_arg) ||
                 (1 === opt_v[2] && null != opt_arg)
             )
@@ -582,43 +661,31 @@ function optional_block( SUB, args, block, index )
             opt_vars = opt_vars.prev;
         }
     }
-    
-    if ( block.key )
-    {
-        opt_arg = walk( args, block.key )/*nested key*/;
-        if ( (null == opt_arg) && args[HAS](block.name) ) opt_arg = args[block.name];
-    }
     else
     {
-        opt_arg = args[block.name]/*plain key*/;
+        block_arg = walk( args, block.key, [block.name], orig_args );
     }
-    arr = is_array( opt_arg );
-    if ( arr && (opt_arg.length > block.start) )
+    
+    arr = is_array( block_arg ); len = arr ? block_arg.length : -1;
+    if ( arr && (len > block.start) )
     {
-        for(rs=block.start,re=(-1===block.end?opt_arg.length-1:Math.min(block.end, opt_arg.length-1)),ri=rs; ri<=re; ri++)
-            out += main( SUB, args, block.tpl, ri );
+        for(rs=block.start,re=(-1===block.end?len-1:Math.min(block.end,len-1)),ri=rs; ri<=re; ri++)
+            out += main( args, block.tpl, SUB, ri, orig_args );
     }
     else if ( !arr && (block.start === block.end) )
     {
-        out = main( SUB, args, block.tpl, null );
+        out = main( args, block.tpl, SUB, null, orig_args );
     }
     return out;
 }
-function non_terminal( SUB, args, symbol, index )
+function non_terminal( args, symbol, SUB, index, orig_args )
 {
     var opt_arg, tpl_args, tpl, out = '';
     if ( SUB && symbol.stpl && SUB[symbol.stpl] )
     {
         // using sub-template
-        if ( symbol.key )
-        {
-            opt_arg = walk( args, symbol.key )/*nested key*/;
-            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
-        }
-        else
-        {
-            opt_arg = args[symbol.name]/*plain key*/;
-        }
+        opt_arg = walk( args, symbol.key, [symbol.name], orig_args );
+        
         if ( null != index && is_array(opt_arg) )
         {
             opt_arg = opt_arg[index];
@@ -639,40 +706,34 @@ function non_terminal( SUB, args, symbol, index )
                 if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
                 else tpl_args = opt_arg;
             }
-            out = optional_block( SUB, tpl_args, tpl, null );
+            out = optional_block( tpl_args, tpl, SUB, null, null == orig_args ? args : orig_args );
         }
     }
     else
     {
         // plain symbol argument
-        if ( symbol.key )
-        {
-            opt_arg = walk( args, symbol.key )/*nested key*/;
-            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
-        }
-        else
-        {
-            opt_arg = args[symbol.name]/*plain key*/;
-        }
+        opt_arg = walk( args, symbol.key, [symbol.name], orig_args );
+        
         // default value if missing
         if ( is_array(opt_arg) )
         {
-            opt_arg = null != index ? opt_arg[index] : opt_arg[symbol.start];
+            index = null != index ? index : symbol.start;
+            opt_arg = index < opt_arg.length ? opt_arg[index] : null;
         }
         out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
     }
     return out;
 }
-function main( SUB, args, tpl, index )
+function main( args, tpl, SUB, index, orig_args )
 {
     var tt, out = '';
     while ( tpl )
     {
         tt = tpl.node.type;
         out += (-1 === tt
-            ? optional_block( SUB, args, tpl.node, index ) /* optional code-block */
+            ? optional_block( args, tpl.node, SUB, index, orig_args ) /* optional code-block */
             : (1 === tt
-            ? non_terminal( SUB, args, tpl.node, index ) /* non-terminal */
+            ? non_terminal( args, tpl.node, SUB, index, orig_args ) /* non-terminal */
             : tpl.node.val /* terminal */
         ));
         tpl = tpl.next;
@@ -727,7 +788,7 @@ GrammarTemplate[PROTO] = {
         var self = this;
         // lazy init
         if ( false === self._parsed ) self.parse( );
-        return GrammarTemplate.main( self.tpl[1], null==args ? {} : args, self.tpl[0] );
+        return GrammarTemplate.main( null==args ? {} : args, self.tpl[0], self.tpl[1] );
     }
 };
 

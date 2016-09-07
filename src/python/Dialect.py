@@ -292,25 +292,98 @@ class StringTemplate:
         return out
 
 # https://github.com/foo123/GrammarTemplate
-def walk( obj, keys ):
-    o = obj
-    l = len(keys)
-    i = 0
-    while i < l:
-        k = keys[i]
-        i += 1
-        if o is not None:
-            if isinstance(o,(list,tuple)) and int(k)<len(o):
-                o = o[k]
-            elif isinstance(o,dict) and (k in o):
-                o = o[k]
+def walk( obj, keys, keys_alt=None, obj_alt=None ):
+    found = 0
+    if keys:
+        o = obj
+        l = len(keys)
+        i = 0
+        found = 1
+        while i < l:
+            k = keys[i]
+            i += 1
+            if o is not None:
+                if isinstance(o,(list,tuple)) and int(k)<len(o):
+                    o = o[k]
+                elif isinstance(o,dict) and (k in o):
+                    o = o[k]
+                else:
+                    try:
+                        o = getattr(o, k)
+                    except AttributeError:
+                        found = 0
+                        break
             else:
-                try:
-                    o = getattr(o, k)
-                except AttributeError:
-                    return None
-        else: return None
-    return o
+                found = 0
+                break
+    if (not found) and keys_alt:
+        o = obj
+        l = len(keys_alt)
+        i = 0
+        found = 1
+        while i < l:
+            k = keys_alt[i]
+            i += 1
+            if o is not None:
+                if isinstance(o,(list,tuple)) and int(k)<len(o):
+                    o = o[k]
+                elif isinstance(o,dict) and (k in o):
+                    o = o[k]
+                else:
+                    try:
+                        o = getattr(o, k)
+                    except AttributeError:
+                        found = 0
+                        break
+            else:
+                found = 0
+                break
+    if (not found) and (obj_alt is not None) and (obj_alt is not obj):
+        if keys:
+            o = obj_alt
+            l = len(keys)
+            i = 0
+            found = 1
+            while i < l:
+                k = keys[i]
+                i += 1
+                if o is not None:
+                    if isinstance(o,(list,tuple)) and int(k)<len(o):
+                        o = o[k]
+                    elif isinstance(o,dict) and (k in o):
+                        o = o[k]
+                    else:
+                        try:
+                            o = getattr(o, k)
+                        except AttributeError:
+                            found = 0
+                            break
+                else:
+                    found = 0
+                    break
+        if (not found) and keys_alt:
+            o = obj_alt
+            l = len(keys_alt)
+            i = 0
+            found = 1
+            while i < l:
+                k = keys_alt[i]
+                i += 1
+                if o is not None:
+                    if isinstance(o,(list,tuple)) and int(k)<len(o):
+                        o = o[k]
+                    elif isinstance(o,dict) and (k in o):
+                        o = o[k]
+                    else:
+                        try:
+                            o = getattr(o, k)
+                        except AttributeError:
+                            found = 0
+                            break
+                else:
+                    found = 0
+                    break
+    return o if found else None
     
 
 class StackEntry:
@@ -613,8 +686,9 @@ def multisplit( tpl, delims ):
     
     return [roottpl, subtpl]
 
-def optional_block( SUB, args, block, index=None ):
+def optional_block( args, block, SUB=None, index=None, orig_args=None ):
     out = ''
+    block_arg = None
     
     if -1 == block['type']:
         # optional block, check if optional variables can be rendered
@@ -622,38 +696,33 @@ def optional_block( SUB, args, block, index=None ):
         if not opt_vars: return ''
         while opt_vars:
             opt_v = opt_vars.value
-            opt_arg = walk( args, opt_v[1] if opt_v[1] else [opt_v[0]] )
+            opt_arg = walk( args, opt_v[1], [opt_v[0]], orig_args )
+            if (block_arg is None) and (block['name'] == opt_v[0]): block_arg = opt_arg
+            
             if ((0 == opt_v[2]) and (opt_arg is None)) or ((1 == opt_v[2]) and (opt_arg is not None)): return ''
             opt_vars = opt_vars.prev
-    
-    if block['key']:
-        opt_arg = walk( args, block['key'] )#nested key
-        if (opt_arg is None) and (block['name'] in args): opt_arg = args[block['name']]
     else:
-        opt_arg = walk( args, [block['name']] )#plain key
+        block_arg = walk( args, block['key'], [block['name']], orig_args )
     
-    arr = is_array( opt_arg )
-    if arr and (len(opt_arg) > block['start']):
+    arr = is_array( block_arg )
+    lenn = len(block_arg) if arr else -1
+    if arr and (lenn > block['start']):
         rs = block['start']
-        re = len(opt_arg)-1 if -1==block['end'] else min(block['end'], len(opt_arg)-1)
+        re = lenn-1 if -1==block['end'] else min(block['end'],lenn-1)
         ri = rs
         while ri <= re:
-            out += main( SUB, args, block['tpl'], ri )
+            out += main( args, block['tpl'], SUB, ri, orig_args )
             ri += 1
     elif (not arr) and (block['start'] == block['end']):
-        out = main( SUB, args, block['tpl'], None )
+        out = main( args, block['tpl'], SUB, None, orig_args )
     
     return out
 
-def non_terminal( SUB, args, symbol, index=None ):
+def non_terminal( args, symbol, SUB=None, index=None, orig_args=None ):
     out = ''
     if SUB and symbol['stpl'] and (symbol['stpl'] in SUB):
         # using sub-template
-        if symbol['key']:
-            opt_arg = walk( args, symbol['key'] )
-            if (opt_arg is None) and (symbol['name'] in args): opt_arg = args[symbol['name']]
-        else:
-            opt_arg = walk( args, [symbol['name']] )
+        opt_arg = walk( args, symbol['key'], [symbol['name']], orig_args )
         
         if (index is not None) and is_array(opt_arg):
             opt_arg = opt_arg[index]
@@ -670,26 +739,24 @@ def non_terminal( SUB, args, symbol, index=None ):
                 #else: tpl_args[tpl['name']] = opt_arg
                 if is_array(opt_arg): tpl_args[tpl['name']] = opt_arg
                 else: tpl_args = opt_arg
-            out = optional_block( SUB, tpl_args, tpl, None )
+            out = optional_block( tpl_args, tpl, SUB, None, args if orig_args is None else orig_args )
     else:
         # plain symbol argument
-        if symbol['key']:
-            opt_arg = walk( args, symbol['key'] )
-            if (opt_arg is None) and (symbol['name'] in args): opt_arg = args[symbol['name']]
-        else:
-            opt_arg = walk( args, [symbol['name']] )
+        opt_arg = walk( args, symbol['key'], [symbol['name']], orig_args )
+        
         # default value if missing
         if is_array(opt_arg):
-            opt_arg = opt_arg[index] if index is not None else opt_arg[symbol['start']]
+            index = index if index is not None else symbol['start']
+            opt_arg = opt_arg[index] if index < len(opt_arg) else None
         out = symbol['dval'] if (opt_arg is None) and (symbol['dval'] is not None) else str(opt_arg)
     
     return out
 
-def main( SUB, args, tpl, index=None ):
+def main( args, tpl, SUB=None, index=None, orig_args=None ):
     out = ''
     while tpl:
         tt = tpl.node['type']
-        out += (optional_block( SUB, args, tpl.node, index ) if -1 == tt else (non_terminal( SUB, args, tpl.node, index ) if 1 == tt else tpl.node['val']))
+        out += (optional_block( args, tpl.node, SUB, index, orig_args ) if -1 == tt else (non_terminal( args, tpl.node, SUB, index, orig_args ) if 1 == tt else tpl.node['val']))
         tpl = tpl.next
     return out
 
@@ -737,7 +804,7 @@ class GrammarTemplate:
     def render(self, args=None):
         # lazy init
         if self._parsed is False: self.parse( )
-        return GrammarTemplate.main( self.tpl[1], {} if None == args else args, self.tpl[0] )
+        return GrammarTemplate.main( {} if None == args else args, self.tpl[0], self.tpl[1] )
 
 
 import copy
