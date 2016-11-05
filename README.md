@@ -326,7 +326,7 @@ dialect.dropTpl('prepared_query');
 ###TODO
 
 * add full support for custom soft views [DONE]
-* add full support for sql directives (e.g `create table`, `drop table`, `alter table` ) [DONE PARTIALY]
+* add full support for sql directives (e.g `create table`, `drop table`, `alter table`, `begin transaction`) [DONE PARTIALY]
 * add full support for other sql vendors (e.g `Oracle` )
 
 
