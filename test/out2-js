@@ -1,0 +1,16 @@
+Dialect.VERSION = 0.8.0
+
+CREATE TABLE IF NOT EXISTS `new_table` (
+id bigint(20) NOT NULL AUTO_INCREMENT,
+name tinytext NOT NULL DEFAULT '',
+categoryid bigint(20) NOT NULL DEFAULT 0,
+companyid bigint(20) NOT NULL DEFAULT 0,
+fields text NOT NULL DEFAULT '',
+start datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+end datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+status tinyint(8) unsigned NOT NULL DEFAULT 0,
+extra text NOT NULL DEFAULT '',
+KEY categoryid  (categoryid),
+KEY companyid  (companyid),
+UNIQUE KEY id  (id)
+) COLLATE=utf8_general_ci

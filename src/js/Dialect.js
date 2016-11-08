@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.7.0
+*   @version: 0.8.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -525,6 +525,7 @@ function multisplit( tpl, delims )
                 key     : nested,
                 stpl    : template,
                 dval    : default_value,
+                opt     : optional,
                 start   : start_i,
                 end     : end_i
             }, a);
@@ -686,9 +687,9 @@ function non_terminal( args, symbol, SUB, index, orig_args )
         // using sub-template
         opt_arg = walk( args, symbol.key, [symbol.name], orig_args );
         
-        if ( null != index && is_array(opt_arg) )
+        if ( (null != index/* || null != symbol.start*/) && (0 !== index || !symbol.opt) && is_array(opt_arg) )
         {
-            opt_arg = opt_arg[index];
+            opt_arg = opt_arg[/*null != index ?*/ index /*: symbol.start*/];
         }
         if ( (null == opt_arg) && (null !== symbol.dval) )
         {
@@ -708,6 +709,11 @@ function non_terminal( args, symbol, SUB, index, orig_args )
             }
             out = optional_block( tpl_args, tpl, SUB, null, null == orig_args ? args : orig_args );
         }
+    }
+    else if ( symbol.opt && (null !== symbol.dval) )
+    {
+        // boolean optional argument
+        out = symbol.dval;
     }
     else
     {
@@ -733,7 +739,7 @@ function main( args, tpl, SUB, index, orig_args )
         out += (-1 === tt
             ? optional_block( args, tpl.node, SUB, index, orig_args ) /* optional code-block */
             : (1 === tt
-            ? non_terminal( args, tpl.node, SUB, index, orig_args ) /* non-terminal */
+            ? non_terminal( args, tpl.node, SUB, /*0 === index ? (tpl.node.opt&&tpl.node.stpl?null:index) : */index, orig_args ) /* non-terminal */
             : tpl.node.val /* terminal */
         ));
         tpl = tpl.next;
@@ -752,7 +758,7 @@ function GrammarTemplate( tpl, delims )
     self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
     self._parsed = false;
 };
-GrammarTemplate.VERSION = '2.0.0';
+GrammarTemplate.VERSION = '2.0.1';
 GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
 GrammarTemplate.guid = guid;
 GrammarTemplate.multisplit = multisplit;
@@ -1272,133 +1278,152 @@ Ref[PROTO] = {
     }
 };
 
+// https://dev.mysql.com/doc/refman/5.0/en/select.html
+// https://dev.mysql.com/doc/refman/5.0/en/join.html
+// https://dev.mysql.com/doc/refman/5.5/en/expressions.html
+// https://dev.mysql.com/doc/refman/5.0/en/insert.html
+// https://dev.mysql.com/doc/refman/5.0/en/update.html
+// https://dev.mysql.com/doc/refman/5.0/en/delete.html
+// http://dev.mysql.com/doc/refman/5.7/en/create-table.html
+// http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
+// http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
+// http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
+// http://dev.mysql.com/doc/refman/5.7/en/user-variables.html
+// http://dev.mysql.com/doc/refman/5.7/en/example-user-variables.html
+// http://www.postgresql.org/docs/
+// http://www.postgresql.org/docs/9.1/static/sql-createtable.html
+// http://www.postgresql.org/docs/9.1/static/sql-droptable.html
+// http://www.postgresql.org/docs/9.1/static/sql-altertable.html
+// https://www.postgresql.org/docs/9.1/static/sql-begin.html
+// https://www.postgresql.org/docs/9.1/static/sql-start-transaction.html
+// http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
+// http://www.postgresql.org/docs/9.1/static/functions-string.html
+// https://www.postgresql.org/docs/8.3/static/plperl-global.html
+// https://msdn.microsoft.com/en-us/library/ms189499.aspx
+// https://msdn.microsoft.com/en-us/library/ms174335.aspx
+// https://msdn.microsoft.com/en-us/library/ms177523.aspx
+// https://msdn.microsoft.com/en-us/library/ms189835.aspx
+// https://msdn.microsoft.com/en-us/library/ms179859.aspx
+// https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
+// https://msdn.microsoft.com/en-us/library/ms174979.aspx
+// https://msdn.microsoft.com/en-us/library/ms173790.aspx
+// https://msdn.microsoft.com/en-us/library/cc879314.aspx
+// http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
+// http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
+// https://msdn.microsoft.com/en-us/library/ms186323.aspx
+// https://www.sqlite.org/lang_createtable.html
+// https://www.sqlite.org/lang_altertable.html
+// https://www.sqlite.org/lang_select.html
+// https://www.sqlite.org/lang_insert.html
+// https://www.sqlite.org/lang_update.html
+// https://www.sqlite.org/lang_delete.html
+// https://www.sqlite.org/lang_transaction.html
+// https://www.sqlite.org/lang_expr.html
+// https://www.sqlite.org/lang_keywords.html
+// http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
+// https://www.sqlite.org/lang_corefunc.html
+// http://www.codeproject.com/Questions/625472/Declare-loacl-variable-in-Sqlite-query
 var dialects = {
- 'mysql'            : {
-    // https://dev.mysql.com/doc/refman/5.0/en/select.html
-    // https://dev.mysql.com/doc/refman/5.0/en/join.html
-    // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-    // https://dev.mysql.com/doc/refman/5.0/en/insert.html
-    // https://dev.mysql.com/doc/refman/5.0/en/update.html
-    // https://dev.mysql.com/doc/refman/5.0/en/delete.html
-    // http://dev.mysql.com/doc/refman/5.7/en/create-table.html
-    // http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
-    // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
-     'quotes'       : [ ["'","'","\\'","\\'"], ['`','`'], ['',''] ]
-    // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
-    ,'functions'    : {
-     'strpos'       : ['POSITION(',2,' IN ',1,')']
-    ,'strlen'       : ['LENGTH(',1,')']
-    ,'strlower'     : ['LCASE(',1,')']
-    ,'strupper'     : ['UCASE(',1,')']
-    ,'trim'         : ['TRIM(',1,')']
-    ,'quote'        : ['QUOTE(',1,')']
-    ,'random'       : ['RAND()']
-    ,'now'          : ['NOW()']
+ "mysql"            : {
+     "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
+    
+    ,"functions"    : {
+     "strpos"       : ["POSITION(",2," IN ",1,")"]
+    ,"strlen"       : ["LENGTH(",1,")"]
+    ,"strlower"     : ["LCASE(",1,")"]
+    ,"strupper"     : ["UCASE(",1,")"]
+    ,"trim"         : ["TRIM(",1,")"]
+    ,"quote"        : ["QUOTE(",1,")"]
+    ,"random"       : ["RAND()"]
+    ,"now"          : ["NOW()"]
     }
-    ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
-    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
-    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
-    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
-    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    
+    ,"clauses"      : {
+     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
+    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
+    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+    ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+    ,"delete"       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
     }
 }
-,'postgres'          : {
-    // http://www.postgresql.org/docs/
-    // http://www.postgresql.org/docs/9.1/static/sql-createtable.html
-    // http://www.postgresql.org/docs/9.1/static/sql-droptable.html
-    // http://www.postgresql.org/docs/9.1/static/sql-altertable.html
-    // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-     'quotes'       : [ ["E'","'","''","''"], ['"','"'], ['',''] ]
-    // http://www.postgresql.org/docs/9.1/static/functions-string.html
-    ,'functions'    : {
-     'strpos'       : ['position(',2,' in ',1,')']
-    ,'strlen'       : ['length(',1,')']
-    ,'strlower'     : ['lower(',1,')']
-    ,'strupper'     : ['upper(',1,')']
-    ,'trim'         : ['trim(',1,')']
-    ,'quote'        : ['quote(',1,')']
-    ,'random'       : ['random()']
-    ,'now'          : ['now()']
+
+
+,"postgres"         : {
+     "quotes"       : [ ["E'","'","''","''"], ["\"","\""], ["",""] ]
+    
+    ,"functions"    : {
+     "strpos"       : ["position(",2," in ",1,")"]
+    ,"strlen"       : ["length(",1,")"]
+    ,"strlower"     : ["lower(",1,")"]
+    ,"strupper"     : ["upper(",1,")"]
+    ,"trim"         : ["trim(",1,")"]
+    ,"quote"        : ["quote(",1,")"]
+    ,"random"       : ["random()"]
+    ,"now"          : ["now()"]
     }
-    ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
-    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
-    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
-    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
-    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    
+    ,"clauses"      : {
+     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?!primary>UNIQUE (<?unique>[,<*unique>])][ <?!unique>PRIMARY KEY (<?primary>[,<*primary>])]]][,\n<*col:COL>]]\n)"
+    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
+    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+    ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,"delete"       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
     }
 }
-,'sqlserver'        : {
-    // https://msdn.microsoft.com/en-us/library/ms189499.aspx
-    // https://msdn.microsoft.com/en-us/library/ms174335.aspx
-    // https://msdn.microsoft.com/en-us/library/ms177523.aspx
-    // https://msdn.microsoft.com/en-us/library/ms189835.aspx
-    // https://msdn.microsoft.com/en-us/library/ms179859.aspx
-    // https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
-    // https://msdn.microsoft.com/en-us/library/ms174979.aspx
-    // https://msdn.microsoft.com/en-us/library/ms173790.aspx
-    // https://msdn.microsoft.com/en-us/library/cc879314.aspx
-    // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-    // http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
-     /*
-"{?SELECT * FROM(\nSELECT {select_columns},ROW_NUMBER() OVER (ORDER BY {order_conditions|(SELECT 1)}) AS __row__\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions)\n) AS __query__ WHERE __query__.__row__ BETWEEN ({offset}+1) AND ({offset}+{count})?}(count){?SELECT {select_columns}\nFROM {from_tables}{?\n{join_clauses}?}(join_clauses){?\nWHERE {where_conditions}?}(where_conditions){?\nGROUP BY {group_conditions}?}(group_conditions){?\nHAVING {having_conditions}?}(having_conditions){?\nORDER BY {order_conditions}?}(order_conditions)?}(!count)"
-     */
-     'quotes'       : [ ["'","'","''","''"], ['[',']'], [''," ESCAPE '\\'"] ]
-    // https://msdn.microsoft.com/en-us/library/ms186323.aspx
-    ,'functions'    : {
-     'strpos'       : ['CHARINDEX(',2,',',1,')']
-    ,'strlen'       : ['LEN(',1,')']
-    ,'strlower'     : ['LOWER(',1,')']
-    ,'strupper'     : ['UPPER(',1,')']
-    ,'trim'         : ['LTRIM(RTRIM(',1,'))']
-    ,'quote'        : ['QUOTENAME(',1,',"\'")']
-    ,'random'       : ['RAND()']
-    ,'now'          : ['CURRENT_TIMESTAMP']
+
+
+,"sqlserver"        : {
+     "quotes"       : [ ["'","'","''","''"], ["[","]"], [""," ESCAPE '\\'"] ]
+    
+    ,"functions"    : {
+     "strpos"       : ["CHARINDEX(",2,",",1,")"]
+    ,"strlen"       : ["LEN(",1,")"]
+    ,"strlower"     : ["LOWER(",1,")"]
+    ,"strupper"     : ["UPPER(",1,")"]
+    ,"trim"         : ["LTRIM(RTRIM(",1,"))"]
+    ,"quote"        : ["QUOTENAME(",1,",\"'\")"]
+    ,"random"       : ["RAND()"]
+    ,"now"          : ["CURRENT_TIMESTAMP"]
     }
-    ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
-    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
-    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
-    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
-    ,'delete'       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    
+    ,"clauses"      : {
+     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
+    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
+    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+    ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
+    ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+    ,"delete"       : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
     }
 }
-,'sqlite'           : {
-    // https://www.sqlite.org/lang_createtable.html
-    // https://www.sqlite.org/lang_select.html
-    // https://www.sqlite.org/lang_insert.html
-    // https://www.sqlite.org/lang_update.html
-    // https://www.sqlite.org/lang_delete.html
-    // https://www.sqlite.org/lang_expr.html
-    // https://www.sqlite.org/lang_keywords.html
-    // http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
-     'quotes'       : [ ["'","'","''","''"], ['"','"'], [''," ESCAPE '\\'"] ]
-    // https://www.sqlite.org/lang_corefunc.html
-    ,'functions'    : {
-     'strpos'       : ['instr(',2,',',1,')']
-    ,'strlen'       : ['length(',1,')']
-    ,'strlower'     : ['lower(',1,')']
-    ,'strupper'     : ['upper(',1,')']
-    ,'trim'         : ['trim(',1,')']
-    ,'quote'        : ['quote(',1,')']
-    ,'random'       : ['random()']
-    ,'now'          : ['datetime(\'now\')']
+
+
+,"sqlite"           : {
+     "quotes"       : [ ["'","'","''","''"], ["\"","\""], [""," ESCAPE '\\'"] ]
+    
+    ,"functions"    : {
+     "strpos"       : ["instr(",2,",",1,")"]
+    ,"strlen"       : ["length(",1,")"]
+    ,"strlower"     : ["lower(",1,")"]
+    ,"strupper"     : ["upper(",1,")"]
+    ,"trim"         : ["trim(",1,")"]
+    ,"quote"        : ["quote(",1,")"]
+    ,"random"       : ["random()"]
+    ,"now"          : ["datetime('now')"]
     }
-    ,'clauses'      : {
-     'create'       : "CREATE TABLE IF NOT EXISTS <create_table>\n(<create_defs>)[<?create_opts>]"
-    ,'alter'        : "ALTER TABLE <alter_table>\n<alter_defs>[<?alter_opts>]"
-    ,'drop'         : "DROP TABLE IF EXISTS <drop_tables>[,<*drop_tables>]"
-    ,'select'       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>[\n<*join_clauses>]][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING (<?having_conditions_required>) AND (<?having_conditions>)][\nHAVING <?having_conditions_required><?!having_conditions>][\nHAVING <?!having_conditions_required><?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
-    ,'insert'       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
-    ,'update'       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]"
-    ,'delete'       : "[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE (<?where_conditions_required>) AND (<?where_conditions>)][\nWHERE <?where_conditions_required><?!where_conditions>][\nWHERE <?!where_conditions_required><?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]"
+    
+    ,"clauses"      : {
+     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)"
+    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
+    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+    ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+    ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
+    ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
+    ,"delete"       : "[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]"
     }
 }
 };
@@ -1431,7 +1456,7 @@ function Dialect( type )
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 }
-Dialect.VERSION = "0.7.0";
+Dialect.VERSION = "0.8.0";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.StringTemplate = StringTemplate;
@@ -1536,6 +1561,12 @@ Dialect[PROTO] = {
         return self;
     }
     
+    ,subquery: function( ) {
+        var self = this, sub;
+        sub = new Dialect( self.type ).driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() );
+        return sub;
+    }
+    
     ,sql: function( ) {
         var self = this, query = null;
         if ( self.clau && self.clauses[HAS]( self.clau ) )
@@ -1556,6 +1587,16 @@ Dialect[PROTO] = {
                 self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' );
             if ( self.clus[HAS]('drop_tables') )
                 self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' );
+            if ( self.clus[HAS]('where_conditions_required') /*&& !!self.clus['where_conditions_required']*/ )
+            {
+                self.clus['where_conditions'] = self.clus[HAS]('where_conditions') ? ('('+self.clus['where_conditions_required']+') AND ('+self.clus['where_conditions']+')') : self.clus['where_conditions_required'];
+                delete self.clus['where_conditions_required'];
+            }
+            if ( self.clus[HAS]('having_conditions_required') /*&& !!self.clus['having_conditions_required']*/ )
+            {
+                self.clus['having_conditions'] = self.clus[HAS]('having_conditions') ? ('('+self.clus['having_conditions_required']+') AND ('+self.clus['having_conditions']+')') : self.clus['having_conditions_required'];
+                delete self.clus['having_conditions_required'];
+            }
             query = self.clauses[ self.clau ].render( self.clus ) || "";
         }
         self.clear( );
@@ -1579,7 +1620,7 @@ Dialect[PROTO] = {
                     self.vews[ view ].clus.where_conditions_required = self.vews[ view ].clus.where_conditions;
                 delete self.vews[ view ].clus.where_conditions;
             }
-            if ( !!self.vews[ view ].clus[HAS]('having_conditions') )
+            if ( self.vews[ view ].clus[HAS]('having_conditions') )
             {
                 if ( !!self.vews[ view ].clus.having_conditions )
                     self.vews[ view ].clus.having_conditions_required = self.vews[ view ].clus.having_conditions;
@@ -1897,41 +1938,50 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,Create: function( table, defs, opts, create_clause ) {
+    ,Create: function( table, qual, cols, opts, create_clause ) {
         var self = this;
         create_clause = create_clause || 'create';
         if ( self.clau !== create_clause ) self.reset(create_clause);
-        self.clus.create_table = self.refs( table, self.tbls );;
-        if ( !!self.clus.create_defs )
-            defs = self.clus.create_defs + ',' + defs;
-        self.clus.create_defs = defs;
-        if ( !!opts )
+        qual = qual || {ifnotexists:1};
+        self.clus.create_table = self.refs( table, self.tbls );
+        self.clus.ifnotexists = qual.ifnotexists ? 1 : null;
+        self.clus.temporary = qual.temporary ? 1 : null;
+        if ( !empty(cols) )
         {
-            if ( !!self.clus.create_opts )
-                opts = self.clus.create_opts + ',' + opts;
-            self.clus.create_opts = opts;
+            cols = array( cols );
+            if ( !self.clus.columns ) self.clus.columns = cols;
+            else self.clus.columns = self.clus.columns.concat(cols);
+        }
+        if ( !empty(opts) )
+        {
+            opts = array( opts );
+            if ( !self.clus.options ) self.clus.options = opts;
+            else self.clus.options = self.clus.options.concat(opts);
         }
         return self;
     }
     
-    ,Alter: function( table, defs, opts, alter_clause ) {
+    ,Alter: function( table, cols, opts, alter_clause ) {
         var self = this;
         alter_clause = alter_clause || 'alter';
         if ( self.clau !== alter_clause ) self.reset(alter_clause);
         self.clus.alter_table = self.refs( table, self.tbls );
-        if ( !!self.clus.alter_defs )
-            defs = self.clus.alter_defs + ',' + defs;
-        self.clus.alter_defs = defs;
-        if ( !!opts )
+        if ( !empty(cols) )
         {
-            if ( !!self.clus.alter_opts )
-                opts = self.clus.alter_opts + ',' + opts;
-            self.clus.alter_opts = opts;
+            cols = array( cols );
+            if ( !self.clus.columns ) self.clus.columns = cols;
+            else self.clus.columns = self.clus.columns.concat(cols);
+        }
+        if ( !empty(opts) )
+        {
+            opts = array( opts );
+            if ( !self.clus.options ) self.clus.options = opts;
+            else self.clus.options = self.clus.options.concat(opts);
         }
         return self;
     }
     
-    ,Drop: function( tables, drop_clause ) {
+    ,Drop: function( tables, qual, drop_clause ) {
         var self = this, view;
         drop_clause = drop_clause || 'drop';
         if ( self.clau !== drop_clause ) self.reset(drop_clause);
@@ -1943,6 +1993,8 @@ Dialect[PROTO] = {
             return self;
         }
         tables = self.refs( null==tables ? '*' : tables, self.tbls );
+        qual = qual || {ifexists:1};
+        self.clus.ifexists = qual.ifexists ? 1 : null;
         if ( !self.clus.drop_tables )
             self.clus.drop_tables = tables;
         else
@@ -2155,9 +2207,13 @@ Dialect[PROTO] = {
     ,Join: function( table, on_cond, join_type ) {
         var self = this, join_clause, field, cond;
         table = self.refs( table, self.tbls )[0].aliased;
+        join_type = empty(join_type) ? null : join_type.toUpperCase();
         if ( empty(on_cond) )
         {
-            join_clause = table;
+            join_clause = {
+                table   : table,
+                type    : join_type
+            };
         }
         else
         {
@@ -2176,12 +2232,14 @@ Dialect[PROTO] = {
                 }
                 on_cond = '(' + self.conditions( on_cond, false ) + ')';
             }
-            join_clause = table + " ON " + on_cond;
+            join_clause = {
+                table   : table,
+                type    : join_type,
+                cond    : on_cond
+            };
         }
-        join_clause = (empty(join_type) ? "JOIN " : (join_type.toUpperCase() + " JOIN ")) + join_clause;
-        if ( !!self.clus.join_clauses )
-            join_clause = self.clus.join_clauses + "\n" + join_clause;
-        self.clus.join_clauses = join_clause;
+        if ( !self.clus.join_clauses ) self.clus.join_clauses = [join_clause];
+        else self.clus.join_clauses.push(join_clause);
         return self;
     }
     
