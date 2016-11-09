@@ -652,7 +652,7 @@ function optional_block( args, block, SUB, index, orig_args )
         while( opt_vars )
         {
             opt_v = opt_vars.value;
-            opt_arg = walk( args, opt_v[1], [opt_v[0]], orig_args );
+            opt_arg = walk( args, opt_v[1], [String(opt_v[0])], orig_args );
             if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
             
             if ( (0 === opt_v[2] && null == opt_arg) ||
@@ -664,7 +664,7 @@ function optional_block( args, block, SUB, index, orig_args )
     }
     else
     {
-        block_arg = walk( args, block.key, [block.name], orig_args );
+        block_arg = walk( args, block.key, [String(block.name)], orig_args );
     }
     
     arr = is_array( block_arg ); len = arr ? block_arg.length : -1;
@@ -685,7 +685,7 @@ function non_terminal( args, symbol, SUB, index, orig_args )
     if ( SUB && symbol.stpl && SUB[symbol.stpl] )
     {
         // using sub-template
-        opt_arg = walk( args, symbol.key, [symbol.name], orig_args );
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], orig_args );
         
         if ( (null != index/* || null != symbol.start*/) && (0 !== index || !symbol.opt) && is_array(opt_arg) )
         {
@@ -718,7 +718,7 @@ function non_terminal( args, symbol, SUB, index, orig_args )
     else
     {
         // plain symbol argument
-        opt_arg = walk( args, symbol.key, [symbol.name], orig_args );
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], orig_args );
         
         // default value if missing
         if ( is_array(opt_arg) )
@@ -1278,51 +1278,6 @@ Ref[PROTO] = {
     }
 };
 
-// https://dev.mysql.com/doc/refman/5.0/en/select.html
-// https://dev.mysql.com/doc/refman/5.0/en/join.html
-// https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-// https://dev.mysql.com/doc/refman/5.0/en/insert.html
-// https://dev.mysql.com/doc/refman/5.0/en/update.html
-// https://dev.mysql.com/doc/refman/5.0/en/delete.html
-// http://dev.mysql.com/doc/refman/5.7/en/create-table.html
-// http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
-// http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
-// http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
-// http://dev.mysql.com/doc/refman/5.7/en/user-variables.html
-// http://dev.mysql.com/doc/refman/5.7/en/example-user-variables.html
-// http://www.postgresql.org/docs/
-// http://www.postgresql.org/docs/9.1/static/sql-createtable.html
-// http://www.postgresql.org/docs/9.1/static/sql-droptable.html
-// http://www.postgresql.org/docs/9.1/static/sql-altertable.html
-// https://www.postgresql.org/docs/9.1/static/sql-begin.html
-// https://www.postgresql.org/docs/9.1/static/sql-start-transaction.html
-// http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-// http://www.postgresql.org/docs/9.1/static/functions-string.html
-// https://www.postgresql.org/docs/8.3/static/plperl-global.html
-// https://msdn.microsoft.com/en-us/library/ms189499.aspx
-// https://msdn.microsoft.com/en-us/library/ms174335.aspx
-// https://msdn.microsoft.com/en-us/library/ms177523.aspx
-// https://msdn.microsoft.com/en-us/library/ms189835.aspx
-// https://msdn.microsoft.com/en-us/library/ms179859.aspx
-// https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
-// https://msdn.microsoft.com/en-us/library/ms174979.aspx
-// https://msdn.microsoft.com/en-us/library/ms173790.aspx
-// https://msdn.microsoft.com/en-us/library/cc879314.aspx
-// http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-// http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
-// https://msdn.microsoft.com/en-us/library/ms186323.aspx
-// https://www.sqlite.org/lang_createtable.html
-// https://www.sqlite.org/lang_altertable.html
-// https://www.sqlite.org/lang_select.html
-// https://www.sqlite.org/lang_insert.html
-// https://www.sqlite.org/lang_update.html
-// https://www.sqlite.org/lang_delete.html
-// https://www.sqlite.org/lang_transaction.html
-// https://www.sqlite.org/lang_expr.html
-// https://www.sqlite.org/lang_keywords.html
-// http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
-// https://www.sqlite.org/lang_corefunc.html
-// http://www.codeproject.com/Questions/625472/Declare-loacl-variable-in-Sqlite-query
 var dialects = {
  "mysql"            : {
      "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
@@ -1339,9 +1294,10 @@ var dialects = {
     }
     
     ,"clauses"      : {
-     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+     "transact"     : "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+    ,"create"       : "[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]"
+    ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+    ,"drop"         : "DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
     ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
     ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
@@ -1365,9 +1321,10 @@ var dialects = {
     }
     
     ,"clauses"      : {
-     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?!primary>UNIQUE (<?unique>[,<*unique>])][ <?!unique>PRIMARY KEY (<?primary>[,<*primary>])]]][,\n<*col:COL>]]\n)"
-    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+     "transact"     : "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+    ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]"
+    ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+    ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
     ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
     ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
@@ -1391,9 +1348,10 @@ var dialects = {
     }
     
     ,"clauses"      : {
-     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+     "transact"     : "BEGIN TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+    ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]"
+    ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+    ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
     ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
     ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -1417,9 +1375,10 @@ var dialects = {
     }
     
     ,"clauses"      : {
-     "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)"
-    ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-    ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+     "transact"     : "BEGIN <?type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+    ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]"
+    ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+    ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>"
     ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
     ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
     ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
@@ -1563,7 +1522,9 @@ Dialect[PROTO] = {
     
     ,subquery: function( ) {
         var self = this, sub;
-        sub = new Dialect( self.type ).driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() );
+        sub = new Dialect( self.type );
+        sub.driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() );
+        sub.vews = self.vews;
         return sub;
     }
     
@@ -1938,50 +1899,70 @@ Dialect[PROTO] = {
         return self;
     }
     
-    ,Create: function( table, qual, cols, opts, create_clause ) {
-        var self = this;
+    ,Transaction: function( options, transact_clause ) {
+        var self = this, statements;
+        transact_clause = transact_clause || 'transact';
+        if ( self.clau !== transact_clause ) self.reset(transact_clause);
+        options = options || {};
+        self.clus.type = options.type || null;
+        self.clus.rollback = options.rollback ? 1 : null;
+        if ( !empty(options.statements) )
+        {
+            statements = array(statements);
+            if ( !self.clus.statements ) self.clus.statements = statements;
+            else self.clus.statements = self.clus.statements.concat(statements);
+        }
+        return self;
+    }
+    
+    ,Create: function( table, options, create_clause ) {
+        var self = this, cols, opts;
         create_clause = create_clause || 'create';
         if ( self.clau !== create_clause ) self.reset(create_clause);
-        qual = qual || {ifnotexists:1};
+        options = options || {ifnotexists:1};
         self.clus.create_table = self.refs( table, self.tbls );
-        self.clus.ifnotexists = qual.ifnotexists ? 1 : null;
-        self.clus.temporary = qual.temporary ? 1 : null;
-        if ( !empty(cols) )
+        self.clus.view = options.view ? 1 : null;
+        self.clus.ifnotexists = options.ifnotexists ? 1 : null;
+        self.clus.temporary = options.temporary ? 1 : null;
+        self.clus.query = !empty(options.query) ? options.query : null;
+        if ( !empty(options.columns) )
         {
-            cols = array( cols );
+            cols = array( options.columns );
             if ( !self.clus.columns ) self.clus.columns = cols;
             else self.clus.columns = self.clus.columns.concat(cols);
         }
-        if ( !empty(opts) )
+        if ( !empty(options.table) )
         {
-            opts = array( opts );
+            opts = array( options.table );
             if ( !self.clus.options ) self.clus.options = opts;
             else self.clus.options = self.clus.options.concat(opts);
         }
         return self;
     }
     
-    ,Alter: function( table, cols, opts, alter_clause ) {
-        var self = this;
+    ,Alter: function( table, options, alter_clause ) {
+        var self = this, cols, opts;
         alter_clause = alter_clause || 'alter';
         if ( self.clau !== alter_clause ) self.reset(alter_clause);
         self.clus.alter_table = self.refs( table, self.tbls );
-        if ( !empty(cols) )
+        options = options || {};
+        self.clus.view = options.view ? 1 : null;
+        if ( !empty(options.columns) )
         {
-            cols = array( cols );
+            cols = array( options.columns );
             if ( !self.clus.columns ) self.clus.columns = cols;
             else self.clus.columns = self.clus.columns.concat(cols);
         }
-        if ( !empty(opts) )
+        if ( !empty(options.table) )
         {
-            opts = array( opts );
+            opts = array( options.table );
             if ( !self.clus.options ) self.clus.options = opts;
             else self.clus.options = self.clus.options.concat(opts);
         }
         return self;
     }
     
-    ,Drop: function( tables, qual, drop_clause ) {
+    ,Drop: function( tables, options, drop_clause ) {
         var self = this, view;
         drop_clause = drop_clause || 'drop';
         if ( self.clau !== drop_clause ) self.reset(drop_clause);
@@ -1993,8 +1974,10 @@ Dialect[PROTO] = {
             return self;
         }
         tables = self.refs( null==tables ? '*' : tables, self.tbls );
-        qual = qual || {ifexists:1};
-        self.clus.ifexists = qual.ifexists ? 1 : null;
+        options = options || {ifexists:1};
+        self.clus.view = options.view ? 1 : null;
+        self.clus.ifexists = options.ifexists ? 1 : null;
+        self.clus.temporary = options.temporary ? 1 : null;
         if ( !self.clus.drop_tables )
             self.clus.drop_tables = tables;
         else

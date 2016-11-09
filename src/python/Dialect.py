@@ -697,13 +697,13 @@ def optional_block( args, block, SUB=None, index=None, orig_args=None ):
         if not opt_vars: return ''
         while opt_vars:
             opt_v = opt_vars.value
-            opt_arg = walk( args, opt_v[1], [opt_v[0]], orig_args )
+            opt_arg = walk( args, opt_v[1], [str(opt_v[0])], orig_args )
             if (block_arg is None) and (block['name'] == opt_v[0]): block_arg = opt_arg
             
             if ((0 == opt_v[2]) and (opt_arg is None)) or ((1 == opt_v[2]) and (opt_arg is not None)): return ''
             opt_vars = opt_vars.prev
     else:
-        block_arg = walk( args, block['key'], [block['name']], orig_args )
+        block_arg = walk( args, block['key'], [str(block['name'])], orig_args )
     
     arr = is_array( block_arg )
     lenn = len(block_arg) if arr else -1
@@ -723,7 +723,7 @@ def non_terminal( args, symbol, SUB=None, index=None, orig_args=None ):
     out = ''
     if SUB and symbol['stpl'] and (symbol['stpl'] in SUB):
         # using sub-template
-        opt_arg = walk( args, symbol['key'], [symbol['name']], orig_args )
+        opt_arg = walk( args, symbol['key'], [str(symbol['name'])], orig_args )
         
         #if ((index is not None) or (symbol['start'] is not None)) and is_array(opt_arg):
         #    opt_arg = opt_arg[index] if index is not None else opt_arg[symbol['start']]
@@ -748,7 +748,7 @@ def non_terminal( args, symbol, SUB=None, index=None, orig_args=None ):
         out = symbol['dval']
     else:
         # plain symbol argument
-        opt_arg = walk( args, symbol['key'], [symbol['name']], orig_args )
+        opt_arg = walk( args, symbol['key'], [str(symbol['name'])], orig_args )
         
         # default value if missing
         if is_array(opt_arg):
@@ -1131,51 +1131,6 @@ class Dialect:
     GrammarTemplate = GrammarTemplate
     Ref = Ref
 
-    # https://dev.mysql.com/doc/refman/5.0/en/select.html
-    # https://dev.mysql.com/doc/refman/5.0/en/join.html
-    # https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-    # https://dev.mysql.com/doc/refman/5.0/en/insert.html
-    # https://dev.mysql.com/doc/refman/5.0/en/update.html
-    # https://dev.mysql.com/doc/refman/5.0/en/delete.html
-    # http://dev.mysql.com/doc/refman/5.7/en/create-table.html
-    # http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
-    # http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
-    # http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
-    # http://dev.mysql.com/doc/refman/5.7/en/user-variables.html
-    # http://dev.mysql.com/doc/refman/5.7/en/example-user-variables.html
-    # http://www.postgresql.org/docs/
-    # http://www.postgresql.org/docs/9.1/static/sql-createtable.html
-    # http://www.postgresql.org/docs/9.1/static/sql-droptable.html
-    # http://www.postgresql.org/docs/9.1/static/sql-altertable.html
-    # https://www.postgresql.org/docs/9.1/static/sql-begin.html
-    # https://www.postgresql.org/docs/9.1/static/sql-start-transaction.html
-    # http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-    # http://www.postgresql.org/docs/9.1/static/functions-string.html
-    # https://www.postgresql.org/docs/8.3/static/plperl-global.html
-    # https://msdn.microsoft.com/en-us/library/ms189499.aspx
-    # https://msdn.microsoft.com/en-us/library/ms174335.aspx
-    # https://msdn.microsoft.com/en-us/library/ms177523.aspx
-    # https://msdn.microsoft.com/en-us/library/ms189835.aspx
-    # https://msdn.microsoft.com/en-us/library/ms179859.aspx
-    # https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
-    # https://msdn.microsoft.com/en-us/library/ms174979.aspx
-    # https://msdn.microsoft.com/en-us/library/ms173790.aspx
-    # https://msdn.microsoft.com/en-us/library/cc879314.aspx
-    # http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-    # http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
-    # https://msdn.microsoft.com/en-us/library/ms186323.aspx
-    # https://www.sqlite.org/lang_createtable.html
-    # https://www.sqlite.org/lang_altertable.html
-    # https://www.sqlite.org/lang_select.html
-    # https://www.sqlite.org/lang_insert.html
-    # https://www.sqlite.org/lang_update.html
-    # https://www.sqlite.org/lang_delete.html
-    # https://www.sqlite.org/lang_transaction.html
-    # https://www.sqlite.org/lang_expr.html
-    # https://www.sqlite.org/lang_keywords.html
-    # http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
-    # https://www.sqlite.org/lang_corefunc.html
-    # http://www.codeproject.com/Questions/625472/Declare-loacl-variable-in-Sqlite-query
     dialects = {
      "mysql"            : {
          "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
@@ -1192,9 +1147,10 @@ class Dialect:
         }
         
         ,"clauses"      : {
-         "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-        ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     : "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       : "[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]"
+        ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         : "DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
@@ -1218,9 +1174,10 @@ class Dialect:
         }
         
         ,"clauses"      : {
-         "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?!primary>UNIQUE (<?unique>[,<*unique>])][ <?!unique>PRIMARY KEY (<?primary>[,<*primary>])]]][,\n<*col:COL>]]\n)"
-        ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     : "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]"
+        ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
@@ -1244,9 +1201,10 @@ class Dialect:
         }
         
         ,"clauses"      : {
-         "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-        ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     : "BEGIN TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]"
+        ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
         ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -1270,9 +1228,10 @@ class Dialect:
         }
         
         ,"clauses"      : {
-         "create"       : "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)"
-        ,"alter"        : "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         : "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     : "BEGIN <?type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]"
+        ,"alter"        : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>"
         ,"select"       : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         ,"insert"       : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
@@ -1368,7 +1327,9 @@ class Dialect:
         return self
     
     def subquery( self ):
-        sub = Dialect( self.type ).driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() )
+        sub = Dialect( self.type )
+        sub.driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() )
+        sub.vews = self.vews
         return sub
     
     def sql( self ):
@@ -1631,34 +1592,51 @@ class Dialect:
            del self.tpls[ tpl ]
         return self
     
-    def Create( self, table, qual, cols, opts=None, create_clause='create' ):
+    def Transaction( self, options, transact_clause='transact' ):
+        if self.clau != transact_clause: self.reset(transact_clause)
+        options = {} if empty(options) else options
+        self.clus['type'] = options['type'] if options and ('type' in options) and not empty(options['type']) else None
+        self.clus['rollback'] = 1 if options and ('rollback' in options) and options['rollback'] else None
+        if ('statements' in options) and not empty(options['statements']):
+            statements = array(options['statements'])
+            if ('statements' not in self.clus) or not len(self.clus['statements']):
+                self.clus['statements'] = statements
+            else:
+                self.clus['statements'] = self.clus['statements'] + statements
+        return self
+    
+    def Create( self, table, options=None, create_clause='create' ):
         if self.clau != create_clause: self.reset(create_clause)
-        qual = {'ifnotexists':1} if not qual else qual
-        table = self.refs( table, self.tbls )[0].full
+        options = {'ifnotexists':1} if empty(options) else options
+        table = self.refs( table, self.tbls )
         self.clus['create_table'] = table
-        self.clus['ifnotexists'] = 1 if qual and ('ifnotexists' in qual) and qual['ifnotexists'] else None
-        self.clus['temporary'] = 1 if qual and ('temporary' in qual) and qual['temporary'] else None
-        if not empty(cols):
-            cols = array(cols)
+        self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
+        self.clus['ifnotexists'] = 1 if options and ('ifnotexists' in options) and options['ifnotexists'] else None
+        self.clus['temporary'] = 1 if options and ('temporary' in options) and options['temporary'] else None
+        self.clus['query'] = str(options['query']) if options and ('query' in options) and len(str(options['query'])) else None
+        if ('columns' in options) and not empty(options['columns']):
+            cols = array(options['columns'])
             self.clus['columns'] = cols if 'columns' not in self.clus else self.clus['columns'] + cols
-        if not empty(opts):
-            opts = array(opts)
+        if ('table' in options) and not empty(options['table']):
+            opts = array(options['table'])
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
     
-    def Alter( self, table, cols, opts=None, alter_clause='alter' ):
+    def Alter( self, table, options=None, alter_clause='alter' ):
         if self.clau != alter_clause: self.reset(alter_clause)
-        table = self.refs( table, self.tbls )[0].full
+        table = self.refs( table, self.tbls )
         self.clus['alter_table'] = table
-        if not empty(cols):
-            cols = array(cols)
+        options = {} if empty(options) else options
+        self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
+        if ('columns' in options) and not empty(options['columns']):
+            cols = array(options['columns'])
             self.clus['columns'] = cols if 'columns' not in self.clus else self.clus['columns'] + cols
-        if not empty(opts):
-            opts = array(opts)
+        if ('table' in options) and not empty(options['table']):
+            opts = array(options['table'])
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
     
-    def Drop( self, tables='*', qual=None, drop_clause='drop' ):
+    def Drop( self, tables='*', options=None, drop_clause='drop' ):
         if self.clau != drop_clause: self.reset(drop_clause)
         view = tables[0] if is_array( tbls ) else tables
         if (view in self.vews):
@@ -1667,8 +1645,10 @@ class Dialect:
             return self
         
         tables = self.refs( '*' if not tables else tables, self.tbls )
-        qual = {'ifexists':1} if not qual else qual
-        self.clus['ifexists'] = 1 if qual and ('ifexists' in qual) and qual['ifexists'] else None
+        options = {'ifexists':1} if empty(options) else options
+        self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
+        self.clus['ifexists'] = 1 if options and ('ifexists' in options) and options['ifexists'] else None
+        self.clus['temporary'] = 1 if options and ('temporary' in options) and options['temporary'] else None
         if ('drop_tables' not in self.clus) or not len(self.clus['drop_tables']):
             self.clus['drop_tables'] = tables
         else:

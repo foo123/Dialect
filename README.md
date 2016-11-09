@@ -1,7 +1,7 @@
 Dialect
 =======
 
-**Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript**
+**Cross-Vendor &amp; Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript**
 
 ![Dialect](/dialect.jpg)
 
@@ -41,7 +41,7 @@ Dialect
 
 ###Requirements
 
-* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `MS SQL / SQL Server`, `Oracle`, `DB2`, .. )
+* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), `Oracle`, `DB2`, .. )
 * Easily extended to new `DB`s ( prefereably through a, implementation-independent, config setting )
 * Light-weight ( one class/file per implementation if possible )
 * Speed
@@ -53,13 +53,13 @@ Dialect
 
 ###DB vendor sql support
 
-**(partial in some cases, but easy to extend)**
+**(almost complete, easy to extend further)**
 
 1. [`MySQL`](http://dev.mysql.com/doc/refman/5.7/en/)
 2. [`PostgreSQL`](http://www.postgresql.org/docs/9.1/static/reference.html)
-3. [`MS SQL / Sql Server`](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
+3. [`Transact-SQL` (`SQL Server`)](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
 4. [`SQLite`](https://www.sqlite.org/lang.html)
-5. `Oracle`, .. [TODO]
+5. `Oracle`, `DB2`, .. [TODO]
 
 
 
@@ -87,7 +87,7 @@ FROM <from_tables> [, <*from_tables> ]
 [ LIMIT <offset|0>, <?count> ]
 ```
 
-The `SELECT` clause for `SQL Server (2012+)` with `LIMIT` clause emulation can be described as follows:
+The `SELECT` clause for `Transact-SQL` (`SQL Server` 2012+) with `LIMIT` clause emulation can be described as follows:
 
 ```text
 SELECT <select_columns> [, <*select_columns> ]
@@ -204,6 +204,18 @@ var dialect = new Dialect( [String vendor="mysql"] );
 // NOTE3: field values are automaticaly escaped appropriately except if set otherwise
 // NOTE4: config sql clauses use 'grammar-like templates' to generate vendor-specific sql code in a flexible and intuitive way
 
+// initiate TRANSACTION directive (resets the instance state to TRANSACTION)
+dialect.Transaction( Object options );
+
+// initiate CREATE directive (resets the instance state to CREATE)
+dialect.Create( String table[, Object options] );
+
+// initiate ALTER directive (resets the instance state to ALTER)
+dialect.Alter( String table[, Object options] );
+
+// initiate DROP directive (resets the instance state to DROP)
+dialect.Drop( String table[, Object options] );
+
 // initiate SELECT directive (resets the instance state to SELECT)
 dialect.Select( String | Array fields='*' );
 
@@ -254,6 +266,9 @@ var sql_code = dialect.sql( );
 // else a default escaper will be used, which may not be optimal based on actual DB charset and so on..
 dialect.escape( Function db_escaper );
 
+// build a subquery on an independent dialect instance with exact same settings
+var subquery_sql = dialect.subquery( ).Select('column').From('table').Where({'column':'somevalue'}).sql( );
+
 // prepare a sql_code_string with passed parameters
 var prepared_sql = dialect.prepare( String sql_code, Object parameters [, String left_delimiter='%', String right_delimiter='%'] );
 
@@ -262,7 +277,7 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 
 // available optional modifiers:
 // NOTE: any quotes will be added automaticaly, 
-// quotes, for example for parameters representing strings should not be added manualy
+// quotes, for example for parameters representing strings, should not be added manualy
 // r:       raw, pass as is
 // l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
 // f:       typecast to escaped string or comma-separated list of escaped strings representing table or field reference(s) with appropriate quotes
@@ -326,9 +341,10 @@ dialect.dropTpl('prepared_query');
 ###TODO
 
 * add full support for custom soft views [DONE]
-* add full support for sql directives (e.g `create table`, `drop table`, `alter table`) [DONE]
-* add full support for native sql functions [DONE PARTIALY]
-* add full support for sql transactions (e.g `begin transaction`)
+* add support for native sql functions [DONE]
+* add full support for sql directives (e.g `create table/view`, `drop table/view`, `begin transaction`, `alter table/view`) [ALMOST DONE]
+* add support for subqueries [DONE]
+* optimise and generalise grammar-templates abit [DONE]
 * add full support for other sql vendors (e.g `Oracle`, 'DB2', .. )
 
 

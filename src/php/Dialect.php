@@ -731,7 +731,7 @@ class GrammarTemplate
             while( $opt_vars )
             {
                 $opt_v = $opt_vars->value;
-                $opt_arg = self::walk( $args, $opt_v[1], array($opt_v[0]), $orig_args );
+                $opt_arg = self::walk( $args, $opt_v[1], array((string)$opt_v[0]), $orig_args );
                 if ( (null === $block_arg) && ($block->name === $opt_v[0]) ) $block_arg = $opt_arg;
                 
                 if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
@@ -740,7 +740,7 @@ class GrammarTemplate
         }
         else
         {
-            $block_arg = self::walk( $args, $block->key, array($block->name), $orig_args );
+            $block_arg = self::walk( $args, $block->key, array((string)$block->name), $orig_args );
         }
         
         $arr = self::is_array( $block_arg ); $len = $arr ? count($block_arg) : -1;
@@ -761,7 +761,7 @@ class GrammarTemplate
         if ( !empty($SUB) && $symbol->stpl && isset($SUB[$symbol->stpl]) )
         {
             // using sub-template
-            $opt_arg = self::walk( $args, $symbol->key, array($symbol->name), $orig_args );
+            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $orig_args );
             
             if ( (null !== $index/* || null !== $symbol->start*/) && (0 !== $index || !$symbol->opt) && self::is_array($opt_arg) )
             {
@@ -794,7 +794,7 @@ class GrammarTemplate
         else
         {
             // plain symbol argument
-            $opt_arg = self::walk( $args, $symbol->key, array($symbol->name), $orig_args );
+            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $orig_args );
             
             // default value if missing
             if ( self::is_array($opt_arg) )
@@ -1209,51 +1209,6 @@ class Dialect
     const VERSION = "0.8.0";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
-    // https://dev.mysql.com/doc/refman/5.0/en/select.html
-    // https://dev.mysql.com/doc/refman/5.0/en/join.html
-    // https://dev.mysql.com/doc/refman/5.5/en/expressions.html
-    // https://dev.mysql.com/doc/refman/5.0/en/insert.html
-    // https://dev.mysql.com/doc/refman/5.0/en/update.html
-    // https://dev.mysql.com/doc/refman/5.0/en/delete.html
-    // http://dev.mysql.com/doc/refman/5.7/en/create-table.html
-    // http://dev.mysql.com/doc/refman/5.7/en/drop-table.html
-    // http://dev.mysql.com/doc/refman/5.7/en/alter-table.html
-    // http://dev.mysql.com/doc/refman/5.7/en/string-functions.html
-    // http://dev.mysql.com/doc/refman/5.7/en/user-variables.html
-    // http://dev.mysql.com/doc/refman/5.7/en/example-user-variables.html
-    // http://www.postgresql.org/docs/
-    // http://www.postgresql.org/docs/9.1/static/sql-createtable.html
-    // http://www.postgresql.org/docs/9.1/static/sql-droptable.html
-    // http://www.postgresql.org/docs/9.1/static/sql-altertable.html
-    // https://www.postgresql.org/docs/9.1/static/sql-begin.html
-    // https://www.postgresql.org/docs/9.1/static/sql-start-transaction.html
-    // http://www.postgresql.org/docs/8.2/static/sql-syntax-lexical.html
-    // http://www.postgresql.org/docs/9.1/static/functions-string.html
-    // https://www.postgresql.org/docs/8.3/static/plperl-global.html
-    // https://msdn.microsoft.com/en-us/library/ms189499.aspx
-    // https://msdn.microsoft.com/en-us/library/ms174335.aspx
-    // https://msdn.microsoft.com/en-us/library/ms177523.aspx
-    // https://msdn.microsoft.com/en-us/library/ms189835.aspx
-    // https://msdn.microsoft.com/en-us/library/ms179859.aspx
-    // https://msdn.microsoft.com/en-us/library/ms188385%28v=sql.110%29.aspx
-    // https://msdn.microsoft.com/en-us/library/ms174979.aspx
-    // https://msdn.microsoft.com/en-us/library/ms173790.aspx
-    // https://msdn.microsoft.com/en-us/library/cc879314.aspx
-    // http://stackoverflow.com/questions/603724/how-to-implement-limit-with-microsoft-sql-server
-    // http://stackoverflow.com/questions/971964/limit-10-20-in-sql-server
-    // https://msdn.microsoft.com/en-us/library/ms186323.aspx
-    // https://www.sqlite.org/lang_createtable.html
-    // https://www.sqlite.org/lang_altertable.html
-    // https://www.sqlite.org/lang_select.html
-    // https://www.sqlite.org/lang_insert.html
-    // https://www.sqlite.org/lang_update.html
-    // https://www.sqlite.org/lang_delete.html
-    // https://www.sqlite.org/lang_transaction.html
-    // https://www.sqlite.org/lang_expr.html
-    // https://www.sqlite.org/lang_keywords.html
-    // http://stackoverflow.com/questions/1824490/how-do-you-enable-limit-for-delete-in-sqlite
-    // https://www.sqlite.org/lang_corefunc.html
-    // http://www.codeproject.com/Questions/625472/Declare-loacl-variable-in-Sqlite-query
     public static $dialects = array(
      "mysql"            => array(
          "quotes"       => array( array("'","'","\\'","\\'"), array("`","`"), array("","") )
@@ -1270,9 +1225,10 @@ class Dialect
         )
         
         ,"clauses"      => array(
-         "create"       => "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-        ,"alter"        => "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         => "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     => "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       => "[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]"
+        ,"alter"        => "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         => "DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
         ,"insert"       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
@@ -1296,9 +1252,10 @@ class Dialect
         )
         
         ,"clauses"      => array(
-         "create"       => "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?!primary>UNIQUE (<?unique>[,<*unique>])][ <?!unique>PRIMARY KEY (<?primary>[,<*primary>])]]][,\n<*col:COL>]]\n)"
-        ,"alter"        => "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         => "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     => "START TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       => "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]"
+        ,"alter"        => "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         => "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         ,"insert"       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
@@ -1322,9 +1279,10 @@ class Dialect
         )
         
         ,"clauses"      => array(
-         "create"       => "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)[ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]]"
-        ,"alter"        => "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         => "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     => "BEGIN TRANSACTION  <?type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       => "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]"
+        ,"alter"        => "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         => "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
         ,"select"       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]"
         ,"insert"       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
@@ -1348,9 +1306,10 @@ class Dialect
         )
         
         ,"clauses"      => array(
-         "create"       => "CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> (\n<columns>:=[<col:COL>:=[[<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)"
-        ,"alter"        => "ALTER TABLE <alter_table>\n<columns>[<?options>]"
-        ,"drop"         => "DROP TABLE[ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]"
+         "transact"     => "BEGIN <?type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]"
+        ,"create"       => "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]"
+        ,"alter"        => "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]"
+        ,"drop"         => "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>"
         ,"select"       => "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
         ,"insert"       => "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]"
         ,"update"       => "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]"
@@ -1491,8 +1450,9 @@ class Dialect
     
     public function subquery( )
     {
-        $sub = new self( $this->type );
+        $sub = new Dialect( $this->type );
         $sub->driver( $this->driver() )->escape( $this->escape() )->prefix( $this->prefix() );
+        $sub->vews = $this->vews;
         return $sub;
     }
     
@@ -1865,44 +1825,63 @@ class Dialect
         return $this;
     }
     
-    public function Create( $table, $qual, $cols, $opts=null, $create_clause='create' )
+    public function Transaction( $options, $transact_clause='transact' )
+    {
+        if ( $this->clau !== $transact_clause ) $this->reset($transact_clause);
+        $options = empty($options) ? array() : (array)$options;
+        $this->clus['type'] = !empty($options['type']) ? $options['type'] : null;
+        $this->clus['rollback'] = !empty($options['rollback']) ? 1 : null;
+        if ( !empty($options['statements']) )
+        {
+            $statements = (array)$options['statements'];
+            if ( empty($this->clus['statements']) ) $this->clus['statements'] = $statements;
+            else $this->clus['statements'] = array_merge($this->clus['statements'],$statements);
+        }
+        return $this;
+    }
+    
+    public function Create( $table, $options=null, $create_clause='create' )
     {
         if ( $this->clau !== $create_clause ) $this->reset($create_clause);
-        $qual = empty($qual) ? array('ifnotexists'=>1) : $qual;
+        $options = empty($options) ? array('ifnotexists'=>1) : (array)$options;
         $this->clus['create_table'] = $this->refs( $table, $this->tbls );
-        $this->clus['ifnotexists'] = !empty($qual['ifnotexists']) ? 1 : null;
-        $this->clus['temporary'] = !empty($qual['temporary']) ? 1 : null;
-        if ( !empty($cols) )
+        $this->clus['view'] = !empty($options['view']) ? 1 : null;
+        $this->clus['ifnotexists'] = !empty($options['ifnotexists']) ? 1 : null;
+        $this->clus['temporary'] = !empty($options['temporary']) ? 1 : null;
+        $this->clus['query'] = !empty($options['query']) ? $options['query'] : null;
+        if ( !empty($options['columns']) )
         {
-            $cols = (array)$cols;
+            $cols = (array)$options['columns'];
             $this->clus['columns'] = empty($this->clus['columns']) ? $cols : array_merge($this->clus['columns'], $cols);
         }
-        if ( !empty($opts) )
+        if ( !empty($options['table']) )
         {
-            $opts = (array)$opts;
+            $opts = (array)$options['table'];
             $this->clus['options'] = empty($this->clus['options']) ? $opts : array_merge($this->clus['options'], $opts);
         }
         return $this;
     }
     
-    public function Alter( $table, $cols, $opts=null, $alter_clause='alter' )
+    public function Alter( $table, $options=null, $alter_clause='alter' )
     {
         if ( $this->clau !== $alter_clause ) $this->reset($alter_clause);
         $this->clus['alter_table'] = $this->refs( $table, $this->tbls );
-        if ( !empty($cols) )
+        $options = empty($options) ? array() : (array)$options;
+        $this->clus['view'] = !empty($options['view']) ? 1 : null;
+        if ( !empty($options['columns']) )
         {
-            $cols = (array)$cols;
+            $cols = (array)$options['columns'];
             $this->clus['columns'] = empty($this->clus['columns']) ? $cols : array_merge($this->clus['columns'], $cols);
         }
-        if ( !empty($opts) )
+        if ( !empty($options['table']) )
         {
-            $opts = (array)$opts;
+            $opts = (array)$options['table'];
             $this->clus['options'] = empty($this->clus['options']) ? $opts : array_merge($this->clus['options'], $opts);
         }
         return $this;
     }
     
-    public function Drop( $tables='*', $qual=null, $drop_clause='drop' )
+    public function Drop( $tables='*', $options=null, $drop_clause='drop' )
     {
         if ( $this->clau !== $drop_clause ) $this->reset($drop_clause);
         $view = is_array( $tables ) ? $tables[0] : $tables;
@@ -1913,8 +1892,10 @@ class Dialect
             return $this;
         }
         $tables = $this->refs( empty($tables) ? '*' : $tables, $this->tbls );
-        $qual = empty($qual) ? array('ifexists'=>1) : $qual;
-        $this->clus['ifexists'] = !empty($qual['ifexists']) ? 1 : null;
+        $options = empty($options) ? array('ifexists'=>1) : (array)$options;
+        $this->clus['view'] = !empty($options['view']) ? 1 : null;
+        $this->clus['ifexists'] = !empty($options['ifexists']) ? 1 : null;
+        $this->clus['temporary'] = !empty($options['temporary']) ? 1 : null;
         if ( empty($this->clus['drop_tables']) )
             $this->clus['drop_tables'] = $tables;
         else
