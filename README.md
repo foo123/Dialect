@@ -344,7 +344,7 @@ dialect.dropTpl('prepared_query');
 * add support for native sql functions [DONE]
 * add full support for sql directives (e.g `create table/view`, `drop table/view`, `begin transaction`, `alter table/view`) [ALMOST DONE]
 * add support for subqueries [DONE]
-* optimise and generalise grammar-templates abit [DONE]
+* optimise and generalise grammar-templates abit, use only one (conditional) grammar template for all sql clauses for speed [DONE]
 * add full support for other sql vendors (e.g `Oracle`, 'DB2', .. )
 
 
