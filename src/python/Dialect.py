@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.8.0
+#   @version: 0.8.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -398,7 +398,7 @@ class TplEntry:
         self.prev = tpl
         self.next = None
 
-def multisplit( tpl, delims ):
+def multisplit( tpl, delims, postop=False ):
     IDL = delims[0]
     IDR = delims[1]
     OBL = delims[2]
@@ -423,6 +423,7 @@ def multisplit( tpl, delims ):
     optional = 0
     l = len(tpl)
     
+    postop = postop is True
     a = TplEntry({'type': 0, 'val': ''})
     cur_arg = {
         'type'    : 1,
@@ -477,6 +478,7 @@ def multisplit( tpl, delims ):
                 escaped = False
                 continue
             
+            bypass = False
             # argument
             argument = s
             s = ''
@@ -487,7 +489,17 @@ def multisplit( tpl, delims ):
             else:
                 default_value = None
             
-            c = argument[0]
+            if postop:
+                c = tpl[i:i+2]
+                if (ESC+OPT == c) or (ESC+OPTR == c) or (ESC+REPL == c):
+                    # escaped, bypass
+                    i += 1
+                    c = ''
+                    bypass = True
+                else:
+                    c = tpl[i] if i < l else ''
+            else:
+                c = argument[0]
             if OPT == c or OPTR == c:
                 optional = 1
                 if OPTR == c:
@@ -496,20 +508,37 @@ def multisplit( tpl, delims ):
                 else:
                     start_i = 0
                     end_i = 0
-                argument = argument[1:]
-                if NEG == argument[0]:
-                    negative = 1
-                    argument = argument[1:]
+                if postop:
+                    i += 1
+                    if (i < l) and (NEG == tpl[i]):
+                        negative = 1
+                        i += 1
+                    else:
+                        negative = 0
                 else:
-                    negative = 0
+                    argument = argument[1:]
+                    if NEG == argument[0]:
+                        negative = 1
+                        argument = argument[1:]
+                    else:
+                        negative = 0
             elif REPL == c:
-                s = ''
-                j = 1
-                jl = len(argument)
-                while j < jl and REPR != argument[j]:
-                    s += argument[j]
-                    j += 1
-                argument = argument[j+1:]
+                if postop:
+                    s = ''
+                    j = i+1
+                    jl = l
+                    while (j < jl) and (REPR != tpl[j]):
+                        s += tpl[j]
+                        j += 1
+                    i = j
+                else:
+                    s = ''
+                    j = 1
+                    jl = len(argument)
+                    while (j < jl) and (REPR != argument[j]):
+                        s += argument[j]
+                        j += 1
+                    argument = argument[j+1:]
                 s = s.split(',')
                 if len(s) > 1:
                     start_i = s[0].strip()
@@ -540,7 +569,7 @@ def multisplit( tpl, delims ):
             
             if cur_tpl and (cur_tpl not in arg_tpl): arg_tpl[cur_tpl] = {}
             
-            if TPL+OBL == tpl[i:i+lenTPL+lenOBL]:
+            if (not bypass) and (TPL+OBL == tpl[i:i+lenTPL+lenOBL]):
                 # template definition
                 i += lenTPL
                 template = template if template and len(template) else 'grtpl--'+guid()
@@ -687,7 +716,7 @@ def multisplit( tpl, delims ):
     
     return [roottpl, subtpl]
 
-def optional_block( args, block, SUB=None, index=None, orig_args=None ):
+def optional_block( args, block, SUB=None, FN=None, index=None, orig_args=None ):
     out = ''
     block_arg = None
     
@@ -712,37 +741,50 @@ def optional_block( args, block, SUB=None, index=None, orig_args=None ):
         re = lenn-1 if -1==block['end'] else min(block['end'],lenn-1)
         ri = rs
         while ri <= re:
-            out += main( args, block['tpl'], SUB, ri, orig_args )
+            out += main( args, block['tpl'], SUB, FN, ri, orig_args )
             ri += 1
     elif (not arr) and (block['start'] == block['end']):
-        out = main( args, block['tpl'], SUB, None, orig_args )
+        out = main( args, block['tpl'], SUB, FN, None, orig_args )
     
     return out
 
-def non_terminal( args, symbol, SUB=None, index=None, orig_args=None ):
+def non_terminal( args, symbol, SUB=None, FN=None, index=None, orig_args=None ):
     out = ''
-    if SUB and symbol['stpl'] and (symbol['stpl'] in SUB):
-        # using sub-template
+    if symbol['stpl'] and ((SUB and (symbol['stpl'] in SUB)) or (FN and (symbol['stpl'] in FN)) or ((symbol['stpl'] in GrammarTemplate.fnGlobal))):
+        # using custom function or sub-template
         opt_arg = walk( args, symbol['key'], [str(symbol['name'])], orig_args )
         
-        #if ((index is not None) or (symbol['start'] is not None)) and is_array(opt_arg):
-        #    opt_arg = opt_arg[index] if index is not None else opt_arg[symbol['start']]
-        if (index is not None) and ((index is not 0) or (not symbol['opt'])) and is_array(opt_arg):
-            opt_arg = opt_arg[index]
-        
-        if (opt_arg is None) and (symbol['dval'] is not None):
-            # default value if missing
-            out = symbol['dval']
-        else:
-            # try to associate sub-template parameters to actual input arguments
-            tpl = SUB[symbol['stpl']].node
-            tpl_args = {}
-            if opt_arg is not None:
-                #if (tpl['name'] in opt_arg) and (symbol['name'] not in opt_arg): tpl_args = opt_arg
-                #else: tpl_args[tpl['name']] = opt_arg
-                if is_array(opt_arg): tpl_args[tpl['name']] = opt_arg
-                else: tpl_args = opt_arg
-            out = optional_block( tpl_args, tpl, SUB, None, args if orig_args is None else orig_args )
+        if SUB and (symbol['stpl'] in SUB):
+            # sub-template
+            #if ((index is not None) or (symbol['start'] is not None)) and is_array(opt_arg):
+            #    opt_arg = opt_arg[index] if index is not None else opt_arg[symbol['start']]
+            if (index is not None) and ((index is not 0) or (not symbol['opt'])) and is_array(opt_arg):
+                opt_arg = opt_arg[index]
+            
+            if (opt_arg is None) and (symbol['dval'] is not None):
+                # default value if missing
+                out = symbol['dval']
+            else:
+                # try to associate sub-template parameters to actual input arguments
+                tpl = SUB[symbol['stpl']].node
+                tpl_args = {}
+                if opt_arg is not None:
+                    #if (tpl['name'] in opt_arg) and (symbol['name'] not in opt_arg): tpl_args = opt_arg
+                    #else: tpl_args[tpl['name']] = opt_arg
+                    if is_array(opt_arg): tpl_args[tpl['name']] = opt_arg
+                    else: tpl_args = opt_arg
+                out = optional_block( tpl_args, tpl, SUB, FN, None, args if orig_args is None else orig_args )
+        else:#elif fn:
+            # custom function
+            fn = FN[symbol['stpl']] if FN and (symbol['stpl'] in FN) else (GrammarTemplate.fnGlobal[symbol['stpl']] if symbol['stpl'] in GrammarTemplate.fnGlobal else None)
+            
+            if is_array(opt_arg):
+                index = index if index is not None else symbol['start']
+                opt_arg = opt_arg[index] if index < len(opt_arg) else None
+            
+            opt_arg = fn(opt_arg, index, args, orig_args, symbol) if callable(fn) else str(fn)
+            
+            out = symbol['dval'] if (opt_arg is None) and (symbol['dval'] is not None) else str(opt_arg)
     elif symbol['opt'] and (symbol['dval'] is not None):
         # boolean optional argument
         out = symbol['dval']
@@ -758,11 +800,11 @@ def non_terminal( args, symbol, SUB=None, index=None, orig_args=None ):
     
     return out
 
-def main( args, tpl, SUB=None, index=None, orig_args=None ):
+def main( args, tpl, SUB=None, FN=None, index=None, orig_args=None ):
     out = ''
     while tpl:
         tt = tpl.node['type']
-        out += (optional_block( args, tpl.node, SUB, index, orig_args ) if -1 == tt else (non_terminal( args, tpl.node, SUB, index, orig_args ) if 1 == tt else tpl.node['val']))
+        out += (optional_block( args, tpl.node, SUB, FN, index, orig_args ) if -1 == tt else (non_terminal( args, tpl.node, SUB, FN, index, orig_args ) if 1 == tt else tpl.node['val']))
         tpl = tpl.next
     return out
 
@@ -773,21 +815,22 @@ class GrammarTemplate:
     https://github.com/foo123/GrammarTemplate
     """
     
-    VERSION = '2.0.1'
+    VERSION = '2.1.0'
     
 
     #defaultDelims = ['<','>','[',']',':=','?','*','!','|','{','}']
     defaultDelims = ['<','>','[',']',':=']
+    fnGlobal = {}
     guid = guid
     multisplit = multisplit
     main = main
     
-    def __init__(self, tpl='', delims=None):
+    def __init__(self, tpl='', delims=None, postop=False):
         self.id = None
         self.tpl = None
+        self.fn = {}
         # lazy init
-        self._args = [ tpl, delims if delims else GrammarTemplate.defaultDelims ]
-        self._parsed = False
+        self._args = [ tpl, delims if delims else GrammarTemplate.defaultDelims, postop ]
 
     def __del__(self):
         self.dispose()
@@ -795,22 +838,21 @@ class GrammarTemplate:
     def dispose(self):
         self.id = None
         self.tpl = None
+        self.fn = None
         self._args = None
-        self._parsed = None
         return self
     
     def parse(self):
-        if self._parsed is False:
+        if (self.tpl is None) and (self._args is not None):
             # lazy init
-            self._parsed = True
-            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] )
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1], self._args[2] )
             self._args = None
         return self
     
     def render(self, args=None):
         # lazy init
-        if self._parsed is False: self.parse( )
-        return GrammarTemplate.main( {} if None == args else args, self.tpl[0], self.tpl[1] )
+        if self.tpl is None: self.parse( )
+        return GrammarTemplate.main( {} if None == args else args, self.tpl[0], self.tpl[1], self.fn )
 
 
 import copy
@@ -1124,7 +1166,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.8.0'
+    VERSION = '0.8.1'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate

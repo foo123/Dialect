@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.8.0
+*   @version: 0.8.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -330,7 +330,7 @@ function TplEntry( node, tpl )
     this.next = null;
 }
 
-function multisplit( tpl, delims )
+function multisplit( tpl, delims, postop )
 {
     var IDL = delims[0], IDR = delims[1],
         OBL = delims[2], OBR = delims[3], TPL = delims[4],
@@ -338,11 +338,12 @@ function multisplit( tpl, delims )
         lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
         ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
         REPL = '{', REPR = '}', DOT = '.', REF = ':',
-        default_value = null, negative = 0, optional = 0, nested, start_i, end_i, template,
+        default_value = null, negative = 0, optional = 0, nested, bypass, start_i, end_i, template,
         argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
         roottpl, block, cur_block, prev_arg, prev_opt_args;
     
+    postop = true === postop;
     a = new TplEntry({type: 0, val: ''});
     cur_arg = {
         type    : 1,
@@ -397,7 +398,7 @@ function multisplit( tpl, delims )
                 escaped = false;
                 continue;
             }
-            
+            bypass = 0;
             // argument
             argument = s; s = '';
             if ( -1 < (p=argument.indexOf(DEF)) )
@@ -409,7 +410,25 @@ function multisplit( tpl, delims )
             {
                 default_value = null;
             }
-            c = argument[CHAR](0);
+            if ( postop )
+            {
+                c = tpl.substr(i,2);
+                if ( (ESC+OPT === c) || (ESC+OPTR === c) || (ESC+REPL === c) )
+                {
+                    // escaped, bypass
+                    i += 1;
+                    c = '';
+                    bypass = 1;
+                }
+                else
+                {
+                    c = i < l ? tpl[CHAR](i) : '';
+                }
+            }
+            else
+            {
+                c = argument[CHAR](0);
+            }
             if ( OPT === c || OPTR === c )
             {
                 optional = 1;
@@ -423,35 +442,60 @@ function multisplit( tpl, delims )
                     start_i = 0;
                     end_i = 0;
                 }
-                argument = argument.slice(1);
-                if ( NEG === argument[CHAR](0) )
+                if ( postop )
                 {
-                    negative = 1;
-                    argument = argument.slice(1);
+                    i += 1;
+                    if ( (i < l) && (NEG === tpl[CHAR](i)) )
+                    {
+                        negative = 1;
+                        i += 1;
+                    }
+                    else
+                    {
+                        negative = 0;
+                    }
                 }
                 else
                 {
-                    negative = 0;
+                    argument = argument.slice(1);
+                    if ( NEG === argument[CHAR](0) )
+                    {
+                        negative = 1;
+                        argument = argument.slice(1);
+                    }
+                    else
+                    {
+                        negative = 0;
+                    }
                 }
             }
             else if ( REPL === c )
             {
-                s = ''; j = 1; jl = argument.length;
-                while ( j < jl && REPR !== argument[CHAR](j) ) s += argument[CHAR](j++);
-                argument = argument.slice( j+1 );
+                if ( postop )
+                {
+                    s = ''; j = i+1; jl = l;
+                    while ( (j < jl) && (REPR !== tpl[CHAR](j)) ) s += tpl[CHAR](j++);
+                    i = j;
+                }
+                else
+                {
+                    s = ''; j = 1; jl = argument.length;
+                    while ( (j < jl) && (REPR !== argument[CHAR](j)) ) s += argument[CHAR](j++);
+                    argument = argument.slice( j+1 );
+                }
                 s = s.split(',');
                 if ( s.length > 1 )
                 {
                     start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    start_i = start_i.length ? (+start_i)|0 /*parseInt(start_i,10)||0*/ : 0;
                     end_i = trim(s[1]);
-                    end_i = end_i.length ? parseInt(end_i,10)||0 : -1;
+                    end_i = end_i.length ? (+end_i)|0 /*parseInt(end_i,10)||0*/ : -1;
                     optional = 1;
                 }
                 else
                 {
                     start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    start_i = start_i.length ? (+start_i)|0 /*parseInt(start_i,10)||0*/ : 0;
                     end_i = start_i;
                     optional = 0;
                 }
@@ -473,7 +517,7 @@ function multisplit( tpl, delims )
             
             if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
             
-            if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
+            if ( !bypass && (TPL+OBL === tpl.substr(i,lenTPL+lenOBL)) )
             {
                 // template definition
                 i += lenTPL;
@@ -641,7 +685,7 @@ function multisplit( tpl, delims )
     return [roottpl, subtpl];
 }
 
-function optional_block( args, block, SUB, index, orig_args )
+function optional_block( args, block, SUB, FN, index, orig_args )
 {
     var opt_vars, opt_v, opt_arg, arr, rs, re, ri, len, block_arg = null, out = '';
     
@@ -671,43 +715,62 @@ function optional_block( args, block, SUB, index, orig_args )
     if ( arr && (len > block.start) )
     {
         for(rs=block.start,re=(-1===block.end?len-1:Math.min(block.end,len-1)),ri=rs; ri<=re; ri++)
-            out += main( args, block.tpl, SUB, ri, orig_args );
+            out += main( args, block.tpl, SUB, FN, ri, orig_args );
     }
     else if ( !arr && (block.start === block.end) )
     {
-        out = main( args, block.tpl, SUB, null, orig_args );
+        out = main( args, block.tpl, SUB, FN, null, orig_args );
     }
     return out;
 }
-function non_terminal( args, symbol, SUB, index, orig_args )
+function non_terminal( args, symbol, SUB, FN, index, orig_args )
 {
-    var opt_arg, tpl_args, tpl, out = '';
-    if ( SUB && symbol.stpl && SUB[symbol.stpl] )
+    var opt_arg, tpl_args, tpl, out = '', fn;
+    if ( symbol.stpl && ((SUB && SUB[symbol.stpl]) || (FN && FN[symbol.stpl]) || (GrammarTemplate.fnGlobal[symbol.stpl])) )
     {
-        // using sub-template
+        // using custom function or sub-template
         opt_arg = walk( args, symbol.key, [String(symbol.name)], orig_args );
         
-        if ( (null != index/* || null != symbol.start*/) && (0 !== index || !symbol.opt) && is_array(opt_arg) )
+        if ( SUB && SUB[symbol.stpl] )
         {
-            opt_arg = opt_arg[/*null != index ?*/ index /*: symbol.start*/];
-        }
-        if ( (null == opt_arg) && (null !== symbol.dval) )
-        {
-            // default value if missing
-            out = symbol.dval;
-        }
-        else
-        {
-            // try to associate sub-template parameters to actual input arguments
-            tpl = SUB[symbol.stpl].node; tpl_args = {};
-            if ( null != opt_arg )
+            // sub-template
+            if ( (null != index/* || null != symbol.start*/) && (0 !== index || !symbol.opt) && is_array(opt_arg) )
             {
-                /*if ( opt_arg[HAS](tpl.name) && !opt_arg[HAS](symbol.name) ) tpl_args = opt_arg;
-                else tpl_args[tpl.name] = opt_arg;*/
-                if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
-                else tpl_args = opt_arg;
+                opt_arg = opt_arg[/*null != index ?*/ index /*: symbol.start*/];
             }
-            out = optional_block( tpl_args, tpl, SUB, null, null == orig_args ? args : orig_args );
+            if ( (null == opt_arg) && (null !== symbol.dval) )
+            {
+                // default value if missing
+                out = symbol.dval;
+            }
+            else
+            {
+                // try to associate sub-template parameters to actual input arguments
+                tpl = SUB[symbol.stpl].node; tpl_args = {};
+                if ( null != opt_arg )
+                {
+                    /*if ( opt_arg[HAS](tpl.name) && !opt_arg[HAS](symbol.name) ) tpl_args = opt_arg;
+                    else tpl_args[tpl.name] = opt_arg;*/
+                    if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
+                    else tpl_args = opt_arg;
+                }
+                out = optional_block( tpl_args, tpl, SUB, FN, null, null == orig_args ? args : orig_args );
+            }
+        }
+        else //if ( fn )
+        {
+            // custom function
+            fn = FN && FN[symbol.stpl] ? FN[symbol.stpl] : (GrammarTemplate.fnGlobal[symbol.stpl] ? GrammarTemplate.fnGlobal[symbol.stpl] : null);
+            
+            if ( is_array(opt_arg) )
+            {
+                index = null != index ? index : symbol.start;
+                opt_arg = index < opt_arg.length ? opt_arg[index] : null;
+            }
+            
+            opt_arg = "function" === typeof fn ? fn(opt_arg, index, args, orig_args, symbol) : String(fn);
+            
+            out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
         }
     }
     else if ( symbol.opt && (null !== symbol.dval) )
@@ -730,16 +793,16 @@ function non_terminal( args, symbol, SUB, index, orig_args )
     }
     return out;
 }
-function main( args, tpl, SUB, index, orig_args )
+function main( args, tpl, SUB, FN, index, orig_args )
 {
     var tt, out = '';
     while ( tpl )
     {
         tt = tpl.node.type;
         out += (-1 === tt
-            ? optional_block( args, tpl.node, SUB, index, orig_args ) /* optional code-block */
+            ? optional_block( args, tpl.node, SUB, FN, index, orig_args ) /* optional code-block */
             : (1 === tt
-            ? non_terminal( args, tpl.node, SUB, /*0 === index ? (tpl.node.opt&&tpl.node.stpl?null:index) : */index, orig_args ) /* non-terminal */
+            ? non_terminal( args, tpl.node, SUB, FN, /*0 === index ? (tpl.node.opt&&tpl.node.stpl?null:index) : */index, orig_args ) /* non-terminal */
             : tpl.node.val /* terminal */
         ));
         tpl = tpl.next;
@@ -748,18 +811,19 @@ function main( args, tpl, SUB, index, orig_args )
 }
 
 
-function GrammarTemplate( tpl, delims )
+function GrammarTemplate( tpl, delims, postop )
 {
     var self = this;
-    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims);
+    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims, postop);
     self.id = null;
     self.tpl = null;
+    self.fn = {};
     // lazy init
-    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
-    self._parsed = false;
+    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims, postop||false];
 };
-GrammarTemplate.VERSION = '2.0.1';
+GrammarTemplate.VERSION = '2.1.0';
 GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.fnGlobal = {};
 GrammarTemplate.guid = guid;
 GrammarTemplate.multisplit = multisplit;
 GrammarTemplate.main = main;
@@ -768,24 +832,23 @@ GrammarTemplate[PROTO] = {
     
     ,id: null
     ,tpl: null
-    ,_parsed: false
+    ,fn: null
     ,_args: null
     
     ,dispose: function( ) {
         var self = this;
         self.id = null;
         self.tpl = null;
+        self.fn = null;
         self._args = null;
-        self._parsed = null;
         return self;
     }
     ,parse: function( ) {
         var self = this;
-        if ( false === self._parsed )
+        if ( (null === self.tpl) && (null !== self._args) )
         {
             // lazy init
-            self._parsed = true;
-            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] );
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1], self._args[2] );
             self._args = null;
         }
         return self;
@@ -793,8 +856,8 @@ GrammarTemplate[PROTO] = {
     ,render: function( args ) {
         var self = this;
         // lazy init
-        if ( false === self._parsed ) self.parse( );
-        return GrammarTemplate.main( null==args ? {} : args, self.tpl[0], self.tpl[1] );
+        if ( null === self.tpl ) self.parse( );
+        return GrammarTemplate.main( null==args ? {} : args, self.tpl[0], self.tpl[1], self.fn );
     }
 };
 
@@ -1379,7 +1442,7 @@ function Dialect( type )
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 }
-Dialect.VERSION = "0.8.0";
+Dialect.VERSION = "0.8.1";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.StringTemplate = StringTemplate;
