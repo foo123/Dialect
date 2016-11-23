@@ -470,7 +470,7 @@ class GrammarTemplate
                     $escaped = false;
                     continue;
                 }
-                $bypass = 0;
+                
                 // argument
                 $argument = $s; $s = '';
                 $p = strpos($argument, $DEF);
@@ -483,15 +483,15 @@ class GrammarTemplate
                 {
                     $default_value = null;
                 }
+                $not_escd = true;
                 if ( $postop )
                 {
                     $c = substr($tpl,$i,2);
                     if ( ($ESC.$OPT === $c) || ($ESC.$OPTR === $c) || ($ESC.$REPL === $c) )
                     {
-                        // escaped, bypass
+                        $not_escd = false;
                         $i += 1;
                         $c = '';
-                        $bypass = 1;
                     }
                     else
                     {
@@ -530,15 +530,15 @@ class GrammarTemplate
                     }
                     else
                     {
-                        $argument = substr($argument,1);
-                        if ( $NEG === $argument[0] )
+                        if ( $NEG === $argument[1] )
                         {
                             $negative = 1;
-                            $argument = substr($argument,1);
+                            $argument = substr($argument,2);
                         }
                         else
                         {
                             $negative = 0;
+                            $argument = substr($argument,1);
                         }
                     }
                 }
@@ -593,7 +593,7 @@ class GrammarTemplate
                 
                 if ( $cur_tpl && !isset($arg_tpl[$cur_tpl]) ) $arg_tpl[$cur_tpl] = array();
                 
-                if ( !$bypass && ($TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL)) )
+                if ( $not_escd && ($TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL)) )
                 {
                     // template definition
                     $i += $lenTPL;

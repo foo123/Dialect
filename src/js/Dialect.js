@@ -338,7 +338,7 @@ function multisplit( tpl, delims, postop )
         lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
         ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
         REPL = '{', REPR = '}', DOT = '.', REF = ':',
-        default_value = null, negative = 0, optional = 0, nested, bypass, start_i, end_i, template,
+        default_value = null, negative = 0, optional = 0, nested, not_escd, start_i, end_i, template,
         argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
         roottpl, block, cur_block, prev_arg, prev_opt_args;
@@ -398,7 +398,7 @@ function multisplit( tpl, delims, postop )
                 escaped = false;
                 continue;
             }
-            bypass = 0;
+            
             // argument
             argument = s; s = '';
             if ( -1 < (p=argument.indexOf(DEF)) )
@@ -410,15 +410,15 @@ function multisplit( tpl, delims, postop )
             {
                 default_value = null;
             }
+            not_escd = true;
             if ( postop )
             {
                 c = tpl.substr(i,2);
                 if ( (ESC+OPT === c) || (ESC+OPTR === c) || (ESC+REPL === c) )
                 {
-                    // escaped, bypass
+                    not_escd = false;
                     i += 1;
                     c = '';
-                    bypass = 1;
                 }
                 else
                 {
@@ -457,15 +457,15 @@ function multisplit( tpl, delims, postop )
                 }
                 else
                 {
-                    argument = argument.slice(1);
-                    if ( NEG === argument[CHAR](0) )
+                    if ( NEG === argument[CHAR](1) )
                     {
                         negative = 1;
-                        argument = argument.slice(1);
+                        argument = argument.slice(2);
                     }
                     else
                     {
                         negative = 0;
+                        argument = argument.slice(1);
                     }
                 }
             }
@@ -517,7 +517,7 @@ function multisplit( tpl, delims, postop )
             
             if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
             
-            if ( !bypass && (TPL+OBL === tpl.substr(i,lenTPL+lenOBL)) )
+            if ( not_escd && (TPL+OBL === tpl.substr(i,lenTPL+lenOBL)) )
             {
                 // template definition
                 i += lenTPL;
