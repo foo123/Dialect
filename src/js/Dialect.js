@@ -475,7 +475,7 @@ function multisplit( tpl, delims, postop )
                 {
                     s = ''; j = i+1; jl = l;
                     while ( (j < jl) && (REPR !== tpl[CHAR](j)) ) s += tpl[CHAR](j++);
-                    i = j;
+                    i = j+1;
                 }
                 else
                 {
