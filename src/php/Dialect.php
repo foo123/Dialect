@@ -248,7 +248,7 @@ class GrammarTemplate__TplEntry
 
 class GrammarTemplate
 {    
-    const VERSION = '2.1.0';
+    const VERSION = '2.1.1';
     private static $GUID = 0;
     
     private static function guid( )
@@ -434,10 +434,11 @@ class GrammarTemplate
         $i = 0;
         while( $i < $l )
         {
+            $escaped = false;
             $ch = $tpl[$i];
             if ( $ESC === $ch )
             {
-                $escaped = !$escaped;
+                $escaped = true;
                 $i += 1;
             }
             
@@ -448,7 +449,6 @@ class GrammarTemplate
                 if ( $escaped )
                 {
                     $s .= $IDL;
-                    $escaped = false;
                     continue;
                 }
                 
@@ -467,7 +467,6 @@ class GrammarTemplate
                 if ( $escaped )
                 {
                     $s .= $IDR;
-                    $escaped = false;
                     continue;
                 }
                 
@@ -483,20 +482,9 @@ class GrammarTemplate
                 {
                     $default_value = null;
                 }
-                $not_escd = true;
                 if ( $postop )
                 {
-                    $c = substr($tpl,$i,2);
-                    if ( ($ESC.$OPT === $c) || ($ESC.$OPTR === $c) || ($ESC.$REPL === $c) )
-                    {
-                        $not_escd = false;
-                        $i += 1;
-                        $c = '';
-                    }
-                    else
-                    {
-                        $c = $i < $l ? $tpl[$i] : '';
-                    }
+                    $c = $i < $l ? $tpl[$i] : '';
                 }
                 else
                 {
@@ -593,7 +581,7 @@ class GrammarTemplate
                 
                 if ( $cur_tpl && !isset($arg_tpl[$cur_tpl]) ) $arg_tpl[$cur_tpl] = array();
                 
-                if ( $not_escd && ($TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL)) )
+                if ( $TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL) )
                 {
                     // template definition
                     $i += $lenTPL;
@@ -619,12 +607,12 @@ class GrammarTemplate
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,$optional));
                 }
                 else if ( $optional )
                 {
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i,$optional));
                 }
                 else if ( !$optional && (null === $cur_arg->name) )
                 {
@@ -637,7 +625,7 @@ class GrammarTemplate
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,0));
                 }
                 $a = new GrammarTemplate__TplEntry((object)array(
                     'type'    => 1,
@@ -657,7 +645,6 @@ class GrammarTemplate
                 if ( $escaped )
                 {
                     $s .= $OBL;
-                    $escaped = false;
                     continue;
                 }
                 
@@ -694,7 +681,6 @@ class GrammarTemplate
                 if ( $escaped )
                 {
                     $s .= $OBR;
-                    $escaped = false;
                     continue;
                 }
                 
@@ -751,8 +737,7 @@ class GrammarTemplate
             }
             else
             {
-                if ( $ESC === $ch ) $s .= $ch;
-                else $s .= $tpl[$i++];
+                $s .= $tpl[$i++];
             }
         }
         if ( strlen($s) )
@@ -771,15 +756,19 @@ class GrammarTemplate
         if ( -1 === $block->type )
         {
             // optional block, check if optional variables can be rendered
-            $opt_vars = $block->opt_args; if ( !$opt_vars ) return '';
-            while( $opt_vars )
+            $opt_vars = $block->opt_args;
+            // if no optional arguments, render block by default
+            if ( $opt_vars && $opt_vars->value[5] )
             {
-                $opt_v = $opt_vars->value;
-                $opt_arg = self::walk( $args, $opt_v[1], array((string)$opt_v[0]), $orig_args );
-                if ( (null === $block_arg) && ($block->name === $opt_v[0]) ) $block_arg = $opt_arg;
-                
-                if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
-                $opt_vars = $opt_vars->prev;
+                while( $opt_vars )
+                {
+                    $opt_v = $opt_vars->value;
+                    $opt_arg = self::walk( $args, $opt_v[1], array((string)$opt_v[0]), $orig_args );
+                    if ( (null === $block_arg) && ($block->name === $opt_v[0]) ) $block_arg = $opt_arg;
+                    
+                    if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
+                    $opt_vars = $opt_vars->prev;
+                }
             }
         }
         else

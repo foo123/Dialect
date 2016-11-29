@@ -338,7 +338,7 @@ function multisplit( tpl, delims, postop )
         lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
         ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
         REPL = '{', REPR = '}', DOT = '.', REF = ':',
-        default_value = null, negative = 0, optional = 0, nested, not_escd, start_i, end_i, template,
+        default_value = null, negative = 0, optional = 0, nested, start_i, end_i, template,
         argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
         roottpl, block, cur_block, prev_arg, prev_opt_args;
@@ -363,10 +363,11 @@ function multisplit( tpl, delims, postop )
     i = 0;
     while( i < l )
     {
+        escaped = false;
         ch = tpl[CHAR](i);
         if ( ESC === ch )
         {
-            escaped = !escaped;
+            escaped = true;
             i += 1;
         }
         
@@ -377,7 +378,6 @@ function multisplit( tpl, delims, postop )
             if ( escaped )
             {
                 s += IDL;
-                escaped = false;
                 continue;
             }
             
@@ -395,7 +395,6 @@ function multisplit( tpl, delims, postop )
             if ( escaped )
             {
                 s += IDR;
-                escaped = false;
                 continue;
             }
             
@@ -410,20 +409,9 @@ function multisplit( tpl, delims, postop )
             {
                 default_value = null;
             }
-            not_escd = true;
             if ( postop )
             {
-                c = tpl.substr(i,2);
-                if ( (ESC+OPT === c) || (ESC+OPTR === c) || (ESC+REPL === c) )
-                {
-                    not_escd = false;
-                    i += 1;
-                    c = '';
-                }
-                else
-                {
-                    c = i < l ? tpl[CHAR](i) : '';
-                }
+                c = i < l ? tpl[CHAR](i) : '';
             }
             else
             {
@@ -517,7 +505,7 @@ function multisplit( tpl, delims, postop )
             
             if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
             
-            if ( not_escd && (TPL+OBL === tpl.substr(i,lenTPL+lenOBL)) )
+            if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
             {
                 // template definition
                 i += lenTPL;
@@ -543,12 +531,12 @@ function multisplit( tpl, delims, postop )
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,optional]);
             }
             else if ( optional )
             {
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i]);
+                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i,optional]);
             }
             else if ( !optional && (null === cur_arg.name) )
             {
@@ -561,7 +549,7 @@ function multisplit( tpl, delims, postop )
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,0]);
             }
             a = new TplEntry({
                 type    : 1,
@@ -581,7 +569,6 @@ function multisplit( tpl, delims, postop )
             if ( escaped )
             {
                 s += OBL;
-                escaped = false;
                 continue;
             }
             
@@ -617,7 +604,6 @@ function multisplit( tpl, delims, postop )
             if ( escaped )
             {
                 s += OBR;
-                escaped = false;
                 continue;
             }
             
@@ -673,8 +659,7 @@ function multisplit( tpl, delims, postop )
         }
         else
         {
-            if ( ESC === ch ) s += ch;
-            else s += tpl[CHAR](i++);
+            s += tpl[CHAR](i++);
         }
     }
     if ( s.length )
@@ -692,18 +677,22 @@ function optional_block( args, block, SUB, FN, index, orig_args )
     if ( -1 === block.type )
     {
         // optional block, check if optional variables can be rendered
-        opt_vars = block.opt_args; if ( !opt_vars ) return '';
-        while( opt_vars )
+        opt_vars = block.opt_args;
+        // if no optional arguments, render block by default
+        if ( opt_vars && opt_vars.value[5] )
         {
-            opt_v = opt_vars.value;
-            opt_arg = walk( args, opt_v[1], [String(opt_v[0])], orig_args );
-            if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
-            
-            if ( (0 === opt_v[2] && null == opt_arg) ||
-                (1 === opt_v[2] && null != opt_arg)
-            )
-                return '';
-            opt_vars = opt_vars.prev;
+            while( opt_vars )
+            {
+                opt_v = opt_vars.value;
+                opt_arg = walk( args, opt_v[1], [String(opt_v[0])], orig_args );
+                if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
+                
+                if ( (0 === opt_v[2] && null == opt_arg) ||
+                    (1 === opt_v[2] && null != opt_arg)
+                )
+                    return '';
+                opt_vars = opt_vars.prev;
+            }
         }
     }
     else
@@ -821,7 +810,7 @@ function GrammarTemplate( tpl, delims, postop )
     // lazy init
     self._args = [tpl||'', delims||GrammarTemplate.defaultDelims, postop||false];
 };
-GrammarTemplate.VERSION = '2.1.0';
+GrammarTemplate.VERSION = '2.1.1';
 GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
 GrammarTemplate.fnGlobal = {};
 GrammarTemplate.guid = guid;
