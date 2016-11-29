@@ -612,6 +612,18 @@ class GrammarTemplate
                 else if ( $optional )
                 {
                     // handle multiple optional arguments for same optional block
+                    if ( ($start_i !== $end_i) && ($cur_arg->start === $cur_arg->end) )
+                    {
+                        // set as main arg a loop arg, if exists
+                        $cur_arg->name = $argument;
+                        $cur_arg->key = $nested;
+                        $cur_arg->stpl = $template;
+                        $cur_arg->dval = $default_value;
+                        $cur_arg->opt = $optional;
+                        $cur_arg->neg = $negative;
+                        $cur_arg->start = $start_i;
+                        $cur_arg->end = $end_i;
+                    }
                     $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i,$optional));
                 }
                 else if ( !$optional && (null === $cur_arg->name) )
