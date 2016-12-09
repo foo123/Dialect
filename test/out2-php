@@ -1,4 +1,4 @@
-Dialect.VERSION = 0.8.1
+Dialect.VERSION = 0.8.2
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=[new_table] AND xtype='U')
 CREATE TABLE [new_table] (

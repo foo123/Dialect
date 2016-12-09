@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.8.1
+*   @version: 0.8.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -26,19 +26,22 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
     /* module factory */        function ModuleFactory__Dialect( undef ){
 "use strict";
 
-var PROTO = 'prototype', HAS = 'hasOwnProperty', 
+var PROTO = 'prototype', HASPROP = 'hasOwnProperty', 
     Keys = Object.keys, toString = Object[PROTO].toString,
+    hasOwnProperty = Object[PROTO].hasOwnProperty,
     CHAR = 'charAt', CHARCODE = 'charCodeAt',
     escaped_re = /[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, trim_re = /^\s+|\s+$/g,
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
         : function( s ){ return s.replace(trim_re, ''); },
-    NULL_CHAR = String.fromCharCode( 0 ), GUID = 0;
+    NULL_CHAR = String.fromCharCode( 0 );
 
 function guid( )
 {
-    return ''+new Date().getTime()+'--'+(++GUID);
+    guid.GUID += 1;
+    return pad(new Date().getTime().toString(16),12)+'--'+pad(guid.GUID.toString(16),4);
 }
+guid.GUID = 0;
 
 // https://github.com/foo123/StringTemplate
 function StringTemplate( tpl, replacements, compiled )
@@ -229,6 +232,55 @@ StringTemplate[PROTO] = {
 };
 
 // https://github.com/foo123/GrammarTemplate
+function HAS( o, x )
+{
+    return o && hasOwnProperty.call(o, x) ? 1 : 0;
+}
+function pad( s, n, z, pad_right )
+{
+    var ps = String(s);
+    z = z || '0';
+    if ( pad_right ) while ( ps.length < n ) ps += z;
+    else while ( ps.length < n ) ps = z + ps;
+    return ps;
+}
+function compute_alignment( s, i, l )
+{
+    var alignment = '', c;
+    while ( i < l )
+    {
+        c = s[CHAR](i);
+        if ( (" " === c) || ("\r" === c) || ("\t" === c) || ("\v" === c) || ("\0" === c) )
+        {
+            alignment += c;
+            i += 1;
+        }
+        else
+        {
+            break;
+        }
+    }
+    return alignment;
+}
+function align( s, alignment )
+{
+    var aligned, c, i, l = s.length;
+    if ( l && alignment.length )
+    {
+        aligned = '';
+        for(i=0; i<l; i++)
+        {
+            c = s[CHAR](i);
+            aligned += c;
+            if ( "\n" === c ) aligned += alignment;
+        }
+    }
+    else
+    {
+        aligned = s;
+    }
+    return aligned;
+}
 function walk( obj, keys, keys_alt, obj_alt )
 {
     var o, l, i, k, found = 0;
@@ -336,15 +388,16 @@ function multisplit( tpl, delims, postop )
         OBL = delims[2], OBR = delims[3], TPL = delims[4],
         lenIDL = IDL.length, lenIDR = IDR.length,
         lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
-        ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
-        REPL = '{', REPR = '}', DOT = '.', REF = ':',
-        default_value = null, negative = 0, optional = 0, nested, start_i, end_i, template,
+        ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|', COMMENT = '#',
+        REPL = '{', REPR = '}', DOT = '.', REF = ':', ALGN = '@', //NOTALGN = '&',
+        default_value = null, negative = 0, optional = 0,
+        nested, aligned = 0, localised = 0, start_i, end_i, template,
         argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
         roottpl, block, cur_block, prev_arg, prev_opt_args;
     
     postop = true === postop;
-    a = new TplEntry({type: 0, val: ''});
+    a = new TplEntry({type: 0, val: '', algn: ''});
     cur_arg = {
         type    : 1,
         name    : null,
@@ -353,6 +406,8 @@ function multisplit( tpl, delims, postop )
         dval    : null,
         opt     : 0,
         neg     : 0,
+        algn    : 0,
+        loc     : 0,
         start   : 0,
         end     : 0
     };
@@ -384,7 +439,7 @@ function multisplit( tpl, delims, postop )
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
-                else a = new TplEntry({type: 0, val: s}, a);
+                else a = new TplEntry({type: 0, val: s, algn: ''}, a);
             }
             s = '';
         }
@@ -499,11 +554,38 @@ function multisplit( tpl, delims, postop )
             }
             if ( negative && (null === default_value) ) default_value = '';
             
+            c = argument[CHAR](0);
+            if ( ALGN === c )
+            {
+                aligned = 1;
+                argument = argument.slice(1);
+            }
+            /*else if ( NOTALGN === c )
+            {
+                aligned = 0;
+                argument = argument.slice(1);
+            }*/
+            else
+            {
+                aligned = 0;
+            }
+            
+            c = argument[CHAR](0);
+            if ( DOT === c )
+            {
+                localised = 1;
+                argument = argument.slice(1);
+            }
+            else
+            {
+                localised = 0;
+            }
+            
             template = -1 < argument.indexOf(REF) ? argument.split(REF) : [argument,null];
             argument = template[0]; template = template[1];
             nested = -1 < argument.indexOf(DOT) ? argument.split(DOT) : null;
             
-            if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
+            if ( cur_tpl && !HAS(arg_tpl,cur_tpl) ) arg_tpl[cur_tpl] = {};
             
             if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
             {
@@ -517,7 +599,7 @@ function multisplit( tpl, delims, postop )
             
             if ( !argument.length ) continue; // template definition only
             
-            if ( (null==template) && cur_tpl && arg_tpl[cur_tpl] && arg_tpl[cur_tpl][argument] )
+            if ( (null==template) && cur_tpl && HAS(arg_tpl,cur_tpl) && HAS(arg_tpl[cur_tpl],argument) )
                 template = arg_tpl[cur_tpl][argument];
             
             if ( optional && !cur_arg.opt )
@@ -528,10 +610,12 @@ function multisplit( tpl, delims, postop )
                 cur_arg.dval = default_value;
                 cur_arg.opt = optional;
                 cur_arg.neg = negative;
+                cur_arg.algn = aligned;
+                cur_arg.loc = localised;
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,optional]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,optional,localised]);
             }
             else if ( optional )
             {
@@ -545,10 +629,12 @@ function multisplit( tpl, delims, postop )
                     cur_arg.dval = default_value;
                     cur_arg.opt = optional;
                     cur_arg.neg = negative;
+                    cur_arg.algn = aligned;
+                    cur_arg.loc = localised;
                     cur_arg.start = start_i;
                     cur_arg.end = end_i;
                 }
-                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i,optional]);
+                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i,optional,localised]);
             }
             else if ( !optional && (null === cur_arg.name) )
             {
@@ -558,11 +644,14 @@ function multisplit( tpl, delims, postop )
                 cur_arg.dval = default_value;
                 cur_arg.opt = 0;
                 cur_arg.neg = negative;
+                cur_arg.algn = aligned;
+                cur_arg.loc = localised;
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,0]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,0,localised]);
             }
+            if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
             a = new TplEntry({
                 type    : 1,
                 name    : argument,
@@ -570,6 +659,8 @@ function multisplit( tpl, delims, postop )
                 stpl    : template,
                 dval    : default_value,
                 opt     : optional,
+                algn    : aligned,
+                loc     : localised,
                 start   : start_i,
                 end     : end_i
             }, a);
@@ -584,13 +675,26 @@ function multisplit( tpl, delims, postop )
                 continue;
             }
             
-            // optional block
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
-                else a = new TplEntry({type: 0, val: s}, a);
+                else a = new TplEntry({type: 0, val: s, algn: ''}, a);
             }
             s = '';
+            
+            // comment
+            if ( COMMENT === tpl[CHAR](i) )
+            {
+                j = i+1; jl = l;
+                while ( (j < jl) && (COMMENT+OBR !== tpl.substr(j,lenOBR+1)) ) s += tpl[CHAR](j++);
+                i = j+lenOBR+1;
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
+                a = new TplEntry({type: -100, val: s}, a);
+                s = '';
+                continue;
+            }
+            
+            // optional block
             stack = new StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl]);
             if ( start_tpl ) cur_tpl = start_tpl;
             start_tpl = null;
@@ -602,11 +706,13 @@ function multisplit( tpl, delims, postop )
                 dval    : null,
                 opt     : 0,
                 neg     : 0,
+                algn    : 0,
+                loc     : 0,
                 start   : 0,
                 end     : 0
             };
             opt_args = null;
-            a = new TplEntry({type: 0, val: ''});
+            a = new TplEntry({type: 0, val: '', algn: ''});
             block = a;
         }
         else if ( OBR === tpl.substr(i,lenOBR) )
@@ -640,7 +746,7 @@ function multisplit( tpl, delims, postop )
             if ( s.length )
             {
                 if ( 0 === b.node.type ) b.node.val += s;
-                else b = new TplEntry({type: 0, val: s}, b);
+                else b = new TplEntry({type: 0, val: s, algn: ''}, b);
             }
             s = '';
             if ( start_tpl )
@@ -649,8 +755,10 @@ function multisplit( tpl, delims, postop )
                     type    : 2,
                     name    : prev_arg.name,
                     key     : prev_arg.key,
-                    start   : 0/*cur_arg.start*/,
-                    end     : 0/*cur_arg.end*/,
+                    loc     : prev_arg.loc,
+                    algn    : prev_arg.algn,
+                    start   : prev_arg.start,
+                    end     : prev_arg.end,
                     opt_args: null/*opt_args*/,
                     tpl     : cur_block
                 });
@@ -658,10 +766,13 @@ function multisplit( tpl, delims, postop )
             }
             else
             {
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
                 a = new TplEntry({
                     type    : -1,
                     name    : prev_arg.name,
                     key     : prev_arg.key,
+                    loc     : prev_arg.loc,
+                    algn    : prev_arg.algn,
                     start   : prev_arg.start,
                     end     : prev_arg.end,
                     opt_args: prev_opt_args,
@@ -671,18 +782,35 @@ function multisplit( tpl, delims, postop )
         }
         else
         {
-            s += tpl[CHAR](i++);
+            ch = tpl[CHAR](i++);
+            if ( "\n" === ch )
+            {
+                // note line changes to handle alignments
+                if ( s.length )
+                {
+                    if ( 0 === a.node.type ) a.node.val += s;
+                    else a = new TplEntry({type: 0, val: s, algn: ''}, a);
+                }
+                s = '';
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
+                a = new TplEntry({type: 100, val: "\n"}, a);
+            }
+            else
+            {
+                s += ch;
+            }
         }
     }
     if ( s.length )
     {
         if ( 0 === a.node.type ) a.node.val += s;
-        else a = new TplEntry({type: 0, val: s}, a);
+        else a = new TplEntry({type: 0, val: s, algn: ''}, a);
     }
+    if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
     return [roottpl, subtpl];
 }
 
-function optional_block( args, block, SUB, FN, index, orig_args )
+function optional_block( args, block, SUB, FN, index, alignment, orig_args )
 {
     var opt_vars, opt_v, opt_arg, arr, rs, re, ri, len, block_arg = null, out = '';
     
@@ -696,7 +824,7 @@ function optional_block( args, block, SUB, FN, index, orig_args )
             while( opt_vars )
             {
                 opt_v = opt_vars.value;
-                opt_arg = walk( args, opt_v[1], [String(opt_v[0])], orig_args );
+                opt_arg = walk( args, opt_v[1], [String(opt_v[0])], opt_v[6] ? null : orig_args );
                 if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
                 
                 if ( (0 === opt_v[2] && null == opt_arg) ||
@@ -709,36 +837,44 @@ function optional_block( args, block, SUB, FN, index, orig_args )
     }
     else
     {
-        block_arg = walk( args, block.key, [String(block.name)], orig_args );
+        block_arg = walk( args, block.key, [String(block.name)], block.loc ? null : orig_args );
     }
     
     arr = is_array( block_arg ); len = arr ? block_arg.length : -1;
+    //if ( !block.algn ) alignment = '';
     if ( arr && (len > block.start) )
     {
         for(rs=block.start,re=(-1===block.end?len-1:Math.min(block.end,len-1)),ri=rs; ri<=re; ri++)
-            out += main( args, block.tpl, SUB, FN, ri, orig_args );
+            out += main( args, block.tpl, SUB, FN, ri, alignment, orig_args );
     }
     else if ( !arr && (block.start === block.end) )
     {
-        out = main( args, block.tpl, SUB, FN, null, orig_args );
+        out = main( args, block.tpl, SUB, FN, null, alignment, orig_args );
     }
     return out;
 }
-function non_terminal( args, symbol, SUB, FN, index, orig_args )
+function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
 {
     var opt_arg, tpl_args, tpl, out = '', fn;
-    if ( symbol.stpl && ((SUB && SUB[symbol.stpl]) || (FN && FN[symbol.stpl]) || (GrammarTemplate.fnGlobal[symbol.stpl])) )
+    if ( symbol.stpl && (
+        HAS(SUB,symbol.stpl) ||
+        HAS(GrammarTemplate.subGlobal,symbol.stpl) ||
+        HAS(FN,symbol.stpl) || HAS(FN,'*') ||
+        HAS(GrammarTemplate.fnGlobal,symbol.stpl) ||
+        HAS(GrammarTemplate.fnGlobal,'*')
+    ) )
     {
         // using custom function or sub-template
-        opt_arg = walk( args, symbol.key, [String(symbol.name)], orig_args );
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
         
-        if ( SUB && SUB[symbol.stpl] )
+        if ( HAS(SUB,symbol.stpl) || HAS(GrammarTemplate.subGlobal,symbol.stpl) )
         {
             // sub-template
-            if ( (null != index/* || null != symbol.start*/) && (0 !== index || !symbol.opt) && is_array(opt_arg) )
+            if ( (null != index) && ((0 !== index) || (symbol.start !== symbol.end) || !symbol.opt) && is_array(opt_arg) )
             {
-                opt_arg = opt_arg[/*null != index ?*/ index /*: symbol.start*/];
+                opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
             }
+            
             if ( (null == opt_arg) && (null !== symbol.dval) )
             {
                 // default value if missing
@@ -747,31 +883,53 @@ function non_terminal( args, symbol, SUB, FN, index, orig_args )
             else
             {
                 // try to associate sub-template parameters to actual input arguments
-                tpl = SUB[symbol.stpl].node; tpl_args = {};
+                tpl = HAS(SUB,symbol.stpl) ? SUB[symbol.stpl].node : GrammarTemplate.subGlobal[symbol.stpl].node;
+                tpl_args = {};
                 if ( null != opt_arg )
                 {
-                    /*if ( opt_arg[HAS](tpl.name) && !opt_arg[HAS](symbol.name) ) tpl_args = opt_arg;
+                    /*if ( HAS(opt_arg,tpl.name) && !HAS(opt_arg,symbol.name) ) tpl_args = opt_arg;
                     else tpl_args[tpl.name] = opt_arg;*/
                     if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
                     else tpl_args = opt_arg;
                 }
-                out = optional_block( tpl_args, tpl, SUB, FN, null, null == orig_args ? args : orig_args );
+                out = optional_block( tpl_args, tpl, SUB, FN, null, symbol.algn ? alignment : '', null == orig_args ? args : orig_args );
+                //if ( symbol.algn ) out = align(out, alignment);
             }
         }
         else //if ( fn )
         {
             // custom function
-            fn = FN && FN[symbol.stpl] ? FN[symbol.stpl] : (GrammarTemplate.fnGlobal[symbol.stpl] ? GrammarTemplate.fnGlobal[symbol.stpl] : null);
+            fn = null;
+            if      ( HAS(FN,symbol.stpl) )                         fn = FN[symbol.stpl];
+            else if ( HAS(FN,'*') )                                 fn = FN['*'];
+            else if ( HAS(GrammarTemplate.fnGlobal,symbol.stpl) )   fn = GrammarTemplate.fnGlobal[symbol.stpl];
+            else if ( GrammarTemplate.fnGlobal['*'] )               fn = GrammarTemplate.fnGlobal['*'];
             
             if ( is_array(opt_arg) )
             {
                 index = null != index ? index : symbol.start;
-                opt_arg = index < opt_arg.length ? opt_arg[index] : null;
+                opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
             }
             
-            opt_arg = "function" === typeof fn ? fn(opt_arg, index, args, orig_args, symbol) : String(fn);
+            if ( "function" === typeof fn )
+            {
+                var fn_arg = {
+                    //value               : opt_arg,
+                    symbol              : symbol,
+                    index               : index,
+                    currentArguments    : args,
+                    originalArguments   : orig_args,
+                    alignment           : alignment
+                };
+                opt_arg = fn( opt_arg, fn_arg );
+            }
+            else
+            {
+                opt_arg = String(fn);
+            }
             
             out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
+            if ( symbol.algn ) out = align(out, alignment);
         }
     }
     else if ( symbol.opt && (null !== symbol.dval) )
@@ -782,30 +940,48 @@ function non_terminal( args, symbol, SUB, FN, index, orig_args )
     else
     {
         // plain symbol argument
-        opt_arg = walk( args, symbol.key, [String(symbol.name)], orig_args );
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
         
         // default value if missing
         if ( is_array(opt_arg) )
         {
             index = null != index ? index : symbol.start;
-            opt_arg = index < opt_arg.length ? opt_arg[index] : null;
+            opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
         }
         out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
+        if ( symbol.algn ) out = align(out, alignment);
     }
     return out;
 }
-function main( args, tpl, SUB, FN, index, orig_args )
+function main( args, tpl, SUB, FN, index, alignment, orig_args )
 {
-    var tt, out = '';
+    alignment = alignment || '';
+    var tt, current_alignment = alignment, out = '';
     while ( tpl )
     {
         tt = tpl.node.type;
-        out += (-1 === tt
-            ? optional_block( args, tpl.node, SUB, FN, index, orig_args ) /* optional code-block */
-            : (1 === tt
-            ? non_terminal( args, tpl.node, SUB, FN, /*0 === index ? (tpl.node.opt&&tpl.node.stpl?null:index) : */index, orig_args ) /* non-terminal */
-            : tpl.node.val /* terminal */
-        ));
+        if ( -1 === tt ) /* optional code-block */
+        {
+            out += optional_block( args, tpl.node, SUB, FN, index, tpl.node.algn ? current_alignment : alignment, orig_args );
+        }
+        else if ( 1 === tt ) /* non-terminal */
+        {
+            out += non_terminal( args, tpl.node, SUB, FN, index, tpl.node.algn ? current_alignment : alignment, orig_args );
+        }
+        else if ( 0 === tt ) /* terminal */
+        {
+            current_alignment += tpl.node.algn;
+            out += tpl.node.val;
+        }
+        else if ( 100 === tt ) /* new line */
+        {
+            current_alignment = alignment;
+            out += "\n" + alignment;
+        }
+        /*else if ( -100 === tt ) /* comment * /
+        {
+            /* pass * /
+        }*/
         tpl = tpl.next;
     }
     return out;
@@ -822,11 +998,13 @@ function GrammarTemplate( tpl, delims, postop )
     // lazy init
     self._args = [tpl||'', delims||GrammarTemplate.defaultDelims, postop||false];
 };
-GrammarTemplate.VERSION = '2.1.1';
+GrammarTemplate.VERSION = '3.0.0';
 GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
 GrammarTemplate.fnGlobal = {};
+GrammarTemplate.subGlobal = {};
 GrammarTemplate.guid = guid;
 GrammarTemplate.multisplit = multisplit;
+GrammarTemplate.align = align;
 GrammarTemplate.main = main;
 GrammarTemplate[PROTO] = {
     constructor: GrammarTemplate
@@ -876,15 +1054,16 @@ function is_callable( o )
 }
 function is_string( o )
 {
-    return "string" === typeof o;
+    //return "string" === typeof o;
+    return (o instanceof String) || ('[object String]' === toString.call(o));
 }
 function is_array( o )
 {
-    return o instanceof Array || '[object Array]' === toString.call(o);
+    return (o instanceof Array) || ('[object Array]' === toString.call(o));
 }
 function is_obj( o )
 {
-    return o instanceof Object || '[object Object]' === toString.call(o);
+    return (o instanceof Object) || ('[object Object]' === toString.call(o));
 }
 function is_string_or_array( o )
 {
@@ -929,8 +1108,8 @@ function defaults( data, def, overwrite, array_copy )
     array_copy = true === array_copy;
     for (var k in def)
     {
-        if ( !def[HAS](k) ) continue;
-        if ( overwrite || !data[HAS](k) )
+        if ( !def[HASPROP](k) ) continue;
+        if ( overwrite || !data[HASPROP](k) )
             data[ k ] = array_copy && def[ k ].slice ? def[ k ].slice( ) : def[ k ];
     }
     return data;
@@ -1443,7 +1622,7 @@ function Dialect( type )
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 }
-Dialect.VERSION = "0.8.1";
+Dialect.VERSION = "0.8.2";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.StringTemplate = StringTemplate;
@@ -1526,7 +1705,7 @@ Dialect[PROTO] = {
     
     ,reset: function( clause ) {
         var self = this, i, l, c;
-        /*if ( !clause || !self.clauses[HAS](clause) )
+        /*if ( !clause || !self.clauses[HASPROP](clause) )
         {
             throw new TypeError('Dialect: SQL clause "'+clause+'" does not exist for dialect "'+self.type+'"');
         }*/
@@ -1558,32 +1737,32 @@ Dialect[PROTO] = {
     
     ,sql: function( ) {
         var self = this, query = null;
-        if ( self.clau /*&& self.clauses[HAS]( self.clau )*/ )
+        if ( self.clau /*&& self.clauses[HASPROP]( self.clau )*/ )
         {
-            if ( self.clus[HAS]('select_columns') )
+            if ( self.clus[HASPROP]('select_columns') )
                 self.clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' );
-            if ( self.clus[HAS]('from_tables') )
+            if ( self.clus[HASPROP]('from_tables') )
                 self.clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' );
-            if ( self.clus[HAS]('insert_tables') )
+            if ( self.clus[HASPROP]('insert_tables') )
                 self.clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' );
-            if ( self.clus[HAS]('insert_columns') )
+            if ( self.clus[HASPROP]('insert_columns') )
                 self.clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' );
-            if ( self.clus[HAS]('update_tables') )
+            if ( self.clus[HASPROP]('update_tables') )
                 self.clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' );
-            if ( self.clus[HAS]('create_table') )
+            if ( self.clus[HASPROP]('create_table') )
                 self.clus['create_table'] = map_join( self.clus['create_table'], 'full' );
-            if ( self.clus[HAS]('alter_table') )
+            if ( self.clus[HASPROP]('alter_table') )
                 self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' );
-            if ( self.clus[HAS]('drop_tables') )
+            if ( self.clus[HASPROP]('drop_tables') )
                 self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' );
-            if ( self.clus[HAS]('where_conditions_required') /*&& !!self.clus['where_conditions_required']*/ )
+            if ( self.clus[HASPROP]('where_conditions_required') /*&& !!self.clus['where_conditions_required']*/ )
             {
-                self.clus['where_conditions'] = self.clus[HAS]('where_conditions') ? ('('+self.clus['where_conditions_required']+') AND ('+self.clus['where_conditions']+')') : self.clus['where_conditions_required'];
+                self.clus['where_conditions'] = self.clus[HASPROP]('where_conditions') ? ('('+self.clus['where_conditions_required']+') AND ('+self.clus['where_conditions']+')') : self.clus['where_conditions_required'];
                 delete self.clus['where_conditions_required'];
             }
-            if ( self.clus[HAS]('having_conditions_required') /*&& !!self.clus['having_conditions_required']*/ )
+            if ( self.clus[HASPROP]('having_conditions_required') /*&& !!self.clus['having_conditions_required']*/ )
             {
-                self.clus['having_conditions'] = self.clus[HAS]('having_conditions') ? ('('+self.clus['having_conditions_required']+') AND ('+self.clus['having_conditions']+')') : self.clus['having_conditions_required'];
+                self.clus['having_conditions'] = self.clus[HASPROP]('having_conditions') ? ('('+self.clus['having_conditions_required']+') AND ('+self.clus['having_conditions']+')') : self.clus['having_conditions_required'];
                 delete self.clus['having_conditions_required'];
             }
             self.clus[self.clau+'_clause'] = 1;
@@ -1604,13 +1783,13 @@ Dialect[PROTO] = {
                 cols:self.cols
             };
             // make existing where / having conditions required
-            if ( self.vews[ view ].clus[HAS]('where_conditions') )
+            if ( self.vews[ view ].clus[HASPROP]('where_conditions') )
             {
                 if ( !!self.vews[ view ].clus.where_conditions )
                     self.vews[ view ].clus.where_conditions_required = self.vews[ view ].clus.where_conditions;
                 delete self.vews[ view ].clus.where_conditions;
             }
-            if ( self.vews[ view ].clus[HAS]('having_conditions') )
+            if ( self.vews[ view ].clus[HASPROP]('having_conditions') )
             {
                 if ( !!self.vews[ view ].clus.having_conditions )
                     self.vews[ view ].clus.having_conditions_required = self.vews[ view ].clus.having_conditions;
@@ -1651,7 +1830,7 @@ Dialect[PROTO] = {
     
     ,dropView: function( view ) {
         var self = this;
-        if ( view && self.vews[HAS](view) )
+        if ( view && self.vews[HASPROP](view) )
         {
             delete self.vews[ view ];
         }
@@ -1721,7 +1900,7 @@ Dialect[PROTO] = {
     
     ,prepared: function( tpl, args ) {
         var self = this, sql, types, type, params, k, v, tmp, i, l, tpli, k;
-        if ( !empty(tpl) && self.tpls[HAS](tpl) )
+        if ( !empty(tpl) && self.tpls[HASPROP](tpl) )
         {
             sql = self.tpls[tpl].sql;
             types = self.tpls[tpl].types;
@@ -1754,9 +1933,9 @@ Dialect[PROTO] = {
             params = { };
             for(k in args)
             {
-                if ( !args[HAS](k) ) continue;
+                if ( !args[HASPROP](k) ) continue;
                 v = args[k];
-                type = types[HAS](k) ? types[k] : "s";
+                type = types[HASPROP](k) ? types[k] : "s";
                 switch(type)
                 {
                     case 'r': 
@@ -1840,7 +2019,7 @@ Dialect[PROTO] = {
                 pos = m.index;
                 len = m[0].length;
                 param = m[2];
-                if ( args[HAS](param) )
+                if ( args[HASPROP](param) )
                 {
                     type = m[1] ? m[1].slice(0,-1) : "s";
                     switch( type )
@@ -1920,7 +2099,7 @@ Dialect[PROTO] = {
     
     ,dropTpl: function( tpl ) {
         var self = this;
-        if ( !empty(tpl) && self.tpls[HAS](tpl) )
+        if ( !empty(tpl) && self.tpls[HASPROP](tpl) )
         {
            self.tpls[ tpl ].sql.dispose( );
            delete self.tpls[ tpl ];
@@ -1996,7 +2175,7 @@ Dialect[PROTO] = {
         drop_clause = drop_clause || 'drop';
         if ( self.clau !== drop_clause ) self.reset(drop_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HAS]( view ) )
+        if ( self.vews[HASPROP]( view ) )
         {
             // drop custom 'soft' view
             self.dropView( view );
@@ -2031,7 +2210,7 @@ Dialect[PROTO] = {
         insert_clause = insert_clause || 'insert';
         if ( self.clau !== insert_clause ) self.reset(insert_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2070,15 +2249,15 @@ Dialect[PROTO] = {
                     val = vs[j];
                     if ( is_obj(val) )
                     {
-                        if ( val[HAS]('integer') )
+                        if ( val[HASPROP]('integer') )
                         {
                             vals.push( self.intval( val['integer'] ) );
                         }
-                        else if ( val[HAS]('raw') )
+                        else if ( val[HASPROP]('raw') )
                         {
                             vals.push( val['raw'] );
                         }
-                        else if ( val[HAS]('string') )
+                        else if ( val[HASPROP]('string') )
                         {
                             vals.push( self.quote( val['string'] ) );
                         }
@@ -2103,7 +2282,7 @@ Dialect[PROTO] = {
         update_clause = update_clause || 'update';
         if ( self.clau !== update_clause ) self.reset(update_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2126,50 +2305,50 @@ Dialect[PROTO] = {
         COLS = self.cols;
         for (f in fields_values)
         {
-            if ( !fields_values[HAS](f) ) continue;
+            if ( !fields_values[HASPROP](f) ) continue;
             field = self.refs( f, COLS )[0].full;
             value = fields_values[f];
             
             if ( is_obj(value) )
             {
-                if ( value[HAS]('integer') )
+                if ( value[HASPROP]('integer') )
                 {
                     set_values.push( field + " = " + self.intval(value['integer']) );
                 }
-                else if ( value[HAS]('raw') )
+                else if ( value[HASPROP]('raw') )
                 {
                     set_values.push( field + " = " + value['raw'] );
                 }
-                else if ( value[HAS]('string') )
+                else if ( value[HASPROP]('string') )
                 {
                     set_values.push( field + " = " + self.quote(value['string']) );
                 }
-                else if ( value[HAS]('increment') )
+                else if ( value[HASPROP]('increment') )
                 {
                     set_values.push( field + " = " + field + " + " + self.intval(value['increment']) );
                 }
-                else if ( value[HAS]('decrement') )
+                else if ( value[HASPROP]('decrement') )
                 {
                     set_values.push( field + " = " + field + " - " + self.intval(value['increment']) );
                 }
-                else if ( value[HAS]('case') )
+                else if ( value[HASPROP]('case') )
                 {
                     set_case_value = field + " = CASE";
-                    if ( value['case'][HAS]('when') )
+                    if ( value['case'][HASPROP]('when') )
                     {
                         for ( case_value in value['case']['when'] )
                         {
-                            if ( !value['case']['when'][HAS](case_value) ) continue;
+                            if ( !value['case']['when'][HASPROP](case_value) ) continue;
                             set_case_value += "\nWHEN " + self.conditions(value['case']['when'][case_value],false) + " THEN " + self.quote(case_value);
                         }
-                        if ( value['case'][HAS]('else') )
+                        if ( value['case'][HASPROP]('else') )
                             set_case_value += "\nELSE " + self.quote(value['case']['else']);
                     }
                     else
                     {
                         for ( case_value in value['case'] )
                         {
-                            if ( !value['case'][HAS](case_value) ) continue;
+                            if ( !value['case'][HASPROP](case_value) ) continue;
                             set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],false) + " THEN " + self.quote(case_value);
                         }
                     }
@@ -2200,7 +2379,7 @@ Dialect[PROTO] = {
         var self = this, view, tables;
         if ( empty(tables) ) return self;
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HAS]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2238,7 +2417,7 @@ Dialect[PROTO] = {
             {
                 for (field in on_cond)
                 {
-                    if ( !on_cond[HAS](field) ) continue;
+                    if ( !on_cond[HASPROP](field) ) continue;
                     cond = on_cond[ field ];
                     if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'identifier'};
                 }
@@ -2326,19 +2505,19 @@ Dialect[PROTO] = {
         
         for (f in conditions)
         {
-            if ( !conditions[HAS](f) ) continue;
+            if ( !conditions[HASPROP](f) ) continue;
             
             value = conditions[ f ];
             
             if ( is_obj( value ) )
             {
-                if ( value[HAS]('raw') )
+                if ( value[HASPROP]('raw') )
                 {
                     conds.push(String(value['raw']));
                     continue;
                 }
                 
-                if ( value[HAS]('or') )
+                if ( value[HASPROP]('or') )
                 {
                     cases = [];
                     for(var i=0,il=value['or'].length; i<il; i++)
@@ -2350,7 +2529,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HAS]('and') )
+                if ( value[HASPROP]('and') )
                 {
                     cases = [];
                     for(var i=0,il=value['and'].length; i<il; i++)
@@ -2362,7 +2541,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HAS]('either') )
+                if ( value[HASPROP]('either') )
                 {
                     cases = [];
                     for(var i=0,il=value['either'].length; i<il; i++)
@@ -2374,7 +2553,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HAS]('together') )
+                if ( value[HASPROP]('together') )
                 {
                     cases = [];
                     for(var i=0,il=value['together'].length; i<il; i++)
@@ -2387,45 +2566,45 @@ Dialect[PROTO] = {
                 }
                 
                 field = self.refs( f, COLS )[0][ fmt ];
-                type = value[HAS]('type') ? value.type : 'string';
+                type = value[HASPROP]('type') ? value.type : 'string';
                 
-                if ( value[HAS]('case') )
+                if ( value[HASPROP]('case') )
                 {
                     cases = field + " = CASE";
-                    if ( value['case'][HAS]('when') )
+                    if ( value['case'][HASPROP]('when') )
                     {
                         for ( case_value in value['case']['when'] )
                         {
-                            if ( !value['case']['when'][HAS](case_value) ) continue;
+                            if ( !value['case']['when'][HASPROP](case_value) ) continue;
                             cases += " WHEN " + self.conditions(value['case']['when'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
                         }
-                        if ( value['case'][HAS]('else') )
+                        if ( value['case'][HASPROP]('else') )
                             cases += " ELSE " + self.quote(value['case']['else']);
                     }
                     else
                     {
                         for ( case_value in value['case'] )
                         {
-                            if ( !value['case'][HAS](case_value) ) continue;
+                            if ( !value['case'][HASPROP](case_value) ) continue;
                             cases += " WHEN " + self.conditions(value['case'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
                         }
                     }
                     cases += " END";
                     conds.push( cases );
                 }
-                else if ( value[HAS]('multi_like') )
+                else if ( value[HASPROP]('multi_like') )
                 {
                     conds.push( self.multi_like(field, value.multi_like) );
                 }
-                else if ( value[HAS]('like') )
+                else if ( value[HASPROP]('like') )
                 {
                     conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
                 }
-                else if ( value[HAS]('not_like') )
+                else if ( value[HASPROP]('not_like') )
                 {
                     conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
                 }
-                else if ( value[HAS]('contains') )
+                else if ( value[HASPROP]('contains') )
                 {
                     v = String(value.contains);
                     
@@ -2439,7 +2618,7 @@ Dialect[PROTO] = {
                     }
                     conds.push(self.sql_function('strpos', [field,v]) + ' > 0');
                 }
-                else if ( value[HAS]('not_contains') )
+                else if ( value[HASPROP]('not_contains') )
                 {
                     v = String(value.not_contains);
                     
@@ -2453,7 +2632,7 @@ Dialect[PROTO] = {
                     }
                     conds.push(self.sql_function('strpos', [field,v]) + ' = 0');
                 }
-                else if ( value[HAS]('in') )
+                else if ( value[HASPROP]('in') )
                 {
                     v = array( value['in'] );
                     
@@ -2471,7 +2650,7 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " IN (" + v.join(',') + ")" );
                 }
-                else if ( value[HAS]('not_in') )
+                else if ( value[HASPROP]('not_in') )
                 {
                     v = array( value['not_in'] );
                     
@@ -2489,7 +2668,7 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " NOT IN (" + v.join(',') + ")" );
                 }
-                else if ( value[HAS]('between') )
+                else if ( value[HASPROP]('between') )
                 {
                     v = array( value.between );
                     
@@ -2545,7 +2724,7 @@ Dialect[PROTO] = {
                         conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
                     }
                 }
-                else if ( value[HAS]('not_between') )
+                else if ( value[HASPROP]('not_between') )
                 {
                     v = array( value.not_between );
                     
@@ -2601,9 +2780,9 @@ Dialect[PROTO] = {
                         conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
                     }
                 }
-                else if ( value[HAS]('gt') || value[HAS]('gte') )
+                else if ( value[HASPROP]('gt') || value[HASPROP]('gte') )
                 {
-                    op = value[HAS]('gt') ? "gt" : "gte";
+                    op = value[HASPROP]('gt') ? "gt" : "gte";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2624,9 +2803,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + ('gt'===op ? " > " : " >= ") + v );
                 }
-                else if ( value[HAS]('lt') || value[HAS]('lte') )
+                else if ( value[HASPROP]('lt') || value[HASPROP]('lte') )
                 {
-                    op = value[HAS]('lt') ? "lt" : "lte";
+                    op = value[HASPROP]('lt') ? "lt" : "lte";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2647,9 +2826,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + ('lt'===op ? " < " : " <= ") + v );
                 }
-                else if ( value[HAS]('not_equal') || value[HAS]('not_eq') )
+                else if ( value[HASPROP]('not_equal') || value[HASPROP]('not_eq') )
                 {
-                    op = value[HAS]('not_eq') ? "not_eq" : "not_equal";
+                    op = value[HASPROP]('not_eq') ? "not_eq" : "not_equal";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2670,9 +2849,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " <> " + v );
                 }
-                else if ( value[HAS]('equal') || value[HAS]('eq') )
+                else if ( value[HASPROP]('equal') || value[HASPROP]('eq') )
                 {
-                    op = value[HAS]('eq') ? "eq" : "equal";
+                    op = value[HASPROP]('eq') ? "eq" : "equal";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2711,11 +2890,11 @@ Dialect[PROTO] = {
             join_key, join_value;
         for ( f in conditions )
         {
-            if ( !conditions[HAS](f) ) continue;
+            if ( !conditions[HASPROP](f) ) continue;
             
             ref = Ref.parse( f, self );
             field = ref._col;
-            if ( !join[HAS]( field ) ) continue;
+            if ( !join[HASPROP]( field ) ) continue;
             cond = conditions[ f ];
             main_table = join[field].table;
             main_id = join[field].id;
@@ -2725,7 +2904,7 @@ Dialect[PROTO] = {
             j++; join_alias = join_table+j;
             
             where = { };
-            if ( join[field][HAS]('key') && field !== join[field].key )
+            if ( join[field][HASPROP]('key') && field !== join[field].key )
             {
                 join_key = join[field].key;
                 where[join_alias+'.'+join_key] = field;
@@ -2734,7 +2913,7 @@ Dialect[PROTO] = {
             {
                 join_key = field;
             }
-            if ( join[field][HAS]('value') )
+            if ( join[field][HASPROP]('value') )
             {
                 join_value = join[field].value;
                 where[join_alias+'.'+join_value] = cond;
@@ -2769,9 +2948,9 @@ Dialect[PROTO] = {
                 
                 if ( '*' === qualified_full ) continue;
                 
-                if ( !lookup[HAS]( alias ) )
+                if ( !lookup[HASPROP]( alias ) )
                 {
-                    if ( lookup[HAS]( qualified_full ) )
+                    if ( lookup[HASPROP]( qualified_full ) )
                     {
                         ref2 = lookup[ qualified_full ];
                         alias2 = ref2.alias;
@@ -2780,14 +2959,14 @@ Dialect[PROTO] = {
                         if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
                         {
                             // handle recursive aliasing
-                            /*if ( (qualified_full2 !== alias2) && lookup[HAS]( alias2 ) )
+                            /*if ( (qualified_full2 !== alias2) && lookup[HASPROP]( alias2 ) )
                                 delete lookup[ alias2 ];*/
                             
                             ref2 = ref2.cloned( ref.alias );
                             refs[i] = lookup[ alias ] = ref2;
                         }
                     }
-                    else if ( lookup[HAS]( qualified ) )
+                    else if ( lookup[HASPROP]( qualified ) )
                     {
                         ref2 = lookup[ qualified ];
                         if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
@@ -2796,13 +2975,13 @@ Dialect[PROTO] = {
                         else
                             ref2 = ref2.cloned( null, ref2.alias, ref._func );
                         refs[i] = lookup[ ref2.alias ] = ref2;
-                        if ( (ref2.alias !== ref2.full) && !lookup[HAS]( ref2.full ) )
+                        if ( (ref2.alias !== ref2.full) && !lookup[HASPROP]( ref2.full ) )
                             lookup[ ref2.full ] = ref2;
                     }
                     else
                     {
                         lookup[ alias ] = ref;
-                        if ( (alias !== qualified_full) && !lookup[HAS]( qualified_full ) )
+                        if ( (alias !== qualified_full) && !lookup[HASPROP]( qualified_full ) )
                             lookup[ qualified_full ] = ref;
                     }
                 }
@@ -2824,10 +3003,10 @@ Dialect[PROTO] = {
                 {
                     ref = Ref.parse( r[ j ], self );
                     alias = ref.alias; qualified = ref.full;
-                    if ( !lookup[HAS](alias) ) 
+                    if ( !lookup[HASPROP](alias) ) 
                     {
                         lookup[ alias ] = ref;
-                        if ( (qualified !== alias) && !lookup[HAS](qualified) )
+                        if ( (qualified !== alias) && !lookup[HASPROP](qualified) )
                             lookup[ qualified ] = ref;
                     }
                     else

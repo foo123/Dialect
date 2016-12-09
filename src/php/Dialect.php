@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.8.1
+*   @version: 0.8.2
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -17,11 +17,11 @@ if ( !class_exists('StringTemplate') )
 class StringTemplate
 {    
     const VERSION = '1.0.0';
-    private static $GUID = 0;
     
     private static function guid( )
     {
-        return time().'--'.(++self::$GUID);
+        static $GUID = 0;
+        return time().'--'.(++$GUID);
     }
     
     public static function multisplit($tpl, $reps, $as_array=false)
@@ -248,12 +248,21 @@ class GrammarTemplate__TplEntry
 
 class GrammarTemplate
 {    
-    const VERSION = '2.1.1';
-    private static $GUID = 0;
+    const VERSION = '3.0.0';
     
-    private static function guid( )
+    public static function pad( $s, $n, $z='0', $pad_right=false )
     {
-        return time().'--'.(++self::$GUID);
+        $ps = (string)$s;
+        if ( $pad_right ) while ( strlen($ps) < $n ) $ps .= $z;
+        else while ( strlen($ps) < $n ) $ps = $z . $ps;
+        return $ps;
+    }
+    
+    public static function guid( )
+    {
+        static $GUID = 0;
+        $GUID += 1;
+        return self::pad(dechex(time()),12).'--'.self::pad(dechex($GUID),4);
     }
     
     private static function is_array( $a )
@@ -264,6 +273,45 @@ class GrammarTemplate
             return !empty($array_keys) && (array_keys($array_keys) === $array_keys);
         }
         return false;
+    }
+    
+    private static function compute_alignment( $s, $i, $l )
+    {
+        $alignment = '';
+        while ( $i < $l )
+        {
+            $c = $s[$i];
+            if ( (" " === $c) || ("\r" === $c) || ("\t" === $c) || ("\v" === $c) || ("\0" === $c) )
+            {
+                $alignment .= $c;
+                $i += 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return $alignment;
+    }
+    
+    public static function align( $s, $alignment )
+    {
+        $l = strlen($s);
+        if ( $l && strlen($alignment) )
+        {
+            $aligned = '';
+            for($i=0; $i<$l; $i++)
+            {
+                $c = $s[$i];
+                $aligned .= $c;
+                if ( "\n" === $c ) $aligned .= $alignment;
+            }
+        }
+        else
+        {
+            $aligned = $s;
+        }
+        return $aligned;
     }
     
     private static function walk( $obj, $keys, $keys_alt=null, $obj_alt=null )
@@ -409,13 +457,14 @@ class GrammarTemplate
         $OBL = $delims[2]; $OBR = $delims[3]; $TPL = $delims[4];
         $lenIDL = strlen($IDL); $lenIDR = strlen($IDR);
         $lenOBL = strlen($OBL); $lenOBR = strlen($OBR); $lenTPL = strlen($TPL);
-        $ESC = '\\'; $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|';
-        $REPL = '{'; $REPR = '}'; $DOT = '.'; $REF = ':';
+        $ESC = '\\'; $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $COMMENT = '#';
+        $REPL = '{'; $REPR = '}'; $DOT = '.'; $REF = ':'; $ALGN = '@'; //$NOTALGN = '&';
         $default_value = null; $negative = 0; $optional = 0;
+        $aligned = 0; $localised = 0;
         $l = strlen($tpl);
         
         $postop = true === $postop;
-        $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> ''));
+        $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> '', 'algn'=> ''));
         $cur_arg = (object)array(
             'type'    => 1,
             'name'    => null,
@@ -424,6 +473,8 @@ class GrammarTemplate
             'dval'    => null,
             'opt'     => 0,
             'neg'     => 0,
+            'algn'    => 0,
+            'loc'     => 0,
             'start'   => 0,
             'end'     => 0
         );
@@ -455,7 +506,7 @@ class GrammarTemplate
                 if ( strlen($s) )
                 {
                     if ( 0 === $a->node->type ) $a->node->val .= $s;
-                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s, 'algn'=> ''), $a);
                 }
                 
                 $s = '';
@@ -575,6 +626,28 @@ class GrammarTemplate
                 }
                 if ( $negative && (null === $default_value) ) $default_value = '';
                 
+                $c = $argument[0];
+                if ( $ALGN === $c )
+                {
+                    $aligned = 1;
+                    $argument = substr($argument,1);
+                }
+                else
+                {
+                    $aligned = 0;
+                }
+                
+                $c = $argument[0];
+                if ( $DOT === $c )
+                {
+                    $localised = 1;
+                    $argument = substr($argument,1);
+                }
+                else
+                {
+                    $localised = 0;
+                }
+                
                 $template = false !== strpos($argument, $REF) ? explode($REF, $argument) : array($argument,null);
                 $argument = $template[0]; $template = $template[1];
                 $nested = false !== strpos($argument, $DOT) ? explode($DOT, $argument) : null;
@@ -604,10 +677,12 @@ class GrammarTemplate
                     $cur_arg->dval = $default_value;
                     $cur_arg->opt = $optional;
                     $cur_arg->neg = $negative;
+                    $cur_arg->algn = $aligned;
+                    $cur_arg->loc = $localised;
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,$optional));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,$optional,$localised));
                 }
                 else if ( $optional )
                 {
@@ -621,10 +696,12 @@ class GrammarTemplate
                         $cur_arg->dval = $default_value;
                         $cur_arg->opt = $optional;
                         $cur_arg->neg = $negative;
+                        $cur_arg->algn = $aligned;
+                        $cur_arg->loc = $localised;
                         $cur_arg->start = $start_i;
                         $cur_arg->end = $end_i;
                     }
-                    $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i,$optional));
+                    $opt_args = new GrammarTemplate__StackEntry($opt_args, array($argument,$nested,$negative,$start_i,$end_i,$optional,$localised));
                 }
                 else if ( !$optional && (null === $cur_arg->name) )
                 {
@@ -634,11 +711,14 @@ class GrammarTemplate
                     $cur_arg->dval = $default_value;
                     $cur_arg->opt = 0;
                     $cur_arg->neg = $negative;
+                    $cur_arg->algn = $aligned;
+                    $cur_arg->loc = $localised;
                     $cur_arg->start = $start_i;
                     $cur_arg->end = $end_i;
                     // handle multiple optional arguments for same optional block
-                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,0));
+                    $opt_args = new GrammarTemplate__StackEntry(null, array($argument,$nested,$negative,$start_i,$end_i,0,$localised));
                 }
+                if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
                 $a = new GrammarTemplate__TplEntry((object)array(
                     'type'    => 1,
                     'name'    => $argument,
@@ -646,6 +726,8 @@ class GrammarTemplate
                     'stpl'    => $template,
                     'dval'    => $default_value,
                     'opt'     => $optional,
+                    'algn'    => $aligned,
+                    'loc'     => $localised,
                     'start'   => $start_i,
                     'end'     => $end_i
                 ), $a);
@@ -660,14 +742,26 @@ class GrammarTemplate
                     continue;
                 }
                 
-                // optional block
                 if ( strlen($s) )
                 {
                     if ( 0 === $a->node->type ) $a->node->val .= $s;
-                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+                    else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s, 'algn'=> ''), $a);
+                }
+                $s = '';
+                
+                // comment
+                if ( $COMMENT === $tpl[$i] )
+                {
+                    $j = $i+1; $jl = $l;
+                    while ( ($j < $jl) && ($COMMENT.$OBR !== substr($tpl,$j,$lenOBR+1)) ) $s .= $tpl[$j++];
+                    $i = $j+$lenOBR+1;
+                    if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
+                    $a = new GrammarTemplate__TplEntry((object)array('type'=> -100, 'val'=> $s), $a);
+                    $s = '';
+                    continue;
                 }
                 
-                $s = '';
+                // optional block
                 $stack = new GrammarTemplate__StackEntry($stack, array($a, $block, $cur_arg, $opt_args, $cur_tpl, $start_tpl));
                 if ( $start_tpl ) $cur_tpl = $start_tpl;
                 $start_tpl = null;
@@ -679,11 +773,13 @@ class GrammarTemplate
                     'dval'    => null,
                     'opt'     => 0,
                     'neg'     => 0,
+                    'algn'    => 0,
+                    'loc'     => 0,
                     'start'   => 0,
                     'end'     => 0
                 );
                 $opt_args = null;
-                $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> ''));
+                $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> '', 'algn'=> ''));
                 $block = $a;
             }
             else if ( $OBR === substr($tpl,$i,$lenOBR) )
@@ -717,7 +813,7 @@ class GrammarTemplate
                 if ( strlen($s) )
                 {
                     if ( 0 === $b->node->type ) $b->node->val .= $s;
-                    else $b = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $b);
+                    else $b = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s, 'algn'=> ''), $b);
                 }
                 
                 $s = '';
@@ -727,8 +823,10 @@ class GrammarTemplate
                         'type'    => 2,
                         'name'    => $prev_arg->name,
                         'key'     => $prev_arg->key,
-                        'start'   => 0,
-                        'end'     => 0,
+                        'loc'     => $prev_arg->loc,
+                        'algn'    => $prev_arg->algn,
+                        'start'   => $prev_arg->start,
+                        'end'     => $prev_arg->end,
                         'opt_args'=> null,
                         'tpl'     => $cur_block
                     ));
@@ -736,10 +834,13 @@ class GrammarTemplate
                 }
                 else
                 {
+                    if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
                     $a = new GrammarTemplate__TplEntry((object)array(
                         'type'    => -1,
                         'name'    => $prev_arg->name,
                         'key'     => $prev_arg->key,
+                        'loc'     => $prev_arg->loc,
+                        'algn'    => $prev_arg->algn,
                         'start'   => $prev_arg->start,
                         'end'     => $prev_arg->end,
                         'opt_args'=> $prev_opt_args,
@@ -749,18 +850,35 @@ class GrammarTemplate
             }
             else
             {
-                $s .= $tpl[$i++];
+                $ch = $tpl[$i++];
+                if ( "\n" === $ch )
+                {
+                    // note line changes to handle alignments
+                    if ( strlen($s) )
+                    {
+                        if ( 0 === $a->node->type ) $a->node->val .= $s;
+                        else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s, 'algn'=> ''), $a);
+                    }
+                    $s = '';
+                    if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
+                    $a = new GrammarTemplate__TplEntry((object)array('type'=> 100, 'val'=> "\n"), $a);
+                }
+                else
+                {
+                    $s .= $ch;
+                }
             }
         }
         if ( strlen($s) )
         {
             if ( 0 === $a->node->type ) $a->node->val .= $s;
-            else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s), $a);
+            else $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> $s, 'algn'=> ''), $a);
         }
+        if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
         return array($roottpl, &$subtpl);
     }
 
-    public static function optional_block( $args, $block, &$SUB, &$FN, $index=null, $orig_args=null )
+    public static function optional_block( $args, $block, &$SUB, &$FN, $index=null, $alignment='', $orig_args=null )
     {
         $out = '';
         $block_arg = null;
@@ -775,7 +893,7 @@ class GrammarTemplate
                 while( $opt_vars )
                 {
                     $opt_v = $opt_vars->value;
-                    $opt_arg = self::walk( $args, $opt_v[1], array((string)$opt_v[0]), $orig_args );
+                    $opt_arg = self::walk( $args, $opt_v[1], array((string)$opt_v[0]), $opt_v[6] ? null : $orig_args );
                     if ( (null === $block_arg) && ($block->name === $opt_v[0]) ) $block_arg = $opt_arg;
                     
                     if ( (0 === $opt_v[2] && null === $opt_arg) || (1 === $opt_v[2] && null !== $opt_arg) )  return '';
@@ -785,35 +903,41 @@ class GrammarTemplate
         }
         else
         {
-            $block_arg = self::walk( $args, $block->key, array((string)$block->name), $orig_args );
+            $block_arg = self::walk( $args, $block->key, array((string)$block->name), $block->loc ? null : $orig_args );
         }
         
         $arr = self::is_array( $block_arg ); $len = $arr ? count($block_arg) : -1;
+        //if ( !$block->algn ) $alignment = '';
         if ( $arr && ($len > $block->start) )
         {
             for($rs=$block->start,$re=(-1===$block->end?$len-1:min($block->end,$len-1)),$ri=$rs; $ri<=$re; $ri++)
-                $out .= self::main( $args, $block->tpl, $SUB, $FN, $ri, $orig_args );
+                $out .= self::main( $args, $block->tpl, $SUB, $FN, $ri, $alignment, $orig_args );
         }
         else if ( !$arr && ($block->start === $block->end) )
         {
-            $out = self::main( $args, $block->tpl, $SUB, $FN, null, $orig_args );
+            $out = self::main( $args, $block->tpl, $SUB, $FN, null, $alignment, $orig_args );
         }
         return $out;
     }
-    public static function non_terminal( $args, $symbol, &$SUB, &$FN, $index=null, $orig_args=null )
+    public static function non_terminal( $args, $symbol, &$SUB, &$FN, $index=null, $alignment='', $orig_args=null )
     {
         $out = '';
-        if ( $symbol->stpl && ((!empty($SUB) && isset($SUB[$symbol->stpl])) || (!empty($FN) && isset($FN[$symbol->stpl])) || (isset(self::$fnGlobal[$symbol->stpl]))) )
+        if ( $symbol->stpl && (
+            (!empty($SUB) && isset($SUB[$symbol->stpl])) ||
+            (isset(self::$subGlobal[$symbol->stpl])) ||
+            (!empty($FN) && (isset($FN[$symbol->stpl]) || isset($FN['*']))) ||
+            (isset(self::$fnGlobal[$symbol->stpl]) || isset(self::$fnGlobal['*']))
+        ) )
         {
             // using custom function or sub-template
-            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $orig_args );
+            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $symbol->loc ? null : $orig_args );
         
-            if ( !empty($SUB) && isset($SUB[$symbol->stpl]) )
+            if ( (!empty($SUB) && isset($SUB[$symbol->stpl])) || isset(self::$subGlobal[$symbol->stpl]) )
             {
                 // sub-template
-                if ( (null !== $index/* || null !== $symbol->start*/) && (0 !== $index || !$symbol->opt) && self::is_array($opt_arg) )
+                if ( (null !== $index) && ((0 !== $index) || ($symbol->start !== $symbol->end) || !$symbol->opt) && self::is_array($opt_arg) )
                 {
-                    $opt_arg = /*null !== $index ? (*/count($opt_arg) > $index ? $opt_arg[$index] : null/*) : (count($opt_arg) > $symbol->start ? $opt_arg[$symbol->start] : null)*/;
+                    $opt_arg = $index < count($opt_arg) ? $opt_arg[ $index ] : null;
                 }
                 if ( (null === $opt_arg) && (null !== $symbol->dval) )
                 {
@@ -823,31 +947,51 @@ class GrammarTemplate
                 else
                 {
                     // try to associate sub-template parameters to actual input arguments
-                    $tpl = $SUB[$symbol->stpl]->node; $tpl_args = array();
+                    $tpl = !empty($SUB) && isset($SUB[$symbol->stpl]) ? $SUB[$symbol->stpl]->node : self::$subGlobal[$symbol->stpl]->node;
+                    $tpl_args = array();
                     if ( null !== $opt_arg )
                     {
-                        /*if ( isset($opt_arg[$tpl->name]) && !isset($opt_arg[$symbol->name]) ) $tpl_args = $opt_arg;
-                        else $tpl_args[$tpl->name] = $opt_arg;*/
                         if ( self::is_array($opt_arg) ) $tpl_args[$tpl->name] = $opt_arg;
                         else $tpl_args = $opt_arg;
                     }
-                    $out = self::optional_block( $tpl_args, $tpl, $SUB, $FN, null, null === $orig_args ? $args : $orig_args );
+                    $out = self::optional_block( $tpl_args, $tpl, $SUB, $FN, null, $symbol->algn ? $alignment : '', null === $orig_args ? $args : $orig_args );
+                    //if ( $symbol->algn ) $out = self::align($out, $alignment);
                 }
             }
             else//if ( $fn )
             {
                 // custom function
-                $fn = !empty($FN) && isset($FN[$symbol->stpl]) ? $FN[$symbol->stpl] : (isset(self::$fnGlobal[$symbol->stpl]) ? self::$fnGlobal[$symbol->stpl] : null);
+                $fn = null;
+                if     ( !empty($FN) && isset($FN[$symbol->stpl]) ) $fn = $FN[$symbol->stpl];
+                elseif ( !empty($FN) && isset($FN['*']) )           $fn = $FN['*'];
+                elseif ( isset(self::$fnGlobal[$symbol->stpl]) )    $fn = self::$fnGlobal[$symbol->stpl];
+                elseif ( isset(self::$fnGlobal['*']) )              $fn = self::$fnGlobal['*'];
                 
                 if ( self::is_array($opt_arg) )
                 {
                     $index = null !== $index ? $index : $symbol->start;
-                    $opt_arg = $index < count($opt_arg) ? $opt_arg[$index] : null;
+                    $opt_arg = $index < count($opt_arg) ? $opt_arg[ $index ] : null;
                 }
                 
-                $opt_arg = is_callable($fn) ? call_user_func($fn, $opt_arg, $index, $args, $orig_args, $symbol) : strval($fn);
+                if ( is_callable($fn) )
+                {
+                    $fn_arg = (object)array(
+                        //'value'               => $opt_arg,
+                        'symbol'              => $symbol,
+                        'index'               => $index,
+                        'currentArguments'    => &$args,
+                        'originalArguments'   => &$orig_args,
+                        'alignment'           => $alignment
+                    );
+                    $opt_arg = call_user_func($fn, $opt_arg, $fn_arg);
+                }
+                else
+                {
+                    $opt_arg = strval($fn);
+                }
                 
                 $out = (null === $opt_arg) && (null !== $symbol->dval) ? $symbol->dval : strval($opt_arg);
+                if ( $symbol->algn ) $out = self::align($out, $alignment);
             }
         }
         elseif ( $symbol->opt && (null !== $symbol->dval) )
@@ -858,30 +1002,48 @@ class GrammarTemplate
         else
         {
             // plain symbol argument
-            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $orig_args );
+            $opt_arg = self::walk( $args, $symbol->key, array((string)$symbol->name), $symbol->loc ? null : $orig_args );
             
             // default value if missing
             if ( self::is_array($opt_arg) )
             {
                 $index = null !== $index ? $index : $symbol->start;
-                $opt_arg = $index < count($opt_arg) ? $opt_arg[$index] : null;
+                $opt_arg = $index < count($opt_arg) ? $opt_arg[ $index ] : null;
             }
             $out = (null === $opt_arg) && (null !== $symbol->dval) ? $symbol->dval : strval($opt_arg);
+            if ( $symbol->algn ) $out = self::align($out, $alignment);
         }
         return $out;
     }
-    public static function main( $args, $tpl, &$SUB=null, &$FN=null, $index=null, $orig_args=null )
+    public static function main( $args, $tpl, &$SUB=null, &$FN=null, $index=null, $alignment='', $orig_args=null )
     {
         $out = '';
+        $current_alignment = $alignment;
         while ( $tpl )
         {
             $tt = $tpl->node->type;
-            $out .= (-1 === $tt
-                ? self::optional_block( $args, $tpl->node, $SUB, $FN, $index, $orig_args ) /* optional code-block */
-                : (1 === $tt
-                ? self::non_terminal( $args, $tpl->node, $SUB, $FN, /*0 === $index ? ($tpl->node->opt&&$tpl->node->stpl?null:$index) : */$index, $orig_args ) /* non-terminal */
-                : $tpl->node->val /* terminal */
-            ));
+            if ( -1 === $tt ) /* optional code-block */
+            {
+                $out .= self::optional_block( $args, $tpl->node, $SUB, $FN, $index, $tpl->node->algn ? $current_alignment : $alignment, $orig_args );
+            }
+            elseif ( 1 === $tt ) /* non-terminal */
+            {
+                $out .= self::non_terminal( $args, $tpl->node, $SUB, $FN, $index, $tpl->node->algn ? $current_alignment : $alignment, $orig_args );
+            }
+            elseif ( 0 === $tt ) /* terminal */
+            {
+                $current_alignment .= $tpl->node->algn;
+                $out .= $tpl->node->val;
+            }
+            elseif ( 100 === $tt ) /* new line */
+            {
+                $current_alignment = $alignment;
+                $out .= "\n" . $alignment;
+            }
+            /*elseif ( -100 === $tt ) /* comment * /
+            {
+                /* pass * /
+            }*/
             $tpl = $tpl->next;
         }
         return $out;
@@ -889,6 +1051,7 @@ class GrammarTemplate
     
     public static $defaultDelims = array('<','>','[',']',':='/*,'?','*','!','|','{','}'*/);
     public static $fnGlobal = array();
+    public static $subGlobal = array();
     
     public $id = null;
     public $tpl = null;
@@ -1269,7 +1432,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.8.1";
+    const VERSION = "0.8.2";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
