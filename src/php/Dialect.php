@@ -454,14 +454,19 @@ class GrammarTemplate
     public static function multisplit( $tpl, $delims, $postop=false )
     {
         $IDL = $delims[0]; $IDR = $delims[1];
-        $OBL = $delims[2]; $OBR = $delims[3]; $TPL = $delims[4];
+        $OBL = $delims[2]; $OBR = $delims[3];
         $lenIDL = strlen($IDL); $lenIDR = strlen($IDR);
-        $lenOBL = strlen($OBL); $lenOBR = strlen($OBR); $lenTPL = strlen($TPL);
+        $lenOBL = strlen($OBL); $lenOBR = strlen($OBR);
         $ESC = '\\'; $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $COMMENT = '#';
-        $REPL = '{'; $REPR = '}'; $DOT = '.'; $REF = ':'; $ALGN = '@'; //$NOTALGN = '&';
+        $TPL = ':='; $REPL = '{'; $REPR = '}'; $DOT = '.'; $REF = ':'; $ALGN = '@'; //$NOTALGN = '&';
+        $COMMENT_CLOSE = $COMMENT.$OBR;
         $default_value = null; $negative = 0; $optional = 0;
         $aligned = 0; $localised = 0;
         $l = strlen($tpl);
+        
+        $delim1 = array($IDL, $lenIDL, $IDR, $lenIDR);
+        $delim2 = array($OBL, $lenOBL, $OBR, $lenOBR);
+        $delim_order = array(null,0,null,0,null,0,null,0);
         
         $postop = true === $postop;
         $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> '', 'algn'=> ''));
@@ -480,28 +485,74 @@ class GrammarTemplate
         );
         $roottpl = $a; $block = null;
         $opt_args = null; $subtpl = array(); $cur_tpl = null; $arg_tpl = array(); $start_tpl = null;
-        $stack = null; $s = ''; $escaped = false;
+        
+        // hard-coded merge-sort for arbitrary delims parsing based on str len
+        if ( $delim1[1] < $delim1[3] )
+        {
+            $s = $delim1[0]; $delim1[2] = $delim1[0]; $delim1[0] = $s;
+            $i = $delim1[1]; $delim1[3] = $delim1[1]; $delim1[1] = $i;
+        }
+        if ( $delim2[1] < $delim2[3] )
+        {
+            $s = $delim2[0]; $delim2[2] = $delim2[0]; $delim2[0] = $s;
+            $i = $delim2[1]; $delim2[3] = $delim2[1]; $delim2[1] = $i;
+        }
+        $start_i = 0; $end_i = 0; $i = 0;
+        while ( (4 > $start_i) && (4 > $end_i) )
+        {
+            if ( $delim1[$start_i+1] < $delim2[$end_i+1] )
+            {
+                $delim_order[$i] = $delim2[$end_i];
+                $delim_order[$i+1] = $delim2[$end_i+1];
+                $end_i += 2;
+            }
+            else
+            {
+                $delim_order[$i] = $delim1[$start_i];
+                $delim_order[$i+1] = $delim1[$start_i+1];
+                $start_i += 2;
+            }
+            $i += 2;
+        }
+        while ( 4 > $start_i )
+        {
+            $delim_order[$i] = $delim1[$start_i];
+            $delim_order[$i+1] = $delim1[$start_i+1];
+            $start_i += 2; $i += 2;
+        }
+        while ( 4 > $end_i )
+        {
+            $delim_order[$i] = $delim2[$end_i];
+            $delim_order[$i+1] = $delim2[$end_i+1];
+            $end_i += 2; $i += 2;
+        }
+            
+        $stack = null; $s = '';
         
         $i = 0;
         while( $i < $l )
         {
-            $escaped = false;
-            $ch = $tpl[$i];
-            if ( $ESC === $ch )
+            $c = $tpl[$i];
+            if ( $ESC === $c )
             {
-                $escaped = true;
-                $i += 1;
+                $s .= $i+1 < $l ? $tpl[$i+1] : '';
+                $i += 2;
+                continue;
             }
             
-            if ( $IDL === substr($tpl,$i,$lenIDL) )
+            $delim = null;
+            if ( $delim_order[0] === substr($tpl,$i,$delim_order[1]) )
+                $delim = $delim_order[0];
+            elseif ( $delim_order[2] === substr($tpl,$i,$delim_order[3]) )
+                $delim = $delim_order[2];
+            elseif ( $delim_order[4] === substr($tpl,$i,$delim_order[5]) )
+                $delim = $delim_order[4];
+            elseif ( $delim_order[6] === substr($tpl,$i,$delim_order[7]) )
+                $delim = $delim_order[6];
+            
+            if ( $IDL === $delim )
             {
                 $i += $lenIDL;
-                
-                if ( $escaped )
-                {
-                    $s .= $IDL;
-                    continue;
-                }
                 
                 if ( strlen($s) )
                 {
@@ -511,15 +562,9 @@ class GrammarTemplate
                 
                 $s = '';
             }
-            else if ( $IDR === substr($tpl,$i,$lenIDR) )
+            else if ( $IDR === $delim )
             {
                 $i += $lenIDR;
-                
-                if ( $escaped )
-                {
-                    $s .= $IDR;
-                    continue;
-                }
                 
                 // argument
                 $argument = $s; $s = '';
@@ -654,10 +699,10 @@ class GrammarTemplate
                 
                 if ( $cur_tpl && !isset($arg_tpl[$cur_tpl]) ) $arg_tpl[$cur_tpl] = array();
                 
-                if ( $TPL.$OBL === substr($tpl,$i,$lenTPL+$lenOBL) )
+                if ( $TPL.$OBL === substr($tpl,$i,2+$lenOBL) )
                 {
                     // template definition
-                    $i += $lenTPL;
+                    $i += 2;
                     $template = $template&&strlen($template) ? $template : 'grtpl--'.self::guid( );
                     $start_tpl = $template;
                     if ( $cur_tpl && strlen($argument))
@@ -732,15 +777,9 @@ class GrammarTemplate
                     'end'     => $end_i
                 ), $a);
             }
-            else if ( $OBL === substr($tpl,$i,$lenOBL) )
+            else if ( $OBL === $delim )
             {
                 $i += $lenOBL;
-                
-                if ( $escaped )
-                {
-                    $s .= $OBL;
-                    continue;
-                }
                 
                 if ( strlen($s) )
                 {
@@ -753,7 +792,7 @@ class GrammarTemplate
                 if ( $COMMENT === $tpl[$i] )
                 {
                     $j = $i+1; $jl = $l;
-                    while ( ($j < $jl) && ($COMMENT.$OBR !== substr($tpl,$j,$lenOBR+1)) ) $s .= $tpl[$j++];
+                    while ( ($j < $jl) && ($COMMENT_CLOSE !== substr($tpl,$j,$lenOBR+1)) ) $s .= $tpl[$j++];
                     $i = $j+$lenOBR+1;
                     if ( 0 === $a->node->type ) $a->node->algn = self::compute_alignment($a->node->val, 0, strlen($a->node->val));
                     $a = new GrammarTemplate__TplEntry((object)array('type'=> -100, 'val'=> $s), $a);
@@ -782,15 +821,9 @@ class GrammarTemplate
                 $a = new GrammarTemplate__TplEntry((object)array('type'=> 0, 'val'=> '', 'algn'=> ''));
                 $block = $a;
             }
-            else if ( $OBR === substr($tpl,$i,$lenOBR) )
+            else if ( $OBR === $delim )
             {
                 $i += $lenOBR;
-                
-                if ( $escaped )
-                {
-                    $s .= $OBR;
-                    continue;
-                }
                 
                 $b = $a;
                 $cur_block = $block;
@@ -850,8 +883,8 @@ class GrammarTemplate
             }
             else
             {
-                $ch = $tpl[$i++];
-                if ( "\n" === $ch )
+                $c = $tpl[$i++];
+                if ( "\n" === $c )
                 {
                     // note line changes to handle alignments
                     if ( strlen($s) )
@@ -865,7 +898,7 @@ class GrammarTemplate
                 }
                 else
                 {
-                    $s .= $ch;
+                    $s .= $c;
                 }
             }
         }
@@ -1049,7 +1082,7 @@ class GrammarTemplate
         return $out;
     }
     
-    public static $defaultDelims = array('<','>','[',']',':='/*,'?','*','!','|','{','}'*/);
+    public static $defaultDelimiters = array('<','>','[',']');
     public static $fnGlobal = array();
     public static $subGlobal = array();
     
@@ -1063,7 +1096,7 @@ class GrammarTemplate
         $this->id = null;
         $this->tpl = null;
         $this->fn = array();
-        if ( empty($delims) ) $delims = self::$defaultDelims;
+        if ( empty($delims) ) $delims = self::$defaultDelimiters;
         // lazy init
         $this->_args = array($tpl, $delims, $postop);
     }
@@ -1436,7 +1469,7 @@ class Dialect
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
-     "mysql"            => array(
+     "mysqli"           => array(
          "quotes"       => array( array("'","'","\\'","\\'"), array("`","`"), array("","") )
         
         ,"functions"    => array(
@@ -1472,7 +1505,7 @@ class Dialect
     )
 
 
-    ,"sqlserver"        => array(
+    ,"transactsql"      => array(
          "quotes"       => array( array("'","'","''","''"), array("[","]"), array(""," ESCAPE '\\'") )
         
         ,"functions"    => array(
@@ -1508,6 +1541,11 @@ class Dialect
     )
     );
     
+    public static $aliases = array(
+        "mysql"     => "mysqli"
+       ,"sqlserver" => "transactsql"
+    );
+    
     private $clau = null;
     private $clus = null;
     private $vews = null;
@@ -1527,6 +1565,7 @@ class Dialect
     
     public function __construct( $type='mysql' )
     {
+        if ( !empty($type) && !empty(self::$aliases[ $type ]) ) $type = self::$aliases[ $type ];
         if ( empty($type) || empty(self::$dialects[ $type ]) || empty(self::$dialects[ $type ][ 'clauses' ]) )
         {
             throw new InvalidArgumentException('Dialect: SQL dialect does not exist for "'.$type.'"');

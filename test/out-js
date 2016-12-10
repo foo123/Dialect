@@ -1,6 +1,6 @@
 Dialect.VERSION = 0.8.2
 
-SQL dialect = sqlserver
+SQL dialect = transactsql
 
 SELECT COUNT([t].[f0]) AS [f0],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f11],[t].[f1] AS [f111],COUNT(DISTINCT([t].[f1])) AS [f22],COUNT(DISTINCT([t].[f2]))
 FROM [t]

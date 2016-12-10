@@ -385,16 +385,19 @@ function TplEntry( node, tpl )
 function multisplit( tpl, delims, postop )
 {
     var IDL = delims[0], IDR = delims[1],
-        OBL = delims[2], OBR = delims[3], TPL = delims[4],
+        OBL = delims[2], OBR = delims[3],
         lenIDL = IDL.length, lenIDR = IDR.length,
-        lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
+        lenOBL = OBL.length, lenOBR = OBR.length,
         ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|', COMMENT = '#',
-        REPL = '{', REPR = '}', DOT = '.', REF = ':', ALGN = '@', //NOTALGN = '&',
+        TPL = ':=', REPL = '{', REPR = '}', DOT = '.', REF = ':', ALGN = '@', //NOTALGN = '&',
+        COMMENT_CLOSE = COMMENT+OBR,
         default_value = null, negative = 0, optional = 0,
         nested, aligned = 0, localised = 0, start_i, end_i, template,
-        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
+        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
-        roottpl, block, cur_block, prev_arg, prev_opt_args;
+        roottpl, block, cur_block, prev_arg, prev_opt_args,
+        delim1 = [IDL, lenIDL, IDR, lenIDR], delim2 = [OBL, lenOBL, OBR, lenOBR],
+        delim_order = [null,0,null,0,null,0,null,0], delim;
     
     postop = true === postop;
     a = new TplEntry({type: 0, val: '', algn: ''});
@@ -413,28 +416,74 @@ function multisplit( tpl, delims, postop )
     };
     roottpl = a; block = null;
     opt_args = null; subtpl = {}; cur_tpl = null; arg_tpl = {}; start_tpl = null;
-    stack = null; s = ''; escaped = false;
+    
+    // hard-coded merge-sort for arbitrary delims parsing based on str len
+    if ( delim1[1] < delim1[3] )
+    {
+        s = delim1[0]; delim1[2] = delim1[0]; delim1[0] = s;
+        i = delim1[1]; delim1[3] = delim1[1]; delim1[1] = i;
+    }
+    if ( delim2[1] < delim2[3] )
+    {
+        s = delim2[0]; delim2[2] = delim2[0]; delim2[0] = s;
+        i = delim2[1]; delim2[3] = delim2[1]; delim2[1] = i;
+    }
+    start_i = 0; end_i = 0; i = 0;
+    while ( (4 > start_i) && (4 > end_i) )
+    {
+        if ( delim1[start_i+1] < delim2[end_i+1] )
+        {
+            delim_order[i] = delim2[end_i];
+            delim_order[i+1] = delim2[end_i+1];
+            end_i += 2;
+        }
+        else
+        {
+            delim_order[i] = delim1[start_i];
+            delim_order[i+1] = delim1[start_i+1];
+            start_i += 2;
+        }
+        i += 2;
+    }
+    while ( 4 > start_i )
+    {
+        delim_order[i] = delim1[start_i];
+        delim_order[i+1] = delim1[start_i+1];
+        start_i += 2; i += 2;
+    }
+    while ( 4 > end_i )
+    {
+        delim_order[i] = delim2[end_i];
+        delim_order[i+1] = delim2[end_i+1];
+        end_i += 2; i += 2;
+    }
+    
+    stack = null; s = '';
     
     i = 0;
     while( i < l )
     {
-        escaped = false;
-        ch = tpl[CHAR](i);
-        if ( ESC === ch )
+        c = tpl[CHAR](i);
+        if ( ESC === c )
         {
-            escaped = true;
-            i += 1;
+            s += i+1 < l ? tpl[CHAR](i+1) : '';
+            i += 2;
+            continue;
         }
         
-        if ( IDL === tpl.substr(i,lenIDL) )
+        delim = null;
+        if ( delim_order[0] === tpl.substr(i,delim_order[1]) )
+            delim = delim_order[0];
+        else if ( delim_order[2] === tpl.substr(i,delim_order[3]) )
+            delim = delim_order[2];
+        else if ( delim_order[4] === tpl.substr(i,delim_order[5]) )
+            delim = delim_order[4];
+        else if ( delim_order[6] === tpl.substr(i,delim_order[7]) )
+            delim = delim_order[6];
+        
+        if ( IDL === delim )
         {
             i += lenIDL;
-            
-            if ( escaped )
-            {
-                s += IDL;
-                continue;
-            }
             
             if ( s.length )
             {
@@ -443,15 +492,9 @@ function multisplit( tpl, delims, postop )
             }
             s = '';
         }
-        else if ( IDR === tpl.substr(i,lenIDR) )
+        else if ( IDR === delim )
         {
             i += lenIDR;
-            
-            if ( escaped )
-            {
-                s += IDR;
-                continue;
-            }
             
             // argument
             argument = s; s = '';
@@ -560,11 +603,6 @@ function multisplit( tpl, delims, postop )
                 aligned = 1;
                 argument = argument.slice(1);
             }
-            /*else if ( NOTALGN === c )
-            {
-                aligned = 0;
-                argument = argument.slice(1);
-            }*/
             else
             {
                 aligned = 0;
@@ -587,10 +625,10 @@ function multisplit( tpl, delims, postop )
             
             if ( cur_tpl && !HAS(arg_tpl,cur_tpl) ) arg_tpl[cur_tpl] = {};
             
-            if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
+            if ( TPL+OBL === tpl.substr(i,2+lenOBL) )
             {
                 // template definition
-                i += lenTPL;
+                i += 2;
                 template = template&&template.length ? template : 'grtpl--'+guid( );
                 start_tpl = template;
                 if ( cur_tpl && argument.length)
@@ -665,15 +703,9 @@ function multisplit( tpl, delims, postop )
                 end     : end_i
             }, a);
         }
-        else if ( OBL === tpl.substr(i,lenOBL) )
+        else if ( OBL === delim )
         {
             i += lenOBL;
-            
-            if ( escaped )
-            {
-                s += OBL;
-                continue;
-            }
             
             if ( s.length )
             {
@@ -686,7 +718,7 @@ function multisplit( tpl, delims, postop )
             if ( COMMENT === tpl[CHAR](i) )
             {
                 j = i+1; jl = l;
-                while ( (j < jl) && (COMMENT+OBR !== tpl.substr(j,lenOBR+1)) ) s += tpl[CHAR](j++);
+                while ( (j < jl) && (COMMENT_CLOSE !== tpl.substr(j,lenOBR+1)) ) s += tpl[CHAR](j++);
                 i = j+lenOBR+1;
                 if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
                 a = new TplEntry({type: -100, val: s}, a);
@@ -715,15 +747,9 @@ function multisplit( tpl, delims, postop )
             a = new TplEntry({type: 0, val: '', algn: ''});
             block = a;
         }
-        else if ( OBR === tpl.substr(i,lenOBR) )
+        else if ( OBR === delim )
         {
             i += lenOBR;
-            
-            if ( escaped )
-            {
-                s += OBR;
-                continue;
-            }
             
             b = a;
             cur_block = block;
@@ -782,8 +808,8 @@ function multisplit( tpl, delims, postop )
         }
         else
         {
-            ch = tpl[CHAR](i++);
-            if ( "\n" === ch )
+            c = tpl[CHAR](i++);
+            if ( "\n" === c )
             {
                 // note line changes to handle alignments
                 if ( s.length )
@@ -797,7 +823,7 @@ function multisplit( tpl, delims, postop )
             }
             else
             {
-                s += ch;
+                s += c;
             }
         }
     }
@@ -996,10 +1022,10 @@ function GrammarTemplate( tpl, delims, postop )
     self.tpl = null;
     self.fn = {};
     // lazy init
-    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims, postop||false];
+    self._args = [tpl||'', delims||GrammarTemplate.defaultDelimiters, postop||false];
 };
 GrammarTemplate.VERSION = '3.0.0';
-GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.defaultDelimiters = ['<','>','[',']'];
 GrammarTemplate.fnGlobal = {};
 GrammarTemplate.subGlobal = {};
 GrammarTemplate.guid = guid;
@@ -1522,7 +1548,7 @@ Ref[PROTO] = {
 };
 
 var dialects = {
- "mysql"            : {
+ "mysqli"           : {
      "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
     
     ,"functions"    : {
@@ -1558,7 +1584,7 @@ var dialects = {
 }
 
 
-,"sqlserver"        : {
+,"transactsql"      : {
      "quotes"       : [ ["'","'","''","''"], ["[","]"], [""," ESCAPE '\\'"] ]
     
     ,"functions"    : {
@@ -1593,13 +1619,17 @@ var dialects = {
     ,"clauses"      : "[<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
 }
 };
-
+var dialect_aliases = {
+    "mysql"     : "mysqli"
+   ,"sqlserver" : "transactsql"
+};
 function Dialect( type )
 {
     var self = this;
     if ( !(self instanceof Dialect) ) return new Dialect( type );
     if ( !arguments.length ) type = 'mysql';
     
+    if ( type && Dialect.aliases[ type ] ) type = Dialect.aliases[ type ];
     if ( !type || !Dialect.dialects[ type ] || !Dialect.dialects[ type ][ 'clauses' ] )
     {
         throw new TypeError('Dialect: SQL dialect does not exist for "'+type+'"');
@@ -1625,6 +1655,7 @@ function Dialect( type )
 Dialect.VERSION = "0.8.2";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
+Dialect.aliases = dialect_aliases;
 Dialect.StringTemplate = StringTemplate;
 Dialect.GrammarTemplate = GrammarTemplate;
 Dialect.Ref = Ref;
