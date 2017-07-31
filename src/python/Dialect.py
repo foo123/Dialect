@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.8.2
+#   @version: 0.8.3
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -1317,7 +1317,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.8.2'
+    VERSION = '0.8.3'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1339,6 +1339,26 @@ class Dialect:
         ,"now"          : ["NOW()"]
         }
         
+		,"types"    	: {
+		 "BINARY"		: "VARBINARY"
+		,"SMALLINT"		: "TINYINT"
+		,"MEDIUMINT"	: "MEDIUMINT"
+		,"INT"			: "UNSIGNED INT"
+		,"SIGNED_INT"	: "INT"
+		,"BIGINT"		: "UNSIGNED BIGINT"
+		,"SIGNED_BIGINT": "BIGINT"
+		,"FLOAT"		: "FLOAT"
+		,"DOUBLE"   	: "DOUBLE"
+		,"BOOL"			: "TINYINT"
+		,"TIMESTAMP"	: "TIMESTAMP"
+		,"DATETIME"		: "DATETIME"
+		,"DATE"			: "DATE"
+		,"TIME"			: "TIME"
+		,"VARCHAR"	    : "VARCHAR"
+		,"TEXT"			: "TEXT"
+		,"BLOB"			: "BLOB"
+		}
+		
         ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
     }
 
@@ -1357,6 +1377,26 @@ class Dialect:
         ,"now"          : ["now()"]
         }
         
+		,"types"    	: {
+		 "BINARY"		: "BYTEA"
+		,"SMALLINT"		: "SMALLINT"
+		,"MEDIUMINT"	: "INTEGER"
+		,"INT"			: "SERIAL"
+		,"SIGNED_INT"	: "INTEGER"
+		,"BIGINT"		: "BIGSERIAL"
+		,"SIGNED_BIGINT": "BIGINT"
+		,"FLOAT"		: "REAL"
+		,"DOUBLE"   	: "DOUBLE PRECISION"
+		,"BOOL"			: "BOOLEAN"
+		,"TIMESTAMP"	: "TIMESTAMP WITHOUT TIME ZONE"
+		,"DATETIME"		: "TIMESTAMP WITHOUT TIME ZONE"
+		,"DATE"			: "DATE"
+		,"TIME"			: "TIME WITHOUT TIME ZONE"
+		,"VARCHAR"	    : "VARCHAR"
+		,"TEXT"			: "TEXT"
+		,"BLOB"			: "BLOB"
+		}
+		
         ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
     }
 
@@ -1375,6 +1415,26 @@ class Dialect:
         ,"now"          : ["CURRENT_TIMESTAMP"]
         }
         
+		,"types"    	: {
+		 "BINARY"		: "VARBINARY"
+		,"SMALLINT"		: "TINYINT"
+		,"MEDIUMINT"	: "SMALLINT"
+		,"INT"			: "INT"
+		,"SIGNED_INT"	: "INT"
+		,"BIGINT"		: "BIGINT"
+		,"SIGNED_BIGINT": "BIGINT"
+		,"FLOAT"		: "FLOAT"
+		,"DOUBLE"   	: "REAL"
+		,"BOOL"			: "BIT"
+		,"TIMESTAMP"	: "DATETIME"
+		,"DATETIME"		: "DATETIME"
+		,"DATE"			: "DATE"
+		,"TIME"			: "TIME"
+		,"VARCHAR"	    : "VARCHAR"
+		,"TEXT"			: "TEXT"
+		,"BLOB"			: "TEXT"
+		}
+		
         ,"clauses"      : "[<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
     }
 
@@ -1393,6 +1453,26 @@ class Dialect:
         ,"now"          : ["datetime('now')"]
         }
         
+		,"types"    	: {
+		 "BINARY"		: "BLOB"
+		,"SMALLINT"		: "INTEGER"
+		,"MEDIUMINT"	: "INTEGER"
+		,"INT"			: "INTEGER"
+		,"SIGNED_INT"	: "INTEGER"
+		,"BIGINT"		: "INTEGER"
+		,"SIGNED_BIGINT": "INTEGER"
+		,"FLOAT"		: "REAL"
+		,"DOUBLE"   	: "REAL"
+		,"BOOL"			: "INTEGER"
+		,"TIMESTAMP"	: "TEXT"
+		,"DATETIME"		: "TEXT"
+		,"DATE"			: "TEXT"
+		,"TIME"			: "TEXT"
+		,"VARCHAR"	    : "TEXT"
+		,"TEXT"			: "TEXT"
+		,"BLOB"			: "BLOB"
+		}
+		
         ,"clauses"      : "[<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
     }
     }
@@ -2446,6 +2526,13 @@ class Dialect:
             func += (args[fi-1] if 0<fi and argslen>=fi else '') if is_arg else fi
             is_arg = not is_arg
         return func
+
+    
+    def sql_type( self, data_type ):
+		data_type = str(data_type).upper()
+        if data_type not in Dialect.dialects[ self.type ][ 'types' ]:
+            raise ValueError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"')
+        return Dialect.dialects[ self.type ][ 'types' ][ data_type ]
 
 __all__ = ['Dialect']
 
