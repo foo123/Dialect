@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 # 
-#   @version: 0.8.3
+#   @version: 0.8.4
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -1317,7 +1317,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.8.3'
+    VERSION = '0.8.4'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1363,7 +1363,7 @@ class Dialect:
     }
 
 
-    ,"postgres"         : {
+    ,"postgresql"       : {
          "quotes"       : [ ["E'","'","''","''"], ["\"","\""], ["",""] ]
         
         ,"functions"    : {
@@ -1480,6 +1480,7 @@ class Dialect:
     aliases = {
         "mysql"     : "mysqli"
        ,"sqlserver" : "transactsql"
+       ,"postgres"  : "postgresql"
     }
     
     def __init__( self, type='mysql' ):

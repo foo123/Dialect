@@ -1,7 +1,7 @@
 Dialect
 =======
 
-**Cross-Vendor &amp; Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript**
+**Cross-Vendor &amp; Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS**
 
 ![Dialect](/dialect.jpg)
 
@@ -122,7 +122,7 @@ where `[..]` describe an optional block of `sql code` (depending on passed param
 The optional block of code depends on whether <del>the (first)</del> **all** optional parameters defined inside (with `<?..>` or `<*..>` for rest parameters) exist. Then, that block (and any nested blocks it might contain) is output, else bypassed.
 
 
-*(for various methods to emulate `LIMIT/OFFSET` clauses see, for example, [here](http://search.cpan.org/~davebaird/SQL-Abstract-Limit-0.12/lib/SQL/Abstract/Limit.pm) and a reasonable critic, mixed with lame advertising self-righteousness, [here](http://blog.jooq.org/2014/06/09/stop-trying-to-emulate-sql-offset-pagination-with-your-in-house-db-framework/))*
+*(for various methods to emulate `LIMIT/OFFSET` clauses see, for example, [here](http://search.cpan.org/~davebaird/SQL-Abstract-Limit-0.12/lib/SQL/Abstract/Limit.pm) and a reasonable critic [here](http://blog.jooq.org/2014/06/09/stop-trying-to-emulate-sql-offset-pagination-with-your-in-house-db-framework/))*
 
 
 `Dialect` will parse this into a (fast) `grammar` template and generate appropriate `sql` output depending on the parameters given automaticaly.

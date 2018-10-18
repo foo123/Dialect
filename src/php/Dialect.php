@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.8.3
+*   @version: 0.8.4
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -12,7 +12,7 @@
 **/
 
 // https://github.com/foo123/StringTemplate
-if ( !class_exists('StringTemplate') )
+if ( !class_exists('StringTemplate', false) )
 {
 class StringTemplate
 {    
@@ -218,7 +218,7 @@ class StringTemplate
 }
 
 // https://github.com/foo123/GrammarTemplate
-if ( !class_exists('GrammarTemplate') )
+if ( !class_exists('GrammarTemplate', false) )
 {
 class GrammarTemplate__StackEntry
 {
@@ -1134,7 +1134,7 @@ class GrammarTemplate
     }
 }    
 }
-if ( !class_exists('Dialect') )
+if ( !class_exists('Dialect', false) )
 {
 class DialectRef
 {
@@ -1465,7 +1465,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.8.3";
+    const VERSION = "0.8.4";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -1507,7 +1507,7 @@ class Dialect
     )
 
 
-    ,"postgres"         => array(
+    ,"postgresql"       => array(
          "quotes"       => array( array("E'","'","''","''"), array("\"","\""), array("","") )
         
         ,"functions"    => array(
@@ -1624,6 +1624,7 @@ class Dialect
     public static $aliases = array(
         "mysql"     => "mysqli"
        ,"sqlserver" => "transactsql"
+       ,"postgres"  => "postgresql"
     );
     
     private $clau = null;

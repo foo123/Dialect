@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
 * 
-*   @version: 0.8.3
+*   @version: 0.8.4
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1586,7 +1586,7 @@ var dialects = {
 }
 
 
-,"postgres"         : {
+,"postgresql"       : {
      "quotes"       : [ ["E'","'","''","''"], ["\"","\""], ["",""] ]
     
     ,"functions"    : {
@@ -1702,6 +1702,7 @@ var dialects = {
 var dialect_aliases = {
     "mysql"     : "mysqli"
    ,"sqlserver" : "transactsql"
+   ,"postgres"  : "postgresql"
 };
 function Dialect( type )
 {
@@ -1732,7 +1733,7 @@ function Dialect( type )
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 }
-Dialect.VERSION = "0.8.3";
+Dialect.VERSION = "0.8.4";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.aliases = dialect_aliases;
