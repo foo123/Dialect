@@ -1324,17 +1324,17 @@ class DialectRef
             if ( 'paren' == $err_type )
             {
                 // error, mismatched parentheses
-                throw new InvalidArgumentException('Dialect: Mismatched parentheses "'.$r.'" at position '.$err_pos.'.');
+                throw new \InvalidArgumentException('Dialect: Mismatched parentheses "'.$r.'" at position '.$err_pos.'.');
             }
             elseif ( 'quote' == $err_type )
             {
                 // error, mismatched quotes
-                throw new InvalidArgumentException('Dialect: Mismatched quotes "'.$r.'" at position '.$err_pos.'.');
+                throw new \InvalidArgumentException('Dialect: Mismatched quotes "'.$r.'" at position '.$err_pos.'.');
             }
             else//if ( 'invalid' == $err_type )
             {
                 // error, invalid character
-                throw new InvalidArgumentException('Dialect: Invalid character "'.$r.'" at position '.$err_pos.'.');
+                throw new \InvalidArgumentException('Dialect: Invalid character "'.$r.'" at position '.$err_pos.'.');
             }
         }
         $alias = null; $alias_q = '';
@@ -1649,7 +1649,7 @@ class Dialect
         if ( !empty($type) && !empty(self::$aliases[ $type ]) ) $type = self::$aliases[ $type ];
         if ( empty($type) || empty(self::$dialects[ $type ]) || empty(self::$dialects[ $type ][ 'clauses' ]) )
         {
-            throw new InvalidArgumentException('Dialect: SQL dialect does not exist for "'.$type.'"');
+            throw new \InvalidArgumentException('Dialect: SQL dialect does not exist for "'.$type.'"');
         }
         
         $this->clau = null;
@@ -1700,7 +1700,7 @@ class Dialect
 	public function __toString()
 	{
         $sql = $this->sql( );
-        return !$sql||empty($sql) ? '' : $sql;
+        return !$sql||!strlen($sql) ? '' : $sql;
     }
     
     public function driver( $db=null )
@@ -1737,7 +1737,7 @@ class Dialect
     {
         /*if ( empty($clause) || !isset($this->clauses[ $clause ]) )
         {
-            throw new InvalidArgumentException('Dialect: SQL clause "'.$clause.'" does not exist for dialect "'.$this->type.'"');
+            throw new \InvalidArgumentException('Dialect: SQL clause "'.$clause.'" does not exist for dialect "'.$this->type.'"');
         }*/
         $this->clus = array( );
         $this->tbls = array( );
@@ -3022,10 +3022,10 @@ class Dialect
     
     public function tbl( $table )
     {
-        if ( is_array( $v ) )
+        if ( is_array( $table ) )
         {
-            foreach($v as $i=>$vi) $v[$i] = $this->tbl( $vi );
-            return $v;
+            foreach($table as $i=>$vi) $table[$i] = $this->tbl( $vi );
+            return $table;
         }
         return $this->p.$table;
     }
@@ -3138,7 +3138,7 @@ class Dialect
     public function sql_function( $f, $args=array() )
     {
         if ( !isset(self::$dialects[ $this->type ][ 'functions' ][ $f ]) )
-            throw new InvalidArgumentException('Dialect: SQL function "'.$f.'" does not exist for dialect "'.$this->type.'"');
+            throw new \InvalidArgumentException('Dialect: SQL function "'.$f.'" does not exist for dialect "'.$this->type.'"');
         $f = self::$dialects[ $this->type ][ 'functions' ][ $f ];
         $args = (array)$args;
         $argslen = count($args);
@@ -3155,7 +3155,7 @@ class Dialect
     {
         $data_type = strtoupper((string)$data_type);
 		if ( !isset(self::$dialects[ $this->type ][ 'types' ][ $data_type ]) )
-            throw new InvalidArgumentException('Dialect: SQL type "'.$data_type.'" does not exist for dialect "'.$this->type.'"');
+            throw new \InvalidArgumentException('Dialect: SQL type "'.$data_type.'" does not exist for dialect "'.$this->type.'"');
         return self::$dialects[ $this->type ][ 'types' ][ $data_type ];
     }
     

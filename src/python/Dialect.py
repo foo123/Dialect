@@ -1215,13 +1215,13 @@ class Ref:
             err_type = err[0]
             if 'paren' == err_type:
                 # error, mismatched parentheses
-                raise ValueError('Dialect: Mismatched parentheses "'+r+'" at position '+err_pos+'.')
+                raise ValueError('Dialect: Mismatched parentheses "'+r+'" at position '+str(err_pos)+'.')
             elif 'quote' == err_type:
                 # error, mismatched quotes
-                raise ValueError('Dialect: Mismatched quotes "'+r+'" at position '+err_pos+'.')
+                raise ValueError('Dialect: Mismatched quotes "'+r+'" at position '+str(err_pos)+'.')
             else:# if 'invalid' == err_type:
                 # error, invalid character
-                raise ValueError('Dialect: Invalid character "'+r+'" at position '+err_pos+'.')
+                raise ValueError('Dialect: Invalid character "'+r+'" at position '+str(err_pos)+'.')
         
         alias = None
         alias_q = ''

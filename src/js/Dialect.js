@@ -26,7 +26,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
     /* module factory */        function ModuleFactory__Dialect( undef ){
 "use strict";
 
-var PROTO = 'prototype', HASPROP = 'hasOwnProperty', 
+var PROTO = 'prototype',
     Keys = Object.keys, toString = Object[PROTO].toString,
     hasOwnProperty = Object[PROTO].hasOwnProperty,
     CHAR = 'charAt', CHARCODE = 'charCodeAt',
@@ -1101,7 +1101,7 @@ function empty( o )
     if ( !o ) return true;
     var to_string = toString.call(o);
     if ( (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string) && !o.length ) return true;
-    if ( (o instanceof Object || '[object Array]' === to_string) && !Keys(o).length ) return true;
+    if ( (o instanceof Object || '[object Object]' === to_string) && !Keys(o).length ) return true;
     return false;
 }
 function int( n )
@@ -1134,8 +1134,8 @@ function defaults( data, def, overwrite, array_copy )
     array_copy = true === array_copy;
     for (var k in def)
     {
-        if ( !def[HASPROP](k) ) continue;
-        if ( overwrite || !data[HASPROP](k) )
+        if ( !hasOwnProperty.call(def,k) ) continue;
+        if ( overwrite || !hasOwnProperty.call(data,k) )
             data[ k ] = array_copy && def[ k ].slice ? def[ k ].slice( ) : def[ k ];
     }
     return data;
@@ -1817,7 +1817,7 @@ Dialect[PROTO] = {
     
     ,reset: function( clause ) {
         var self = this, i, l, c;
-        /*if ( !clause || !self.clauses[HASPROP](clause) )
+        /*if ( !clause || !hasOwnProperty.call(self.clauses,clause) )
         {
             throw new TypeError('Dialect: SQL clause "'+clause+'" does not exist for dialect "'+self.type+'"');
         }*/
@@ -1849,32 +1849,32 @@ Dialect[PROTO] = {
     
     ,sql: function( ) {
         var self = this, query = null;
-        if ( self.clau /*&& self.clauses[HASPROP]( self.clau )*/ )
+        if ( self.clau /*&& hasOwnProperty.call(self.clauses, self.clau )*/ )
         {
-            if ( self.clus[HASPROP]('select_columns') )
+            if ( hasOwnProperty.call(self.clus,'select_columns') )
                 self.clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' );
-            if ( self.clus[HASPROP]('from_tables') )
+            if ( hasOwnProperty.call(self.clus,'from_tables') )
                 self.clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' );
-            if ( self.clus[HASPROP]('insert_tables') )
+            if ( hasOwnProperty.call(self.clus,'insert_tables') )
                 self.clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' );
-            if ( self.clus[HASPROP]('insert_columns') )
+            if ( hasOwnProperty.call(self.clus,'insert_columns') )
                 self.clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' );
-            if ( self.clus[HASPROP]('update_tables') )
+            if ( hasOwnProperty.call(self.clus,'update_tables') )
                 self.clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' );
-            if ( self.clus[HASPROP]('create_table') )
+            if ( hasOwnProperty.call(self.clus,'create_table') )
                 self.clus['create_table'] = map_join( self.clus['create_table'], 'full' );
-            if ( self.clus[HASPROP]('alter_table') )
+            if ( hasOwnProperty.call(self.clus,'alter_table') )
                 self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' );
-            if ( self.clus[HASPROP]('drop_tables') )
+            if ( hasOwnProperty.call(self.clus,'drop_tables') )
                 self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' );
-            if ( self.clus[HASPROP]('where_conditions_required') /*&& !!self.clus['where_conditions_required']*/ )
+            if ( hasOwnProperty.call(self.clus,'where_conditions_required') /*&& !!self.clus['where_conditions_required']*/ )
             {
-                self.clus['where_conditions'] = self.clus[HASPROP]('where_conditions') ? ('('+self.clus['where_conditions_required']+') AND ('+self.clus['where_conditions']+')') : self.clus['where_conditions_required'];
+                self.clus['where_conditions'] = hasOwnProperty.call(self.clus,'where_conditions') ? ('('+self.clus['where_conditions_required']+') AND ('+self.clus['where_conditions']+')') : self.clus['where_conditions_required'];
                 delete self.clus['where_conditions_required'];
             }
-            if ( self.clus[HASPROP]('having_conditions_required') /*&& !!self.clus['having_conditions_required']*/ )
+            if ( hasOwnProperty.call(self.clus,'having_conditions_required') /*&& !!self.clus['having_conditions_required']*/ )
             {
-                self.clus['having_conditions'] = self.clus[HASPROP]('having_conditions') ? ('('+self.clus['having_conditions_required']+') AND ('+self.clus['having_conditions']+')') : self.clus['having_conditions_required'];
+                self.clus['having_conditions'] = hasOwnProperty.call(self.clus,'having_conditions') ? ('('+self.clus['having_conditions_required']+') AND ('+self.clus['having_conditions']+')') : self.clus['having_conditions_required'];
                 delete self.clus['having_conditions_required'];
             }
             self.clus[self.clau+'_clause'] = 1;
@@ -1895,13 +1895,13 @@ Dialect[PROTO] = {
                 cols:self.cols
             };
             // make existing where / having conditions required
-            if ( self.vews[ view ].clus[HASPROP]('where_conditions') )
+            if ( hasOwnProperty.call(self.vews[ view ].clus,'where_conditions') )
             {
                 if ( !!self.vews[ view ].clus.where_conditions )
                     self.vews[ view ].clus.where_conditions_required = self.vews[ view ].clus.where_conditions;
                 delete self.vews[ view ].clus.where_conditions;
             }
-            if ( self.vews[ view ].clus[HASPROP]('having_conditions') )
+            if ( hasOwnProperty.call(self.vews[ view ].clus,'having_conditions') )
             {
                 if ( !!self.vews[ view ].clus.having_conditions )
                     self.vews[ view ].clus.having_conditions_required = self.vews[ view ].clus.having_conditions;
@@ -1942,7 +1942,7 @@ Dialect[PROTO] = {
     
     ,dropView: function( view ) {
         var self = this;
-        if ( view && self.vews[HASPROP](view) )
+        if ( view && hasOwnProperty.call(self.vews,view) )
         {
             delete self.vews[ view ];
         }
@@ -2012,7 +2012,7 @@ Dialect[PROTO] = {
     
     ,prepared: function( tpl, args ) {
         var self = this, sql, types, type, params, k, v, tmp, i, l, tpli, k;
-        if ( !empty(tpl) && self.tpls[HASPROP](tpl) )
+        if ( !empty(tpl) && hasOwnProperty.call(self.tpls,tpl) )
         {
             sql = self.tpls[tpl].sql;
             types = self.tpls[tpl].types;
@@ -2045,9 +2045,9 @@ Dialect[PROTO] = {
             params = { };
             for(k in args)
             {
-                if ( !args[HASPROP](k) ) continue;
+                if ( !hasOwnProperty.call(args,k) ) continue;
                 v = args[k];
-                type = types[HASPROP](k) ? types[k] : "s";
+                type = hasOwnProperty.call(types,k) ? types[k] : "s";
                 switch(type)
                 {
                     case 'r': 
@@ -2131,7 +2131,7 @@ Dialect[PROTO] = {
                 pos = m.index;
                 len = m[0].length;
                 param = m[2];
-                if ( args[HASPROP](param) )
+                if ( hasOwnProperty.call(args,param) )
                 {
                     type = m[1] ? m[1].slice(0,-1) : "s";
                     switch( type )
@@ -2211,7 +2211,7 @@ Dialect[PROTO] = {
     
     ,dropTpl: function( tpl ) {
         var self = this;
-        if ( !empty(tpl) && self.tpls[HASPROP](tpl) )
+        if ( !empty(tpl) && hasOwnProperty.call(self.tpls,tpl) )
         {
            self.tpls[ tpl ].sql.dispose( );
            delete self.tpls[ tpl ];
@@ -2287,7 +2287,7 @@ Dialect[PROTO] = {
         drop_clause = drop_clause || 'drop';
         if ( self.clau !== drop_clause ) self.reset(drop_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HASPROP]( view ) )
+        if ( hasOwnProperty.call(self.vews, view ) )
         {
             // drop custom 'soft' view
             self.dropView( view );
@@ -2322,7 +2322,7 @@ Dialect[PROTO] = {
         insert_clause = insert_clause || 'insert';
         if ( self.clau !== insert_clause ) self.reset(insert_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( hasOwnProperty.call(self.vews, view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2361,15 +2361,15 @@ Dialect[PROTO] = {
                     val = vs[j];
                     if ( is_obj(val) )
                     {
-                        if ( val[HASPROP]('integer') )
+                        if ( hasOwnProperty.call(val,'integer') )
                         {
                             vals.push( self.intval( val['integer'] ) );
                         }
-                        else if ( val[HASPROP]('raw') )
+                        else if ( hasOwnProperty.call(val,'raw') )
                         {
                             vals.push( val['raw'] );
                         }
-                        else if ( val[HASPROP]('string') )
+                        else if ( hasOwnProperty.call(val,'string') )
                         {
                             vals.push( self.quote( val['string'] ) );
                         }
@@ -2394,7 +2394,7 @@ Dialect[PROTO] = {
         update_clause = update_clause || 'update';
         if ( self.clau !== update_clause ) self.reset(update_clause);
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( hasOwnProperty.call(self.vews, view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2417,50 +2417,50 @@ Dialect[PROTO] = {
         COLS = self.cols;
         for (f in fields_values)
         {
-            if ( !fields_values[HASPROP](f) ) continue;
+            if ( !hasOwnProperty.call(fields_values,f) ) continue;
             field = self.refs( f, COLS )[0].full;
             value = fields_values[f];
             
             if ( is_obj(value) )
             {
-                if ( value[HASPROP]('integer') )
+                if ( hasOwnProperty.call(value,'integer') )
                 {
                     set_values.push( field + " = " + self.intval(value['integer']) );
                 }
-                else if ( value[HASPROP]('raw') )
+                else if ( hasOwnProperty.call(value,'raw') )
                 {
                     set_values.push( field + " = " + value['raw'] );
                 }
-                else if ( value[HASPROP]('string') )
+                else if ( hasOwnProperty.call(value,'string') )
                 {
                     set_values.push( field + " = " + self.quote(value['string']) );
                 }
-                else if ( value[HASPROP]('increment') )
+                else if ( hasOwnProperty.call(value,'increment') )
                 {
                     set_values.push( field + " = " + field + " + " + self.intval(value['increment']) );
                 }
-                else if ( value[HASPROP]('decrement') )
+                else if ( hasOwnProperty.call(value,'decrement') )
                 {
                     set_values.push( field + " = " + field + " - " + self.intval(value['increment']) );
                 }
-                else if ( value[HASPROP]('case') )
+                else if ( hasOwnProperty.call(value,'case') )
                 {
                     set_case_value = field + " = CASE";
-                    if ( value['case'][HASPROP]('when') )
+                    if ( hasOwnProperty.call(value['case'],'when') )
                     {
                         for ( case_value in value['case']['when'] )
                         {
-                            if ( !value['case']['when'][HASPROP](case_value) ) continue;
+                            if ( !hasOwnProperty.call(value['case']['when'],case_value) ) continue;
                             set_case_value += "\nWHEN " + self.conditions(value['case']['when'][case_value],false) + " THEN " + self.quote(case_value);
                         }
-                        if ( value['case'][HASPROP]('else') )
+                        if ( hasOwnProperty.call(value['case'],'else') )
                             set_case_value += "\nELSE " + self.quote(value['case']['else']);
                     }
                     else
                     {
                         for ( case_value in value['case'] )
                         {
-                            if ( !value['case'][HASPROP](case_value) ) continue;
+                            if ( !hasOwnProperty.call(value['case'],case_value) ) continue;
                             set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],false) + " THEN " + self.quote(case_value);
                         }
                     }
@@ -2491,7 +2491,7 @@ Dialect[PROTO] = {
         var self = this, view, tables;
         if ( empty(tables) ) return self;
         view = is_array( tables ) ? tables[0] : tables;
-        if ( self.vews[HASPROP]( view ) && (self.clau === self.vews[ view ].clau) )
+        if ( hasOwnProperty.call(self.vews, view ) && (self.clau === self.vews[ view ].clau) )
         {
             // using custom 'soft' view
             self.useView( view );
@@ -2529,7 +2529,7 @@ Dialect[PROTO] = {
             {
                 for (field in on_cond)
                 {
-                    if ( !on_cond[HASPROP](field) ) continue;
+                    if ( !hasOwnProperty.call(on_cond,field) ) continue;
                     cond = on_cond[ field ];
                     if ( !is_obj(cond) ) on_cond[field] = {'eq':cond,'type':'identifier'};
                 }
@@ -2617,19 +2617,19 @@ Dialect[PROTO] = {
         
         for (f in conditions)
         {
-            if ( !conditions[HASPROP](f) ) continue;
+            if ( !hasOwnProperty.call(conditions,f) ) continue;
             
             value = conditions[ f ];
             
             if ( is_obj( value ) )
             {
-                if ( value[HASPROP]('raw') )
+                if ( hasOwnProperty.call(value,'raw') )
                 {
                     conds.push(String(value['raw']));
                     continue;
                 }
                 
-                if ( value[HASPROP]('or') )
+                if ( hasOwnProperty.call(value,'or') )
                 {
                     cases = [];
                     for(var i=0,il=value['or'].length; i<il; i++)
@@ -2641,7 +2641,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HASPROP]('and') )
+                if ( hasOwnProperty.call(value,'and') )
                 {
                     cases = [];
                     for(var i=0,il=value['and'].length; i<il; i++)
@@ -2653,7 +2653,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HASPROP]('either') )
+                if ( hasOwnProperty.call(value,'either') )
                 {
                     cases = [];
                     for(var i=0,il=value['either'].length; i<il; i++)
@@ -2665,7 +2665,7 @@ Dialect[PROTO] = {
                     continue;
                 }
                 
-                if ( value[HASPROP]('together') )
+                if ( hasOwnProperty.call(value,'together') )
                 {
                     cases = [];
                     for(var i=0,il=value['together'].length; i<il; i++)
@@ -2678,45 +2678,45 @@ Dialect[PROTO] = {
                 }
                 
                 field = self.refs( f, COLS )[0][ fmt ];
-                type = value[HASPROP]('type') ? value.type : 'string';
+                type = hasOwnProperty.call(value,'type') ? value.type : 'string';
                 
-                if ( value[HASPROP]('case') )
+                if ( hasOwnProperty.call(value,'case') )
                 {
                     cases = field + " = CASE";
-                    if ( value['case'][HASPROP]('when') )
+                    if ( hasOwnProperty.call(value['case'],'when') )
                     {
                         for ( case_value in value['case']['when'] )
                         {
-                            if ( !value['case']['when'][HASPROP](case_value) ) continue;
+                            if ( !hasOwnProperty.call(value['case']['when'],case_value) ) continue;
                             cases += " WHEN " + self.conditions(value['case']['when'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
                         }
-                        if ( value['case'][HASPROP]('else') )
+                        if ( hasOwnProperty.call(value['case'],'else') )
                             cases += " ELSE " + self.quote(value['case']['else']);
                     }
                     else
                     {
                         for ( case_value in value['case'] )
                         {
-                            if ( !value['case'][HASPROP](case_value) ) continue;
+                            if ( !hasOwnProperty.call(value['case'],case_value) ) continue;
                             cases += " WHEN " + self.conditions(value['case'][case_value], can_use_alias) + " THEN " + self.quote(case_value);
                         }
                     }
                     cases += " END";
                     conds.push( cases );
                 }
-                else if ( value[HASPROP]('multi_like') )
+                else if ( hasOwnProperty.call(value,'multi_like') )
                 {
                     conds.push( self.multi_like(field, value.multi_like) );
                 }
-                else if ( value[HASPROP]('like') )
+                else if ( hasOwnProperty.call(value,'like') )
                 {
                     conds.push( field + " LIKE " + ('raw' === type ? value.like : self.like(value.like)) );
                 }
-                else if ( value[HASPROP]('not_like') )
+                else if ( hasOwnProperty.call(value,'not_like') )
                 {
                     conds.push( field + " NOT LIKE " + ('raw' === type ? value.not_like : self.like(value.not_like)) );
                 }
-                else if ( value[HASPROP]('contains') )
+                else if ( hasOwnProperty.call(value,'contains') )
                 {
                     v = String(value.contains);
                     
@@ -2730,7 +2730,7 @@ Dialect[PROTO] = {
                     }
                     conds.push(self.sql_function('strpos', [field,v]) + ' > 0');
                 }
-                else if ( value[HASPROP]('not_contains') )
+                else if ( hasOwnProperty.call(value,'not_contains') )
                 {
                     v = String(value.not_contains);
                     
@@ -2744,7 +2744,7 @@ Dialect[PROTO] = {
                     }
                     conds.push(self.sql_function('strpos', [field,v]) + ' = 0');
                 }
-                else if ( value[HASPROP]('in') )
+                else if ( hasOwnProperty.call(value,'in') )
                 {
                     v = array( value['in'] );
                     
@@ -2762,7 +2762,7 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " IN (" + v.join(',') + ")" );
                 }
-                else if ( value[HASPROP]('not_in') )
+                else if ( hasOwnProperty.call(value,'not_in') )
                 {
                     v = array( value['not_in'] );
                     
@@ -2780,7 +2780,7 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " NOT IN (" + v.join(',') + ")" );
                 }
-                else if ( value[HASPROP]('between') )
+                else if ( hasOwnProperty.call(value,'between') )
                 {
                     v = array( value.between );
                     
@@ -2836,7 +2836,7 @@ Dialect[PROTO] = {
                         conds.push( field + " BETWEEN " + v[0] + " AND " + v[1] );
                     }
                 }
-                else if ( value[HASPROP]('not_between') )
+                else if ( hasOwnProperty.call(value,'not_between') )
                 {
                     v = array( value.not_between );
                     
@@ -2892,9 +2892,9 @@ Dialect[PROTO] = {
                         conds.push( field + " < " + v[0] + " OR " + field + " > " + v[1] );
                     }
                 }
-                else if ( value[HASPROP]('gt') || value[HASPROP]('gte') )
+                else if ( hasOwnProperty.call(value,'gt') || hasOwnProperty.call(value,'gte') )
                 {
-                    op = value[HASPROP]('gt') ? "gt" : "gte";
+                    op = hasOwnProperty.call(value,'gt') ? "gt" : "gte";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2915,9 +2915,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + ('gt'===op ? " > " : " >= ") + v );
                 }
-                else if ( value[HASPROP]('lt') || value[HASPROP]('lte') )
+                else if ( hasOwnProperty.call(value,'lt') || hasOwnProperty.call(value,'lte') )
                 {
-                    op = value[HASPROP]('lt') ? "lt" : "lte";
+                    op = hasOwnProperty.call(value,'lt') ? "lt" : "lte";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2938,9 +2938,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + ('lt'===op ? " < " : " <= ") + v );
                 }
-                else if ( value[HASPROP]('not_equal') || value[HASPROP]('not_eq') )
+                else if ( hasOwnProperty.call(value,'not_equal') || hasOwnProperty.call(value,'not_eq') )
                 {
-                    op = value[HASPROP]('not_eq') ? "not_eq" : "not_equal";
+                    op = hasOwnProperty.call(value,'not_eq') ? "not_eq" : "not_equal";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -2961,9 +2961,9 @@ Dialect[PROTO] = {
                     }
                     conds.push( field + " <> " + v );
                 }
-                else if ( value[HASPROP]('equal') || value[HASPROP]('eq') )
+                else if ( hasOwnProperty.call(value,'equal') || hasOwnProperty.call(value,'eq') )
                 {
-                    op = value[HASPROP]('eq') ? "eq" : "equal";
+                    op = hasOwnProperty.call(value,'eq') ? "eq" : "equal";
                     v = value[ op ];
                     
                     if ( 'raw' === type )
@@ -3002,11 +3002,11 @@ Dialect[PROTO] = {
             join_key, join_value;
         for ( f in conditions )
         {
-            if ( !conditions[HASPROP](f) ) continue;
+            if ( !hasOwnProperty.call(conditions,f) ) continue;
             
             ref = Ref.parse( f, self );
             field = ref._col;
-            if ( !join[HASPROP]( field ) ) continue;
+            if ( !hasOwnProperty.call(join, field ) ) continue;
             cond = conditions[ f ];
             main_table = join[field].table;
             main_id = join[field].id;
@@ -3016,7 +3016,7 @@ Dialect[PROTO] = {
             j++; join_alias = join_table+j;
             
             where = { };
-            if ( join[field][HASPROP]('key') && field !== join[field].key )
+            if ( hasOwnProperty.call(join[field],'key') && field !== join[field].key )
             {
                 join_key = join[field].key;
                 where[join_alias+'.'+join_key] = field;
@@ -3025,7 +3025,7 @@ Dialect[PROTO] = {
             {
                 join_key = field;
             }
-            if ( join[field][HASPROP]('value') )
+            if ( hasOwnProperty.call(join[field],'value') )
             {
                 join_value = join[field].value;
                 where[join_alias+'.'+join_value] = cond;
@@ -3060,9 +3060,9 @@ Dialect[PROTO] = {
                 
                 if ( '*' === qualified_full ) continue;
                 
-                if ( !lookup[HASPROP]( alias ) )
+                if ( !hasOwnProperty.call(lookup, alias ) )
                 {
-                    if ( lookup[HASPROP]( qualified_full ) )
+                    if ( hasOwnProperty.call(lookup, qualified_full ) )
                     {
                         ref2 = lookup[ qualified_full ];
                         alias2 = ref2.alias;
@@ -3071,14 +3071,14 @@ Dialect[PROTO] = {
                         if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
                         {
                             // handle recursive aliasing
-                            /*if ( (qualified_full2 !== alias2) && lookup[HASPROP]( alias2 ) )
+                            /*if ( (qualified_full2 !== alias2) && hasOwnProperty.call(lookup, alias2 ) )
                                 delete lookup[ alias2 ];*/
                             
                             ref2 = ref2.cloned( ref.alias );
                             refs[i] = lookup[ alias ] = ref2;
                         }
                     }
-                    else if ( lookup[HASPROP]( qualified ) )
+                    else if ( hasOwnProperty.call(lookup, qualified ) )
                     {
                         ref2 = lookup[ qualified ];
                         if ( ref2.qualified !== qualified ) ref2 = lookup[ ref2.qualified ];
@@ -3087,13 +3087,13 @@ Dialect[PROTO] = {
                         else
                             ref2 = ref2.cloned( null, ref2.alias, ref._func );
                         refs[i] = lookup[ ref2.alias ] = ref2;
-                        if ( (ref2.alias !== ref2.full) && !lookup[HASPROP]( ref2.full ) )
+                        if ( (ref2.alias !== ref2.full) && !hasOwnProperty.call(lookup, ref2.full ) )
                             lookup[ ref2.full ] = ref2;
                     }
                     else
                     {
                         lookup[ alias ] = ref;
-                        if ( (alias !== qualified_full) && !lookup[HASPROP]( qualified_full ) )
+                        if ( (alias !== qualified_full) && !hasOwnProperty.call(lookup, qualified_full ) )
                             lookup[ qualified_full ] = ref;
                     }
                 }
@@ -3115,10 +3115,10 @@ Dialect[PROTO] = {
                 {
                     ref = Ref.parse( r[ j ], self );
                     alias = ref.alias; qualified = ref.full;
-                    if ( !lookup[HASPROP](alias) ) 
+                    if ( !hasOwnProperty.call(lookup,alias) ) 
                     {
                         lookup[ alias ] = ref;
-                        if ( (qualified !== alias) && !lookup[HASPROP](qualified) )
+                        if ( (qualified !== alias) && !hasOwnProperty.call(lookup,qualified) )
                             lookup[ qualified ] = ref;
                     }
                     else
