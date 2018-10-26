@@ -27,7 +27,7 @@ Dialect
 
 
 
-###Contents
+### Contents
 
 * [Requirements](#requirements)
 * [DB vendor sql support](#db-vendor-sql-support)
@@ -39,7 +39,7 @@ Dialect
 
 
 
-###Requirements
+### Requirements
 
 * Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), `Oracle`, `DB2`, .. )
 * Easily extended to new `DB`s ( prefereably through a, implementation-independent, config setting )
@@ -51,7 +51,7 @@ Dialect
 
 
 
-###DB vendor sql support
+### DB vendor sql support
 
 **(almost complete, easy to extend further)**
 
@@ -63,7 +63,7 @@ Dialect
 
 
 
-###Features
+### Features
 
 
 **Grammar Templates**
@@ -187,7 +187,7 @@ see below `API` examples
 
 
 
-###API Reference
+### API Reference
 
 
 * `Dialect` is also a `XPCOM JavaScript Component` (Firefox) (e.g to be used in firefox browser addons/plugins)
@@ -338,7 +338,7 @@ dialect.dropTpl('prepared_query');
 ```
 
 
-###TODO
+### TODO
 
 * add full support for custom soft views [DONE]
 * add support for native sql functions [DONE]
@@ -349,4 +349,4 @@ dialect.dropTpl('prepared_query');
 
 
 
-###Performance
+### Performance
