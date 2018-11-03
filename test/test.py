@@ -40,6 +40,8 @@ conditions = {
         {'eq':',*,'},
         {'contains':',12,'}
     ]},
+    'main.null' : None,
+    'main.not_null' : {'not_eq':None},
     'main.project': {'in':[1,2,3],'type':'integer'}
 }
 

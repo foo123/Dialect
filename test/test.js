@@ -13,6 +13,8 @@ var conditions = {
         {'eq':',*,'},
         {'contains':',12,'}
     ]},
+    'main.null':null,
+    'main.not_null':{'not_eq':null},
     'main.project': {'in':[1,2,3],'type':'integer'}
 };
 

@@ -1,9 +1,9 @@
 <?php
 /**
 *   Dialect, 
-*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
+*   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 0.8.4
+*   @version: 1.0.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -130,7 +130,7 @@ class StringTemplate
             }
             $out .= ');';
         }
-        return create_function('$args', $out);
+        return @create_function('$args', $out);
     }
 
     
@@ -1465,11 +1465,11 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "0.8.4";
+    const VERSION = "1.0.0";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
-     "mysqli"           => array(
+     "mysql"            => array(
          "quotes"       => array( array("'","'","\\'","\\'"), array("`","`"), array("","") )
         
         ,"functions"    => array(
@@ -1622,7 +1622,7 @@ class Dialect
     );
     
     public static $aliases = array(
-        "mysql"     => "mysqli"
+        "mysqli"    => "mysql"
        ,"sqlserver" => "transactsql"
        ,"postgres"  => "postgresql"
     );
@@ -2830,12 +2830,12 @@ class Dialect
                     }
                     $conds[] = $field . ('lt'===$op ? " < " : " <= ") . $v;
                 }
-                elseif ( isset($value['not_equal']) || isset($value['not_eq']) )
+                elseif ( array_key_exists('not_eq',$value) || array_key_exists('not_equal',$value) )
                 {
-                    $op = isset($value['not_eq']) ? "not_eq" : "not_equal";
+                    $op = array_key_exists('not_eq',$value) ? "not_eq" : "not_equal";
                     $v = $value[ $op ];
                     
-                    if ( 'raw' === $type )
+                    if ( 'raw' === $type || null === $v )
                     {
                         // raw, do nothing
                     }
@@ -2852,14 +2852,14 @@ class Dialect
                     {
                         $v = $this->quote( $v );
                     }
-                    $conds[] = "$field <> $v";
+                    $conds[] = null===$v ? "$field IS NOT NULL" : "$field <> $v";
                 }
-                elseif ( isset($value['equal']) || isset($value['eq']) )
+                elseif ( array_key_exists('eq',$value) || array_key_exists('equal',$value) )
                 {
-                    $op = isset($value['eq']) ? "eq" : "equal";
+                    $op = array_key_exists('eq',$value) ? "eq" : "equal";
                     $v = $value[ $op ];
                     
-                    if ( 'raw' === $type )
+                    if ( 'raw' === $type || null === $v )
                     {
                         // raw, do nothing
                     }
@@ -2876,14 +2876,14 @@ class Dialect
                     {
                         $v = $this->quote( $v );
                     }
-                    $conds[] = "$field = $v";
+                    $conds[] = null===$v ? "$field IS NULL" : "$field = $v";
                 }
             }
             else
             {
                 $field = $this->refs( $f, $this->cols );
                 $field = $field[0]->{$fmt};
-                $conds[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+                $conds[] = null===$value ? "$field IS NULL" : ("$field = " . (is_int($value) ? $value : $this->quote($value)));
             }
         }
         

@@ -18,6 +18,8 @@ $conditions = array(
         array('eq'=>',*,'),
         array('contains'=>',12,')
     )),
+    'main.null'=>null,
+    'main.not_null'=>array('not_eq'=>null),
     'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
 );
 

@@ -1,8 +1,8 @@
 /**
 *   Dialect, 
-*   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
+*   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 0.8.4
+*   @version: 1.0.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1548,7 +1548,7 @@ Ref[PROTO] = {
 };
 
 var dialects = {
- "mysqli"           : {
+ "mysql"            : {
      "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
     
     ,"functions"    : {
@@ -1700,7 +1700,7 @@ var dialects = {
 }
 };
 var dialect_aliases = {
-    "mysql"     : "mysqli"
+    "mysqli"    : "mysql"
    ,"sqlserver" : "transactsql"
    ,"postgres"  : "postgresql"
 };
@@ -1733,7 +1733,7 @@ function Dialect( type )
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
 }
-Dialect.VERSION = "0.8.4";
+Dialect.VERSION = "1.0.0";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.aliases = dialect_aliases;
@@ -2943,7 +2943,7 @@ Dialect[PROTO] = {
                     op = hasOwnProperty.call(value,'not_eq') ? "not_eq" : "not_equal";
                     v = value[ op ];
                     
-                    if ( 'raw' === type )
+                    if ( 'raw' === type || null === v )
                     {
                         // raw, do nothing
                     }
@@ -2959,14 +2959,14 @@ Dialect[PROTO] = {
                     {
                         v = self.quote( v );
                     }
-                    conds.push( field + " <> " + v );
+                    conds.push( null === v ? (field + " IS NOT NULL") : (field + " <> " + v) );
                 }
                 else if ( hasOwnProperty.call(value,'equal') || hasOwnProperty.call(value,'eq') )
                 {
                     op = hasOwnProperty.call(value,'eq') ? "eq" : "equal";
                     v = value[ op ];
                     
-                    if ( 'raw' === type )
+                    if ( 'raw' === type || null === v )
                     {
                         // raw, do nothing
                     }
@@ -2982,13 +2982,13 @@ Dialect[PROTO] = {
                     {
                         v = self.quote( v );
                     }
-                    conds.push( field + " = " + v );
+                    conds.push( null === v ? (field + " IS NULL") : (field + " = " + v) );
                 }
             }
             else
             {
                 field = self.refs( f, COLS )[0][ fmt ];
-                conds.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+                conds.push( null === value ? (field + " IS NULL") : (field + " = " + (is_int(value) ? value : self.quote(value))) );
             }
         }
         

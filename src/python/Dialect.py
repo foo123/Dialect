@@ -1,8 +1,8 @@
 ##
 #   Dialect, 
-#   a simple and flexible Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS, ActionScript
+#   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
 # 
-#   @version: 0.8.4
+#   @version: 1.0.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -1317,7 +1317,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '0.8.4'
+    VERSION = '1.0.0'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1325,7 +1325,7 @@ class Dialect:
     Ref = Ref
 
     dialects = {
-     "mysqli"           : {
+     "mysql"            : {
          "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
         
         ,"functions"    : {
@@ -1478,7 +1478,7 @@ class Dialect:
     }
     
     aliases = {
-        "mysql"     : "mysqli"
+        "mysqli"    : "mysql"
        ,"sqlserver" : "transactsql"
        ,"postgres"  : "postgresql"
     }
@@ -2311,7 +2311,7 @@ class Dialect:
                     op = 'not_equal' if 'not_equal' in value else "not_eq"
                     v = value[ op ]
                     
-                    if 'raw' == type:
+                    if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
                     elif 'integer' == type or is_int(v):
@@ -2320,12 +2320,12 @@ class Dialect:
                         v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
-                    conds.append( field + " <> " + str(v) )
+                    conds.append( (field + " IS NOT NULL") if v is None else (field + " <> " + str(v)) )
                 elif ('equal' in value) or ('eq' in value):
                     op = 'equal' if 'equal' in value else "eq"
                     v = value[ op ]
                     
-                    if 'raw' == type:
+                    if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
                     elif 'integer' == type or is_int(v):
@@ -2334,10 +2334,10 @@ class Dialect:
                         v = getattr(self.refs( v, COLS )[0], fmt)
                     else:
                         v = self.quote( v )
-                    conds.append( field + " = " + str(v) )
+                    conds.append( (field + " IS NULL") if v is None else (field + " = " + str(v)) )
             else:
                 field = getattr(self.refs( f, COLS )[0], fmt)
-                conds.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
+                conds.append( (field + " IS NULL") if value is None else (field + " = " + (str(value) if is_int(value) else self.quote(value))) )
         
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
@@ -2530,7 +2530,7 @@ class Dialect:
 
     
     def sql_type( self, data_type ):
-		data_type = str(data_type).upper()
+        data_type = str(data_type).upper()
         if data_type not in Dialect.dialects[ self.type ][ 'types' ]:
             raise ValueError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"')
         return Dialect.dialects[ self.type ][ 'types' ][ data_type ]

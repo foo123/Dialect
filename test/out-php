@@ -1,4 +1,4 @@
-Dialect.VERSION = 0.8.2
+Dialect.VERSION = 1.0.0
 
 SQL dialect = sqlite
 
@@ -20,14 +20,14 @@ WHERE ("t"."f1" = 12)
 SELECT *
 FROM "table" AS "main"
 INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
-WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE %l:name%) AND ("main"."str" = %str%) AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0))
+WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE %l:name%) AND ("main"."str" = %str%) AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0)) AND ("main"."null" IS NULL) AND ("main"."not_null" IS NOT NULL)
 ORDER BY "main"."field1" ASC,"main"."field2" ASC
 LIMIT 1000 OFFSET 2000
 
 SELECT *
 FROM "table" AS "main"
 INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
-WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE '%na\%me%' ESCAPE '\') AND ("main"."str" = 'a string') AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0))
+WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE '%na\%me%' ESCAPE '\') AND ("main"."str" = 'a string') AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0)) AND ("main"."null" IS NULL) AND ("main"."not_null" IS NOT NULL)
 ORDER BY "main"."field1" ASC,"main"."field2" ASC
 LIMIT 1000 OFFSET 2000
 
