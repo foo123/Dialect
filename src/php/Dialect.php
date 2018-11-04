@@ -2266,13 +2266,13 @@ class Dialect
                 {
                     if ( is_array($val) )
                     {
-                        if ( isset($val['integer']) )
-                        {
-                            $vals[] = $this->intval( $val['integer'] );
-                        }
-                        elseif ( isset($val['raw']) )
+                        if ( array_key_exists('raw',$val) )
                         {
                             $vals[] = $val['raw'];
+                        }
+                        elseif ( isset($val['integer']) )
+                        {
+                            $vals[] = $this->intval( $val['integer'] );
                         }
                         elseif ( isset($val['string']) )
                         {
@@ -2281,7 +2281,7 @@ class Dialect
                     }
                     else
                     {
-                        $vals[] = is_int($val) ? $val : $this->quote( $val );
+                        $vals[] = null === $val ? 'NULL' : (is_int($val) ? $val : $this->quote( $val ));
                     }
                 }
                 $insert_values[] = '('.implode(',', $vals).')';
@@ -2324,13 +2324,13 @@ class Dialect
             $field = $field[0]->full;
             if ( is_array($value) )
             {
-                if ( isset($value['integer']) )
-                {
-                    $set_values[] = "$field = " . $this->intval($value['integer']);
-                }
-                elseif ( isset($value['raw']) )
+                if ( array_key_exists('raw',$value) )
                 {
                     $set_values[] = "$field = {$value['raw']}";
+                }
+                elseif ( isset($value['integer']) )
+                {
+                    $set_values[] = "$field = " . $this->intval($value['integer']);
                 }
                 elseif ( isset($value['string']) )
                 {
@@ -2369,7 +2369,7 @@ class Dialect
             }
             else
             {
-                $set_values[] = "$field = " . (is_int($value) ? $value : $this->quote($value));
+                $set_values[] = "$field = " . (null === $value ? 'NULL' : (is_int($value) ? $value : $this->quote($value)));
             }
         }
         $set_values = implode(',', $set_values);

@@ -2361,13 +2361,13 @@ Dialect[PROTO] = {
                     val = vs[j];
                     if ( is_obj(val) )
                     {
-                        if ( hasOwnProperty.call(val,'integer') )
-                        {
-                            vals.push( self.intval( val['integer'] ) );
-                        }
-                        else if ( hasOwnProperty.call(val,'raw') )
+                        if ( hasOwnProperty.call(val,'raw') )
                         {
                             vals.push( val['raw'] );
+                        }
+                        else if ( hasOwnProperty.call(val,'integer') )
+                        {
+                            vals.push( self.intval( val['integer'] ) );
                         }
                         else if ( hasOwnProperty.call(val,'string') )
                         {
@@ -2376,7 +2376,7 @@ Dialect[PROTO] = {
                     }
                     else
                     {
-                        vals.push( is_int(val) ? val : self.quote( val ) );
+                        vals.push( null === val ? 'NULL' : (is_int(val) ? val : self.quote( val )) );
                     }
                 }
                 insert_values.push( '(' + vals.join(',') + ')' );
@@ -2423,13 +2423,13 @@ Dialect[PROTO] = {
             
             if ( is_obj(value) )
             {
-                if ( hasOwnProperty.call(value,'integer') )
-                {
-                    set_values.push( field + " = " + self.intval(value['integer']) );
-                }
-                else if ( hasOwnProperty.call(value,'raw') )
+                if ( hasOwnProperty.call(value,'raw') )
                 {
                     set_values.push( field + " = " + value['raw'] );
+                }
+                else if ( hasOwnProperty.call(value,'integer') )
+                {
+                    set_values.push( field + " = " + self.intval(value['integer']) );
                 }
                 else if ( hasOwnProperty.call(value,'string') )
                 {
@@ -2470,7 +2470,7 @@ Dialect[PROTO] = {
             }
             else
             {
-                set_values.push( field + " = " + (is_int(value) ? value : self.quote(value)) );
+                set_values.push( field + " = " + (null === value ? 'NULL' : (is_int(value) ? value : self.quote(value))) );
             }
         }
         set_values = set_values.join(',');

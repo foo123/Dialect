@@ -1942,14 +1942,14 @@ class Dialect:
                 vals = []
                 for val in vs:
                     if is_obj( val ):
-                        if 'integer' in val:
-                            vals.append( self.intval2str( val['integer'] ) )
-                        elif 'raw' in val:
+                        if 'raw' in val:
                             vals.append( val['raw'] )
+                        elif 'integer' in val:
+                            vals.append( self.intval2str( val['integer'] ) )
                         elif 'string' in val:
                             vals.append( self.quote( val['string'] ) )
                     else:
-                        vals.append( str(val) if is_int(val) else self.quote( val ) )
+                        vals.append( 'NULL' if val is None else (str(val) if is_int(val) else self.quote( val )) )
                 insert_values.append( '(' + ','.join(vals) + ')' )
         insert_values = ','.join(insert_values)
         if 'values_values' in self.clus and len(self.clus['values_values']) > 0:
@@ -1980,10 +1980,10 @@ class Dialect:
             value = fields_values[f]
             
             if is_obj(value):
-                if 'integer' in value:
-                    set_values.append( field + " = " + self.intval2str(value['integer']) )
-                elif 'raw' in value:
+                if 'raw' in value:
                     set_values.append( field + " = " + value['raw'] )
+                elif 'integer' in value:
+                    set_values.append( field + " = " + self.intval2str(value['integer']) )
                 elif 'string' in value:
                     set_values.append( field + " = " + self.quote(value['string']) )
                 elif 'increment' in value:
@@ -2003,7 +2003,7 @@ class Dialect:
                     set_case_value += "\nEND"
                     set_values.append( set_case_value )
             else:
-                set_values.append( field + " = " + (str(value) if is_int(value) else self.quote(value)) )
+                set_values.append( field + " = " + ('NULL' if value is None else (str(value) if is_int(value) else self.quote(value))) )
         set_values = ','.join(set_values)
         if 'set_values' in self.clus and len(self.clus['set_values']) > 0:
             set_values = self.clus['set_values'] + ',' + set_values
