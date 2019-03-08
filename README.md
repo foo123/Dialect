@@ -1,7 +1,7 @@
 Dialect
 =======
 
-**Cross-Vendor &amp; Cross-Platform SQL Builder for PHP, Python, Node/XPCOM/JS**
+**Cross-Vendor &amp; Cross-Platform SQL Query Builder for PHP, Python, Node / XPCOM / JS**
 
 ![Dialect](/dialect.jpg)
 
@@ -204,7 +204,16 @@ var dialect = new Dialect( [String vendor="mysql"] );
 // NOTE3: field values are automaticaly escaped appropriately except if set otherwise
 // NOTE4: config sql clauses use 'grammar-like templates' to generate vendor-specific sql code in a flexible and intuitive way
 
-// initiate TRANSACTION directive (resets the instance state to TRANSACTION)
+// start TRANSACTION directive (resets the instance state to START TRANSACTION)
+dialect.StartTransaction( String type=null );
+
+// commit TRANSACTION directive (resets the instance state to COMMIT)
+dialect.CommitTransaction( );
+
+// rollback TRANSACTION directive (resets the instance state to ROLLBACK)
+dialect.RollbackTransaction( );
+
+// run a complete TRANSACTION directive with included statements and rollback/commit set (resets the instance state to TRANSACTION)
 dialect.Transaction( Object options );
 
 // initiate CREATE directive (resets the instance state to CREATE)
@@ -262,9 +271,15 @@ dialect.Page( Number page, Number perpage );
 // dialect.toString( ) will do same
 var sql_code = dialect.sql( );
 
-// set the escaper callback that escapes strings based on actual DB charsets etc..
+// set the escaper callback that escapes or quotes strings based on actual DB charsets etc..
 // else a default escaper will be used, which may not be optimal based on actual DB charset and so on..
-dialect.escape( Function db_escaper );
+// set second argument to true if db escaper quotes (ie wraps it in quotes) the value as well instead of only escaping it
+dialect.escape( Function db_escaper, Boolean does_quoting=false );
+
+// set the escaper callback that escapes or quotes identifiers..
+// else a default escaper will be used
+// set second argument to true if db escaper quotes (ie wraps it in quotes) the value as well instead of only escaping it
+dialect.escapeId( Function db_escaper_id, Boolean does_quoting=false );
 
 // build a subquery on an independent dialect instance with exact same settings
 var subquery_sql = dialect.subquery( ).Select('column').From('table').Where({'column':'somevalue'}).sql( );
@@ -280,7 +295,7 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 // quotes, for example for parameters representing strings, should not be added manualy
 // r:       raw, pass as is
 // l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
-// f:       typecast to escaped string or comma-separated list of escaped strings representing table or field reference(s) with appropriate quotes
+// f:       typecast to escaped string or comma-separated list of escaped strings representing identifier, table or field reference(s) with appropriate quotes (see `.escapeId` method above)
 // d:       typecast to integer or comma-separated list of integers
 // s:       typecast to escaped string or comma-separated list of escaped strings with appropriate quotes (see `.escape` method above)
 // if no modifier is present default typecasting is "s:" modifier, i.e as escaped and quoted string

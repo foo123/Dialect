@@ -1,8 +1,8 @@
 ##
 #   Dialect, 
-#   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
+#   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 # 
-#   @version: 1.0.0
+#   @version: 1.1.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -12,6 +12,7 @@
 
 # https://github.com/foo123/StringTemplate
 import re, math, time
+#import random
 
 NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
 SQUOTE = re.compile(r"'")
@@ -29,7 +30,7 @@ GUID = 0
 def guid( ):
     global GUID
     GUID += 1
-    return pad(hex(int(time.time()))[2:],12)+'__'+pad(hex(GUID)[2:],4)
+    return pad(hex(int(time.time()))[2:],12)+'__'+pad(hex(GUID)[2:],4)#+'__'+pad(hex(random.randint(0, 1000))[2:],4)
 
 
 def createFunction( args, sourceCode, additional_symbols=dict() ):
@@ -1105,15 +1106,21 @@ class Ref:
                     continue
                 
                 elif quote == ch:
-                    if len(s):
-                        stack.insert(0,[1, s])
-                        ids.insert(0,s)
-                        s = ''
+                    if (i<l) and (ch==r[i]):
+                        # double-escaped quote in identifier
+                        s += ch
+                        i += 1
+                        continue
                     else:
-                        err = ['invalid',i]
-                        break
-                    quote = None
-                    continue
+                        if len(s):
+                            stack.insert(0,[1, s])
+                            ids.insert(0,s)
+                            s = ''
+                        else:
+                            err = ['invalid',i]
+                            break
+                        quote = None
+                        continue
                 
                 elif quote:
                     s += ch
@@ -1317,7 +1324,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '1.0.0'
+    VERSION = '1.1.0'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1326,7 +1333,7 @@ class Dialect:
 
     dialects = {
      "mysql"            : {
-         "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
+         "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
         
         ,"functions"    : {
          "strpos"       : ["POSITION(",2," IN ",1,")"]
@@ -1359,12 +1366,12 @@ class Dialect:
 		,"BLOB"			: "BLOB"
 		}
 		
-        ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
+        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
     }
 
 
     ,"postgresql"       : {
-         "quotes"       : [ ["E'","'","''","''"], ["\"","\""], ["",""] ]
+         "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
         
         ,"functions"    : {
          "strpos"       : ["position(",2," in ",1,")"]
@@ -1397,12 +1404,12 @@ class Dialect:
 		,"BLOB"			: "BLOB"
 		}
 		
-        ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
+        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
     }
 
 
     ,"transactsql"      : {
-         "quotes"       : [ ["'","'","''","''"], ["[","]"], [""," ESCAPE '\\'"] ]
+         "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
         
         ,"functions"    : {
          "strpos"       : ["CHARINDEX(",2,",",1,")"]
@@ -1435,12 +1442,12 @@ class Dialect:
 		,"BLOB"			: "TEXT"
 		}
 		
-        ,"clauses"      : "[<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
+        ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
     }
 
 
     ,"sqlite"           : {
-         "quotes"       : [ ["'","'","''","''"], ["\"","\""], [""," ESCAPE '\\'"] ]
+         "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
         
         ,"functions"    : {
          "strpos"       : ["instr(",2,",",1,")"]
@@ -1473,14 +1480,16 @@ class Dialect:
 		,"BLOB"			: "BLOB"
 		}
 		
-        ,"clauses"      : "[<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+        ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
     }
     }
     
     aliases = {
         "mysqli"    : "mysql"
+       ,"mariadb"   : "mysql"
        ,"sqlserver" : "transactsql"
        ,"postgres"  : "postgresql"
+       ,"postgre"   : "postgresql"
     }
     
     def __init__( self, type='mysql' ):
@@ -1497,13 +1506,14 @@ class Dialect:
         
         self.db = None
         self.escdb = None
+        self.escdbn = None
         self.p = '';
         
         self.type = type
         self.clauses = Dialect.dialects[ self.type ][ 'clauses' ]
         self.q = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ]
         self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ]
-        self.e = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialects[ self.type ][ 'quotes' ]) else ['','']
+        self.e = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialects[ self.type ][ 'quotes' ]) else ['','','','']
     
     def __del__( self ):
         self.dispose()
@@ -1518,6 +1528,7 @@ class Dialect:
         
         self.db = None
         self.escdb = None
+        self.escdbn = None
         self.p = None
         
         self.type = None
@@ -1541,7 +1552,16 @@ class Dialect:
     def escape( self, *args ):
         if len(args):
             escdb = args[0]
-            self.escdb = escdb if escdb and callable(escdb) else None
+            does_quote = bool(args[1]) if len(args)>1 else False
+            self.escdb = [escdb, does_quote] if escdb and callable(escdb) else None
+            return self
+        return self.escdb
+    
+    def escapeId( self, *args ):
+        if len(args):
+            escdbn = args[0]
+            does_quote = bool(args[1]) if len(args)>1 else False
+            self.escdbn = [escdbn, does_quote] if escdbn and callable(escdbn) else None
             return self
         return self.escdb
     
@@ -1574,7 +1594,11 @@ class Dialect:
     
     def subquery( self ):
         sub = Dialect( self.type )
-        sub.driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() )
+        sub.driver( self.driver() ).prefix( self.prefix() )
+        escdb = self.escape()
+        escdbn = self.escapeId()
+        if escdb: sub.escape( escdb[0], escdb[1] )
+        if escdbn: sub.escapeId( escdbn[0], escdbn[1] )
         sub.vews = self.vews
         return sub
     
@@ -1838,6 +1862,19 @@ class Dialect:
         if tpl and (tpl in self.tpls):
            self.tpls[ tpl ]['sql'].dispose( )
            del self.tpls[ tpl ]
+        return self
+    
+    def StartTransaction( self, type=None, start_transaction_clause='start_transaction' ):
+        if self.clau != start_transaction_clause: self.reset(start_transaction_clause)
+        self.clus['type'] = type if not empty(type) else None
+        return self
+    
+    def CommitTransaction( self, commit_transaction_clause='commit_transaction' ):
+        if self.clau != commit_transaction_clause: self.reset(commit_transaction_clause)
+        return self
+    
+    def RollbackTransaction( self, rollback_transaction_clause='rollback_transaction' ):
+        if self.clau != rollback_transaction_clause: self.reset(rollback_transaction_clause)
         return self
     
     def Transaction( self, options, transact_clause='transact' ):
@@ -2464,19 +2501,64 @@ class Dialect:
     def quote_name( self, v, optional=False ):
         optional = optional is True
         qn = self.qn
-        if is_array( v ): return [self.quote_name( x, optional ) for x in v]
-        elif optional: return ('' if qn[0] == v[0:len(qn[0])] else qn[0]) + v + ('' if qn[1] == v[-len(qn[1]):] else qn[1])
-        else: return qn[0] + v + qn[1]
+        if is_array( v ):
+            return [self.quote_name( x, optional ) for x in v]
+        v = str(v)
+        if optional and qn[0] == v[0:len(qn[0])] and qn[1] == v[-len(qn[1]):]:
+            return v
+        if self.escdbn:
+            return self.escdbn[0](v) if self.escdbn[1] else (qn[0] + self.escdbn[0](v) + qn[1])
+        else:
+            ve = ''
+            for c in v:
+                # properly try to escape quotes, by doubling for example, inside name
+                if qn[0] == c:
+                    ve += qn[2]
+                elif qn[1] == c:
+                    ve += qn[3]
+                else:
+                    ve += c
+            return qn[0] + ve + qn[1]
     
     def quote( self, v ):
         if is_array( v ): return [self.quote( x ) for x in v]
         q = self.q
-        return q[0] + self.esc( v ) + q[1]
+        e = self.e
+        v = str(v)
+        hasBackSlash = (-1 != v.find('\\')) #('\\' in v)
+        if self.escdb:
+            return self.escdb[0](v) if self.escdb[1] else ((e[2] if hasBackSlash else '') + q[0] + self.escdb[0](v) + q[1] + (e[3] if hasBackSlash else ''))
+        return (e[2] if hasBackSlash else '') + q[0] + self.esc( v ) + q[1] + (e[3] if hasBackSlash else '')
+    
+    def esc( self, v ):
+        global NULL_CHAR
+        
+        if is_array( v ): return [self.esc( x ) for x in v]
+        
+        escdb = self.escdb
+        v = str(v)
+        if escdb and not escdb[1]: return escdb[0]( v )
+        else:
+            # simple ecsaping using addslashes
+            # '"\ and NUL (the NULL byte).
+            chars = '\\' + NULL_CHAR
+            esc = '\\'
+            q = self.q
+            ve = ''
+            for c in v:
+                if q[0] == c: ve += q[2]
+                elif q[1] == c: ve += q[3]
+                else: ve += addslashes( c, chars, esc )
+            return ve
+    
+    def esc_like( self, v ):
+        if is_array( v ): return [self.esc_like( x ) for x in v]
+        return addslashes( str(v), '_%', '\\' )
     
     def like( self, v ):
         if is_array( v ): return [self.like( x ) for x in v]
         q = self.q
-        e = ['',''] if self.escdb else self.e
+        e = ['','','',''] if self.escdb else self.e
         return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]
     
     def multi_like( self, f, v, trimmed=True ):
@@ -2490,30 +2572,6 @@ class Dialect:
             for j in range(len(ANDs)): ANDs[j] = like + self.like( ANDs[j] )
             ORs[i] = '(' + ' AND '.join(ANDs) + ')'
         return ' OR '.join(ORs)
-    
-    def esc( self, v ):
-        global NULL_CHAR
-        
-        if is_array( v ): return [self.esc( x ) for x in v]
-        
-        escdb = self.escdb
-        if escdb: return escdb( v )
-        else:
-            # simple ecsaping using addslashes
-            # '"\ and NUL (the NULL byte).
-            chars = '\\' + NULL_CHAR
-            esc = '\\'
-            q = self.q
-            ve = ''
-            for c in str(v):
-                if q[0] == c: ve += q[2]
-                elif q[1] == c: ve += q[3]
-                else: ve += addslashes( c, chars, esc )
-            return ve
-    
-    def esc_like( self, v ):
-        if is_array( v ): return [self.esc_like( x ) for x in v]
-        return addslashes( str(v), '_%', '\\' )
     
     def sql_function( self, f, args=None ):
         if f not in Dialect.dialects[ self.type ][ 'functions' ]:

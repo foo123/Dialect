@@ -1,9 +1,9 @@
 <?php
 /**
 *   Dialect, 
-*   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
+*   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 1.0.0
+*   @version: 1.1.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -21,7 +21,7 @@ class StringTemplate
     private static function guid( )
     {
         static $GUID = 0;
-        return time().'--'.(++$GUID);
+        return time().'--'.(++$GUID)/*.'--'.(mt_rand(0,1000))*/;
     }
     
     public static function multisplit($tpl, $reps, $as_array=false)
@@ -130,7 +130,11 @@ class StringTemplate
             }
             $out .= ');';
         }
-        return @create_function('$args', $out);
+        // create_function is deprecated in PHP 7.2+
+        if ( version_compare(PHP_VERSION, '7.2.0', '>=') )
+            return eval('return function($args){'.$out.'};');
+        else
+            return create_function('$args', $out);
     }
 
     
@@ -1168,19 +1172,29 @@ class DialectRef
                 }
                 elseif ( $quote === $ch )
                 {
-                    if ( strlen($s) )
+                    if ( ($i<$l) && ($ch===$r[$i]) )
                     {
-                        array_unshift($stack, array(1, $s));
-                        array_unshift($ids, $s);
-                        $s = '';
+                        // double-escaped quote in identifier
+                        $s .= $ch;
+                        $i++;
+                        continue;
                     }
                     else
                     {
-                        $err = array('invalid',$i);
-                        break;
+                        if ( strlen($s) )
+                        {
+                            array_unshift($stack, array(1, $s));
+                            array_unshift($ids, $s);
+                            $s = '';
+                        }
+                        else
+                        {
+                            $err = array('invalid',$i);
+                            break;
+                        }
+                        $quote = null;
+                        continue;
                     }
-                    $quote = null;
-                    continue;
                 }
                 elseif ( $quote )
                 {
@@ -1465,12 +1479,12 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "1.0.0";
+    const VERSION = "1.1.0";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
      "mysql"            => array(
-         "quotes"       => array( array("'","'","\\'","\\'"), array("`","`"), array("","") )
+         "quotes"       => array( array("'","'","\\'","\\'"), array("`","`","``","``"), array("","","","") )
         
         ,"functions"    => array(
          "strpos"       => array("POSITION(",2," IN ",1,")")
@@ -1503,12 +1517,12 @@ class Dialect
 		,"BLOB"			=> "BLOB"
 		)
 		
-        ,"clauses"      => "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
+        ,"clauses"      => "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
     )
 
 
     ,"postgresql"       => array(
-         "quotes"       => array( array("E'","'","''","''"), array("\"","\""), array("","") )
+         "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\""."\"\""), array("E","","E","") )
         
         ,"functions"    => array(
          "strpos"       => array("position(",2," in ",1,")")
@@ -1541,12 +1555,12 @@ class Dialect
 		,"BLOB"			=> "BLOB"
 		)
 		
-        ,"clauses"      => "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
+        ,"clauses"      => "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
     )
 
 
     ,"transactsql"      => array(
-         "quotes"       => array( array("'","'","''","''"), array("[","]"), array(""," ESCAPE '\\'") )
+         "quotes"       => array( array("'","'","''","''"), array("[","]","[","]"), array(""," ESCAPE '\\'","","") )
         
         ,"functions"    => array(
          "strpos"       => array("CHARINDEX(",2,",",1,")")
@@ -1579,12 +1593,12 @@ class Dialect
 		,"BLOB"			=> "TEXT"
 		)
 		
-        ,"clauses"      => "[<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
+        ,"clauses"      => "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
     )
 
 
     ,"sqlite"           => array(
-         "quotes"       => array( array("'","'","''","''"), array("\"","\""), array(""," ESCAPE '\\'") )
+         "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\"","\"\""), array(""," ESCAPE '\\'","","") )
         
         ,"functions"    => array(
          "strpos"       => array("instr(",2,",",1,")")
@@ -1617,14 +1631,16 @@ class Dialect
 		,"BLOB"			=> "BLOB"
 		)
 		
-        ,"clauses"      => "[<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+        ,"clauses"      => "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
     )
     );
     
     public static $aliases = array(
         "mysqli"    => "mysql"
+       ,"mariadb"   => "mysql"
        ,"sqlserver" => "transactsql"
        ,"postgres"  => "postgresql"
+       ,"postgre"   => "postgresql"
     );
     
     private $clau = null;
@@ -1636,6 +1652,7 @@ class Dialect
    
     public $db = null;
     public $escdb = null;
+    public $escdbn = null;
     public $p = null;
     
     public $type = null;
@@ -1661,13 +1678,14 @@ class Dialect
         
         $this->db = null;
         $this->escdb = null;
+        $this->escdbn = null;
         $this->p = '';
         
         $this->type = $type;
         $this->clauses =& self::$dialects[ $this->type ][ 'clauses' ];
         $this->q = self::$dialects[ $this->type ][ 'quotes' ][ 0 ];
         $this->qn = self::$dialects[ $this->type ][ 'quotes' ][ 1 ];
-        $this->e = isset(self::$dialects[ $this->type ][ 'quotes' ][ 2 ]) ? self::$dialects[ $this->type ][ 'quotes' ][ 2 ] : array('','');
+        $this->e = isset(self::$dialects[ $this->type ][ 'quotes' ][ 2 ]) ? self::$dialects[ $this->type ][ 'quotes' ][ 2 ] : array('','','','');
     }
     
     public function dispose( )
@@ -1681,6 +1699,7 @@ class Dialect
         
         $this->db = null;
         $this->escdb = null;
+        $this->escdbn = null;
         $this->p = null;
         
         $this->type = null;
@@ -1713,14 +1732,24 @@ class Dialect
         return $this->db;
     }
     
-    public function escape( $escdb=null )
+    public function escape( $escdb=null, $does_quote=false )
     {
         if ( func_num_args() > 0 )
         {
-            $this->escdb = $escdb && is_callable($escdb) ? $escdb : null;
+            $this->escdb = $escdb && is_callable($escdb) ? array($escdb, (bool)$does_quote) : null;
             return $this;
         }
         return $this->escdb;
+    }
+    
+    public function escapeId( $escdbn=null, $does_quote=false )
+    {
+        if ( func_num_args() > 0 )
+        {
+            $this->escdbn = $escdbn && is_callable($escdbn) ? array($escdbn, (bool)$does_quote) : null;
+            return $this;
+        }
+        return $this->escdbn;
     }
     
     public function prefix( $prefix='' )
@@ -1761,7 +1790,11 @@ class Dialect
     public function subquery( )
     {
         $sub = new Dialect( $this->type );
-        $sub->driver( $this->driver() )->escape( $this->escape() )->prefix( $this->prefix() );
+        $sub->driver( $this->driver() )->prefix( $this->prefix() );
+        $escdb = $this->escape( );
+        $escdbn = $this->escapeId();
+        if ( $escdb ) $sub->escape( $escdb[0], $escdb[1] );
+        if ( $escdbn ) $sub->escapeId( $escdbn[0], $escdbn[1] );
         $sub->vews = $this->vews;
         return $sub;
     }
@@ -2133,6 +2166,25 @@ class Dialect
            $this->tpls[ $tpl ]->sql->dispose( );
            unset( $this->tpls[ $tpl ] );
         }
+        return $this;
+    }
+    
+    public function StartTransaction( $type=null, $start_transaction_clause='start_transaction' )
+    {
+        if ( $this->clau !== $start_transaction_clause ) $this->reset($start_transaction_clause);
+        $this->clus['type'] = !empty($type) ? $type : null;
+        return $this;
+    }
+    
+    public function CommitTransaction( $commit_transaction_clause='commit_transaction' )
+    {
+        if ( $this->clau !== $commit_transaction_clause ) $this->reset($commit_transaction_clause);
+        return $this;
+    }
+    
+    public function RollbackTransaction( $rollback_transaction_clause='rollback_transaction' )
+    {
+        if ( $this->clau !== $rollback_transaction_clause ) $this->reset($rollback_transaction_clause);
         return $this;
     }
     
@@ -3045,16 +3097,33 @@ class Dialect
         $optional = true === $optional;
         if ( is_array( $v ) )
         {
-            foreach($v as $i=>$vi) $v[$i] = $this->quote_name($vi, $optional);
+            $ve = array();
+            foreach($v as $i=>$vi) $ve[] = $this->quote_name($vi, $optional);
+            return $ve;
+        }
+        $v = (string)$v;
+        if ( $optional && $this->qn[0] == substr($v,0,strlen($this->qn[0])) && $this->qn[1] == substr($v,-strlen($this->qn[1])) )
+        {
             return $v;
         }
-        elseif ( $optional )
+        if ( $this->escdbn )
         {
-            return ($this->qn[0] == substr($v,0,strlen($this->qn[0])) ? '' : $this->qn[0]) . $v . ($this->qn[1] == substr($v,-strlen($this->qn[1])) ? '' : $this->qn[1]);
+            return $this->escdbn[1] ? call_user_func($this->escdbn[0], $v) : ($this->qn[0] . call_user_func($this->escdbn[0], $v) . $this->qn[1]);
         }
         else
         {
-            return $this->qn[0] . $v . $this->qn[1];
+            for($i=0,$l=strlen($v),$ve=''; $i<$l; $i++)
+            {
+                $c = $v[$i];
+                // properly try to escape quotes, by doubling for example, inside name
+                if ( $this->qn[0] === $c )
+                    $ve .= $this->qn[2];
+                elseif ( $this->qn[1] === $c )
+                    $ve .= $this->qn[3];
+                else
+                    $ve .= $c;
+            }
+            return $this->qn[0] . $ve . $this->qn[1];
         }
     }
     
@@ -3062,21 +3131,70 @@ class Dialect
     {
         if ( is_array( $v ) )
         {
-            foreach($v as $i=>$vi) $v[$i] = $this->quote( $vi );
-            return $v;
+            $ve = array();
+            foreach($v as $i=>$vi) $ve[] = $this->quote( $vi );
+            return $ve;
         }
-        return ($this->q[0] . $this->esc( $v ) . $this->q[1]);
+        $v = (string)$v;
+        $hasBackSlash = (false !== strpos($v, '\\'));
+        if ( $this->escdb )
+        {
+            return $this->escdb[1] ? call_user_func($this->escdb[0], $v) : (($hasBackSlash ? $this->e[2] : '') . $this->q[0] . call_user_func($this->escdb[0], $v) . $this->q[1] . ($hasBackSlash ? $this->e[3] : ''));
+        }
+        return ($hasBackSlash ? $this->e[2] : '') . $this->q[0] . $this->esc( $v ) . $this->q[1] . ($hasBackSlash ? $this->e[3] : '');
+    }
+    
+    public function esc( $v )
+    {
+        if ( is_array( $v ) )
+        {
+            $ve = array();
+            foreach($v as $i=>$vi) $ve[] = $this->esc( $vi );
+            return $ve;
+        }
+        elseif ( $this->escdb && !$this->escdb[1] )
+        {
+            return call_user_func( $this->escdb[0], $v );
+        }
+        else
+        {
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            $chars = chr(0) . '\\'; $esc = '\\';
+            $q =& $this->q; $v = (string)$v; $ve = '';
+            for($i=0,$l=strlen($v); $i<$l; $i++)
+            {
+                $c = $v[$i];
+                if ( $q[0] === $c ) $ve .= $q[2];
+                elseif ( $q[1] === $c ) $ve .= $q[3];
+                else $ve .= self::addslashes( $c, $chars, $esc );
+            }
+            return $ve;
+        }
+    }
+    
+    public function esc_like( $v )
+    {
+        if ( is_array( $v ) )
+        {
+            $ve = array();
+            foreach($v as $i=>$vi) $ve[] = $this->esc_like( $vi );
+            return $ve;
+        }
+        $chars = '_%'; $esc = '\\';
+        return self::addslashes( (string)$v, $chars, $esc );
     }
     
     public function like( $v )
     {
         if ( is_array( $v ) )
         {
-            foreach($v as $i=>$vi) $v[$i] = $this->like( $vi );
-            return $v;
+            $ve = array();
+            foreach($v as $i=>$vi) $ve[] = $this->like( $vi );
+            return $ve;
         }
         $q = $this->q;
-        $e = $this->escdb ? array('','') : $this->e;
+        $e = $this->escdb ? array('','','','') : $this->e;
         return $e[0] . $q[0] . '%' . $this->esc_like( $this->esc( $v ) ) . '%' . $q[1] . $e[1];
     }
     
@@ -3094,45 +3212,6 @@ class Dialect
             $OR = '(' . implode(' AND ', $ANDs) . ')';
         }
         return implode(' OR ', $ORs);
-    }
-    
-    public function esc( $v )
-    {
-        if ( is_array( $v ) )
-        {
-            foreach($v as $i=>$vi) $v[$i] = $this->esc( $vi );
-            return $v;
-        }
-        elseif ( $this->escdb )
-        {
-            return call_user_func( $this->escdb, $v );
-        }
-        else
-        {
-            // simple ecsaping using addslashes
-            // '"\ and NUL (the NULL byte).
-            $chars = '\\' . chr(0); $esc = '\\';
-            $q =& $this->q; $v = strval($v); $ve = '';
-            for($i=0,$l=strlen($v); $i<$l; $i++)
-            {
-                $c = $v[$i];
-                if ( $q[0] === $c ) $ve .= $q[2];
-                elseif ( $q[1] === $c ) $ve .= $q[3];
-                else $ve .= self::addslashes( $c, $chars, $esc );
-            }
-            return $ve;
-        }
-    }
-    
-    public function esc_like( $v )
-    {
-        if ( is_array( $v ) )
-        {
-            foreach($v as $i=>$vi) $v[$i] = $this->esc_like( $vi );
-            return $v;
-        }
-        $chars = '_%'; $esc = '\\';
-        return self::addslashes( $v, $chars, $esc );
     }
     
     public function sql_function( $f, $args=array() )

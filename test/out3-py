@@ -1,0 +1,14 @@
+Dialect.VERSION = 1.1.0
+
+SQL dialect = sqlite
+
+SELECT *
+FROM "table" AS "main"
+ORDER BY random() ASC
+
+"trick""ier"
+
+'trick''\\ier'
+
+SELECT "trick""ier" AS "trickier"
+FROM "table"

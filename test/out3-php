@@ -1,0 +1,14 @@
+Dialect.VERSION = 1.1.0
+
+SQL dialect = mysql
+
+SELECT *
+FROM `table` AS `main`
+ORDER BY RAND() ASC
+
+`trick``ier`
+
+'trick\'\\ier'
+
+SELECT `trick``ier` AS `trickier`
+FROM `table`

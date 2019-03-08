@@ -1,8 +1,8 @@
 /**
 *   Dialect, 
-*   a simple and flexible Cross-Platform & Cross-Vendor SQL Builder for PHP, Python, Node/XPCOM/JS
+*   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 1.0.0
+*   @version: 1.1.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -21,7 +21,7 @@ else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require
     define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
 else if ( !(name in root) ) /* Browser/WebWorker/.. */
     (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];} );
-}(  /* current root */          this, 
+}(  /* current root */          'undefined' !== typeof self ? self : this, 
     /* module name */           "Dialect",
     /* module factory */        function ModuleFactory__Dialect( undef ){
 "use strict";
@@ -39,7 +39,7 @@ var PROTO = 'prototype',
 function guid( )
 {
     guid.GUID += 1;
-    return pad(new Date().getTime().toString(16),12)+'--'+pad(guid.GUID.toString(16),4);
+    return pad(new Date().getTime().toString(16),12)+'--'+pad(guid.GUID.toString(16),4)/*+'--'+pad(Math.floor(1000*Math.random()).toString(16),4)*/;
 }
 guid.GUID = 0;
 
@@ -63,7 +63,7 @@ StringTemplate.multisplit = function multisplit( tpl, reps, as_array ) {
     a = [ [1, tpl] ];
     for ( r in reps )
     {
-        if ( reps.hasOwnProperty( r ) )
+        if ( hasOwnProperty.call(reps, r) )
         {
             c = [ ]; sr = as_array ? reps[ r ] : r; s = [0, reps[ r ]];
             for (i=0,al=a.length; i<al; i++)
@@ -1284,19 +1284,29 @@ Ref.parse = function( r, d ) {
             }
             else if ( quote === ch )
             {
-                if ( s.length )
+                if ( (i<l) && (ch===r.charAt(i)) )
                 {
-                    stack.unshift([1, s]);
-                    ids.unshift(s);
-                    s = '';
+                    // double-escaped quote in identifier
+                    s += ch;
+                    i++;
+                    continue;
                 }
                 else
                 {
-                    err = ['invalid',i];
-                    break;
+                    if ( s.length )
+                    {
+                        stack.unshift([1, s]);
+                        ids.unshift(s);
+                        s = '';
+                    }
+                    else
+                    {
+                        err = ['invalid',i];
+                        break;
+                    }
+                    quote = null;
+                    continue;
                 }
-                quote = null;
-                continue;
             }
             else if ( quote )
             {
@@ -1549,7 +1559,7 @@ Ref[PROTO] = {
 
 var dialects = {
  "mysql"            : {
-     "quotes"       : [ ["'","'","\\'","\\'"], ["`","`"], ["",""] ]
+     "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
     
     ,"functions"    : {
      "strpos"       : ["POSITION(",2," IN ",1,")"]
@@ -1582,12 +1592,12 @@ var dialects = {
 	,"BLOB"			: "BLOB"
 	}
     
-    ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
+    ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
 }
 
 
 ,"postgresql"       : {
-     "quotes"       : [ ["E'","'","''","''"], ["\"","\""], ["",""] ]
+     "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
     
     ,"functions"    : {
      "strpos"       : ["position(",2," in ",1,")"]
@@ -1620,12 +1630,12 @@ var dialects = {
 	,"BLOB"			: "BLOB"
 	}
     
-    ,"clauses"      : "[<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
+    ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
 }
 
 
 ,"transactsql"      : {
-     "quotes"       : [ ["'","'","''","''"], ["[","]"], [""," ESCAPE '\\'"] ]
+     "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
     
     ,"functions"    : {
      "strpos"       : ["CHARINDEX(",2,",",1,")"]
@@ -1658,12 +1668,12 @@ var dialects = {
 	,"BLOB"			: "TEXT"
 	}
     
-    ,"clauses"      : "[<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
+    ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
 }
 
 
 ,"sqlite"           : {
-     "quotes"       : [ ["'","'","''","''"], ["\"","\""], [""," ESCAPE '\\'"] ]
+     "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
     
     ,"functions"    : {
      "strpos"       : ["instr(",2,",",1,")"]
@@ -1696,21 +1706,23 @@ var dialects = {
 	,"BLOB"			: "BLOB"
 	}
     
-    ,"clauses"      : "[<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+    ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\nVALUES <values_values>[,<*values_values>]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
 }
 };
 var dialect_aliases = {
     "mysqli"    : "mysql"
+   ,"mariadb"   : "mysql"
    ,"sqlserver" : "transactsql"
    ,"postgres"  : "postgresql"
+   ,"postgre"   : "postgresql"
 };
 function Dialect( type )
 {
     var self = this;
-    if ( !(self instanceof Dialect) ) return new Dialect( type );
     if ( !arguments.length ) type = 'mysql';
+    if ( !(self instanceof Dialect) ) return new Dialect( type );
     
-    if ( type && Dialect.aliases[ type ] ) type = Dialect.aliases[ type ];
+    if ( type && hasOwnProperty.call(Dialect.aliases, type) ) type = Dialect.aliases[ type ];
     if ( !type || !Dialect.dialects[ type ] || !Dialect.dialects[ type ][ 'clauses' ] )
     {
         throw new TypeError('Dialect: SQL dialect does not exist for "'+type+'"');
@@ -1725,15 +1737,16 @@ function Dialect( type )
     
     self.db = null;
     self.escdb = null;
+    self.escdbn = null;
     self.p = '';
     
     self.type = type;
     self.clauses = Dialect.dialects[ self.type ][ 'clauses' ];
     self.q  = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ];
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
-    self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['',''];
+    self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['','','',''];
 }
-Dialect.VERSION = "1.0.0";
+Dialect.VERSION = "1.1.0";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.aliases = dialect_aliases;
@@ -1752,6 +1765,7 @@ Dialect[PROTO] = {
     
     ,db: null
     ,escdb: null
+    ,escdbn: null
     ,p: null
     
     ,type: null
@@ -1771,6 +1785,7 @@ Dialect[PROTO] = {
         
         self.db = null;
         self.escdb = null;
+        self.escdbn = null;
         self.p = null;
         
         self.type = null;
@@ -1795,14 +1810,26 @@ Dialect[PROTO] = {
         return self.db;
     }
     
-    ,escape: function( escdb ) {
+    ,escape: function( escdb, does_quote ) {
         var self = this;
+        if ( 2 > arguments.length ) does_quote = false;
         if ( arguments.length )
         {
-            self.escdb = escdb && is_callable( escdb ) ? escdb : null;
+            self.escdb = escdb && is_callable( escdb ) ? [escdb, !!does_quote] : null;
             return self;
         }
         return self.escdb;
+    }
+    
+    ,escapeId: function( escdbn, does_quote ) {
+        var self = this;
+        if ( 2 > arguments.length ) does_quote = false;
+        if ( arguments.length )
+        {
+            self.escdbn = escdbn && is_callable( escdbn ) ? [escdbn, !!does_quote] : null;
+            return self;
+        }
+        return self.escdbn;
     }
     
     ,prefix: function( prefix ) {
@@ -1840,9 +1867,13 @@ Dialect[PROTO] = {
     }
     
     ,subquery: function( ) {
-        var self = this, sub;
+        var self = this, sub, esc, escn;
         sub = new Dialect( self.type );
-        sub.driver( self.driver() ).escape( self.escape() ).prefix( self.prefix() );
+        sub.driver( self.driver() ).prefix( self.prefix() );
+        esc = self.escape();
+        escn = self.escapeId();
+        if ( esc ) sub.escape( esc[0], esc[1] );
+        if ( escn ) sub.escapeId( escn[0], escn[1] );
         sub.vews = self.vews;
         return sub;
     }
@@ -2216,6 +2247,28 @@ Dialect[PROTO] = {
            self.tpls[ tpl ].sql.dispose( );
            delete self.tpls[ tpl ];
         }
+        return self;
+    }
+    
+    ,StartTransaction: function( type, start_transaction_clause ) {
+        var self = this;
+        start_transaction_clause = start_transaction_clause || 'start_transaction';
+        if ( self.clau !== start_transaction_clause ) self.reset(start_transaction_clause);
+        self.clus.type = type || null;
+        return self;
+    }
+    
+    ,CommitTransaction: function( commit_transaction_clause ) {
+        var self = this;
+        commit_transaction_clause = commit_transaction_clause || 'commit_transaction';
+        if ( self.clau !== commit_transaction_clause ) self.reset(commit_transaction_clause);
+        return self;
+    }
+    
+    ,RollbackTransaction: function( rollback_transaction_clause ) {
+        var self = this;
+        rollback_transaction_clause = rollback_transaction_clause || 'rollback_transaction';
+        if ( self.clau !== rollback_transaction_clause ) self.reset(rollback_transaction_clause);
         return self;
     }
     
@@ -3153,41 +3206,102 @@ Dialect[PROTO] = {
     }
     
     ,quote_name: function( v, optional ) {
-        var self = this, qn = self.qn;
+        var self = this, qn = self.qn, escn = self.escdbn, i, l, ve, c;
         optional = true === optional;
         if ( is_array( v ) )
         {
-            for(var i=0,l=v.length; i<l; i++) v[i] = self.quote_name( v[i], optional );
+            for(i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.quote_name( v[i], optional );
+            return ve;
+        }
+        v = String(v);
+        if ( optional && qn[0] === v.slice(0,qn[0].length) && qn[1] === v.slice(-qn[1].length) )
+        {
             return v;
         }
-        else if ( optional )
+        if ( escn )
         {
-            return (qn[0] == v.slice(0,qn[0].length) ? '' : qn[0]) + v + (qn[1] == v.slice(-qn[1].length) ? '' : qn[1]);
+            return escn[1] ? escn[0](v) : (qn[0] + escn[0](v) + qn[1]);
         }
         else
         {
-            return qn[0] + v + qn[1];
+            for(i=0,l=v.length,ve=''; i<l; i++)
+            {
+                c = v.charAt(i);
+                // properly try to escape quotes, by doubling for example, inside name
+                if ( qn[0] === c )
+                    ve += qn[2];
+                else if ( qn[1] === c )
+                    ve += qn[3];
+                else
+                    ve += c;
+            }
+            return qn[0] + ve + qn[1];
         }
     }
     
     ,quote: function( v ) {
-        var self = this, q = self.q;
+        var self = this, q = self.q, e = self.e, esc = self.escdb, hasBackSlash;
         if ( is_array( v ) )
         {
-            for(var i=0,l=v.length; i<l; i++) v[i] = self.quote( v[i] );
-            return v;
+            for(var i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.quote( v[i] );
+            return ve;
         }
-        return q[0] + self.esc( v ) + q[1];
+        v = String(v);
+        hasBackSlash = (-1 !== v.indexOf('\\'));
+        if ( esc )
+        {
+            return esc[1] ? esc[0](v) : ((hasBackSlash ? e[2] : '') + q[0] + esc[0](v) + q[1] + (hasBackSlash ? e[3] : ''));
+        }
+        return (hasBackSlash ? e[2] : '') + q[0] + self.esc( v ) + q[1] + (hasBackSlash ? e[3] : '');
+    }
+    
+    ,esc: function( v ) {
+        var self = this, chars, esc, i, l, ve, c, q, ve;
+        if ( is_array( v ) )
+        {
+            for(i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.esc( v[i] );
+            return ve;
+        }
+        else if ( self.escdb && !self.escdb[1] ) 
+        {
+            return self.escdb[0]( v );
+        }
+        else
+        {
+            // simple ecsaping using addslashes
+            // '"\ and NUL (the NULL byte).
+            q = self.q;
+            chars = NULL_CHAR + '\\'; esc = '\\';
+            v = String(v); ve = '';
+            for(i=0,l=v.length; i<l; i++)
+            {
+                c = v.charAt(i);
+                if ( q[0] === c ) ve += q[2];
+                else if ( q[1] === c ) ve += q[3];
+                else ve += addslashes( c, chars, esc );
+            }
+            return ve;
+        }
+    }
+    
+    ,esc_like: function( v ) {
+        var self = this;
+        if ( is_array( v ) )
+        {
+            for(var i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.esc_like( v[i] );
+            return ve;
+        }
+        return addslashes( v, '_%', '\\' );
     }
     
     ,like: function( v ) {
         var self = this, q, e;
         if ( is_array( v ) )
         {
-            for(var i=0,l=v.length; i<l; i++) v[i] = self.like( v[i] );
-            return v;
+            for(var i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.like( v[i] );
+            return ve;
         }
-        q = self.q; e = self.escdb ? ['',''] : self.e;
+        q = self.q; e = self.escdb ? ['','','',''] : self.e;
         return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1];
     }
     
@@ -3207,48 +3321,9 @@ Dialect[PROTO] = {
         return ORs.join(' OR ');
     }
     
-    ,esc: function( v ) {
-        var self = this, chars, esc, i, l, ve, c, q;
-        if ( is_array( v ) )
-        {
-            for(i=0,l=v.length; i<l; i++) v[i] = self.esc( v[i] );
-            return v;
-        }
-        else if ( self.escdb ) 
-        {
-            return self.escdb( v );
-        }
-        else
-        {
-            // simple ecsaping using addslashes
-            // '"\ and NUL (the NULL byte).
-            q = self.q;
-            chars = '\\' + NULL_CHAR; esc = '\\';
-            v = String(v); ve = '';
-            for(i=0,l=v.length; i<l; i++)
-            {
-                c = v.charAt(i);
-                if ( q[0] === c ) ve += q[2];
-                else if ( q[1] === c ) ve += q[3];
-                else ve += addslashes( c, chars, esc );
-            }
-            return ve;
-        }
-    }
-    
-    ,esc_like: function( v ) {
-        var self = this;
-        if ( is_array( v ) )
-        {
-            for(var i=0,l=v.length; i<l; i++) v[i] = self.esc_like( v[i] );
-            return v;
-        }
-        return addslashes( v, '_%', '\\' );
-    }
-    
     ,sql_function: function( f, args ) {
         var self = this, func, is_arg, i, l, fi, argslen;
-        if ( null == Dialect.dialects[ self.type ][ 'functions' ][ f ] )
+        if ( !hasOwnProperty.call(Dialect.dialects[ self.type ][ 'functions' ], f ) )
             throw new TypeError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"');
         f = Dialect.dialects[ self.type ][ 'functions' ][ f ];
         args = null != args ? array(args) : [];
@@ -3266,7 +3341,7 @@ Dialect[PROTO] = {
     ,sql_type: function( data_type ) {
         var self = this;
 		data_type = String(data_type).toUpperCase();
-        if ( null == Dialect.dialects[ self.type ][ 'types' ][ data_type ] )
+        if ( !hasOwnProperty.call(Dialect.dialects[ self.type ][ 'types' ], data_type ) )
             throw new TypeError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"');
         return Dialect.dialects[ self.type ][ 'types' ][ data_type ];
     }
