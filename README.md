@@ -1,7 +1,7 @@
 Dialect
 =======
 
-**Cross-Vendor &amp; Cross-Platform SQL Query Builder for PHP, Python, Node / XPCOM / JS**
+**Cross-Vendor &amp; Cross-Platform SQL Query Builder for `PHP`, `Python`, `Browser` / `Node.js` / `XPCOM` `Javascript`**
 
 ![Dialect](/dialect.jpg)
 
@@ -12,16 +12,16 @@ Dialect
 
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
 * [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
-* [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, Node/XPCOM/JS, Python
-* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/XPCOM/JS, Python (can be used as plugins for Contemplate engine as well)
-* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/XPCOM/JS, PHP, Python, ActionScript
-* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python, ActionScript
-* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
-* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Node/XPCOM/JS, ActionScript
-* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Node/XPCOM/JS, ActionScript
+* [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Python, Browser / Node.js / XPCOM Javascript (can be used as plugins for Contemplate engine as well)
+* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM Javascript
 * [GrammarPattern](https://github.com/foo123/GrammarPattern) versatile grammar-based pattern-matching for Node/XPCOM/JS (IN PROGRESS)
-* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
-* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/XPCOM/JS, PHP, Python, ActionScript
+* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for PHP, Python, Browser / Node.js / XPCOM Javascript
 * [RT](https://github.com/foo123/RT) client-side real-time communication for Node/XPCOM/JS with support for Poll/BOSH/WebSockets
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
@@ -41,13 +41,12 @@ Dialect
 
 ### Requirements
 
-* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), `Oracle`, `DB2`, .. )
+* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), `Oracle`, .. )
 * Easily extended to new `DB`s ( prefereably through a, implementation-independent, config setting )
 * Light-weight ( one class/file per implementation if possible )
 * Speed
 * Modularity and implementation-independent transferability
 * Flexible and Intuitive API
-
 
 
 
@@ -59,7 +58,7 @@ Dialect
 2. [`PostgreSQL`](http://www.postgresql.org/docs/9.1/static/reference.html)
 3. [`Transact-SQL` (`SQL Server`)](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
 4. [`SQLite`](https://www.sqlite.org/lang.html)
-5. `Oracle`, `DB2`, .. [TODO]
+5. `Oracle`, .. [TODO]
 
 
 

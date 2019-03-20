@@ -37,7 +37,7 @@ query = dialect.Select().Order(dialect.sql_function('random')).From('table AS ma
 quoted_id = dialect.quote_name('trick"ier')
 quoted_lit = dialect.quote('trick\'\\ier')
 
-query2 = dialect.Select(quoted_id+' AS trickier').From('table').sql()
+query2 = dialect.Select(quoted_id+' AS trickier, "trick\'y" AS tricky').From('table').sql()
 
 echo( 'SQL dialect = ' + dialect.type )
 echo( )

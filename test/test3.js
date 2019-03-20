@@ -15,7 +15,7 @@ var query = dialect
 var quoted_id = dialect.quote_name('trick"ier');
 var quoted_lit = dialect.quote('trick\'\\ier');
 
-var query2 = dialect.Select(quoted_id+' AS trickier').From('table').sql();
+var query2 = dialect.Select(quoted_id+' AS trickier, "trick\'y" AS tricky').From('table').sql();
 
 echo( 'SQL dialect = ' + dialect.type );
 echo( );
