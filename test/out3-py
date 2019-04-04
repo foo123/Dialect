@@ -10,5 +10,15 @@ ORDER BY random() ASC
 
 'trick''\\ier'
 
-SELECT "trick""ier" AS "trickier"
+SELECT "trick""ier" AS "trickier","trick'y" AS "tricky"
 FROM "table"
+
+SELECT *
+FROM "table"
+WHERE ("id" IN (SELECT "id"
+FROM "anothertable"))
+
+INSERT INTO "table" ("col1","col2")
+SELECT "col1","col2"
+FROM "anothertable"
+WHERE ("id" = 1)

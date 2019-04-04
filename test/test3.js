@@ -12,10 +12,23 @@ var query = dialect
         .sql( )
     ;
 
+
 var quoted_id = dialect.quote_name('trick"ier');
 var quoted_lit = dialect.quote('trick\'\\ier');
 
 var query2 = dialect.Select(quoted_id+' AS trickier, "trick\'y" AS tricky').From('table').sql();
+
+var query3 = dialect
+        .Select()
+        .From('table')
+        .Where({'id':{'in':dialect.subquery().Select('id').From('anothertable').sql(),'type':'raw'}})
+        .sql( )
+    ;
+
+var query4 = [
+        dialect.Insert('table',['col1','col2']).sql( ),
+        dialect.Select('col1,col2').From('anothertable').Where({'id':1}).sql( )
+    ].join('');
 
 echo( 'SQL dialect = ' + dialect.type );
 echo( );
@@ -26,3 +39,7 @@ echo( );
 echo( quoted_lit );
 echo( );
 echo( query2 );
+echo( );
+echo( query3 );
+echo( );
+echo( query4 );

@@ -19,10 +19,10 @@ Dialect
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM Javascript
 * [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM Javascript
 * [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [GrammarPattern](https://github.com/foo123/GrammarPattern) versatile grammar-based pattern-matching for Node/XPCOM/JS (IN PROGRESS)
+* [GrammarPattern](https://github.com/foo123/GrammarPattern) versatile grammar-based pattern-matching for Javascript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM Javascript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [RT](https://github.com/foo123/RT) client-side real-time communication for Node/XPCOM/JS with support for Poll/BOSH/WebSockets
+* [RT](https://github.com/foo123/RT) client-side real-time communication for Node/XPCOM/JS with support for Poll / BOSH / WebSockets
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
 
