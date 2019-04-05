@@ -1514,6 +1514,10 @@ class Dialect:
         self.q = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ]
         self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ]
         self.e = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialects[ self.type ][ 'quotes' ]) else ['','','','']
+        if not isinstance(self.clauses, Dialect.GrammarTemplate):
+            self.clauses = Dialect.GrammarTemplate(self.clauses)
+            Dialect.dialects[ self.type ][ 'clauses' ] = self.clauses
+
     
     def __del__( self ):
         self.dispose()
@@ -1581,8 +1585,8 @@ class Dialect:
         self.clau = clause
         #if not isinstance(self.clauses[ self.clau ], Dialect.GrammarTemplate):
         #    self.clauses[ self.clau ] = Dialect.GrammarTemplate( self.clauses[ self.clau ] )
-        if not isinstance(self.clauses, Dialect.GrammarTemplate):
-            self.clauses = Dialect.GrammarTemplate( self.clauses )
+        #if not isinstance(self.clauses, Dialect.GrammarTemplate):
+        #    self.clauses = Dialect.GrammarTemplate( self.clauses )
         return self
     
     def clear( self ):

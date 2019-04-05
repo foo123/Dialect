@@ -1745,6 +1745,11 @@ function Dialect( type )
     self.q  = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ];
     self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ];
     self.e  = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] || ['','','',''];
+    if ( !(self.clauses instanceof Dialect.GrammarTemplate) )
+    {
+        self.clauses = new Dialect.GrammarTemplate( self.clauses );
+        Dialect.dialects[ self.type ][ 'clauses' ] = self.clauses;
+    }
 }
 Dialect.VERSION = "1.1.0";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
@@ -1852,8 +1857,8 @@ Dialect[PROTO] = {
         self.tbls = { };
         self.cols = { };
         self.clau = clause;
-        if ( !(self.clauses/*[ self.clau ]*/ instanceof Dialect.GrammarTemplate) )
-            self.clauses/*[ self.clau ]*/ = new Dialect.GrammarTemplate( self.clauses/*[ self.clau ]*/ );
+        //if ( !(self.clauses/*[ self.clau ]*/ instanceof Dialect.GrammarTemplate) )
+        //    self.clauses/*[ self.clau ]*/ = new Dialect.GrammarTemplate( self.clauses/*[ self.clau ]*/ );
         return self;
     }
     

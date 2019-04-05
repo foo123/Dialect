@@ -1686,6 +1686,11 @@ class Dialect
         $this->q = self::$dialects[ $this->type ][ 'quotes' ][ 0 ];
         $this->qn = self::$dialects[ $this->type ][ 'quotes' ][ 1 ];
         $this->e = isset(self::$dialects[ $this->type ][ 'quotes' ][ 2 ]) ? self::$dialects[ $this->type ][ 'quotes' ][ 2 ] : array('','','','');
+        if ( !($this->clauses instanceof GrammarTemplate) )
+        {
+            $this->clauses = new GrammarTemplate($this->clauses);
+            self::$dialects[ $this->type ][ 'clauses' ] = $this->clauses;
+        }
     }
     
     public function dispose( )
@@ -1773,8 +1778,8 @@ class Dialect
         $this->cols = array( );
         $this->clau = $clause;
         
-        if ( !($this->clauses/*[ $this->clau ]*/ instanceof GrammarTemplate) )
-            $this->clauses/*[ $this->clau ]*/ = new GrammarTemplate( $this->clauses/*[ $this->clau ]*/ );
+        //if ( !($this->clauses/*[ $this->clau ]*/ instanceof GrammarTemplate) )
+        //    $this->clauses/*[ $this->clau ]*/ = new GrammarTemplate( $this->clauses/*[ $this->clau ]*/ );
         return $this;
     }
     
