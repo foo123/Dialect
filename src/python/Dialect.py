@@ -2,7 +2,7 @@
 #   Dialect, 
 #   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 # 
-#   @version: 1.1.0
+#   @version: 1.2.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -1077,6 +1077,8 @@ class Ref:
         global Ref_alf_re
         # should handle field formats like:
         # [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+        # and/or
+        # ( ..subquery.. ) [ AS alias]
         # and extract alias, dtb, tbl, col identifiers (if present)
         # and also extract F1,..,Fn function identifiers (if present)
         r = r.strip( )
@@ -1092,130 +1094,194 @@ class Ref:
         err = None
         paren = 0
         quote = None
+        paren2 = 0
+        quote2 = None
+        subquery = None
         while i < l:
             ch = r[i]
             i += 1
             
-            if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
-                # sql quote
-                if not quote:
-                    if len(s) or (']' == ch):
-                        err = ['invalid',i]
-                        break
-                    quote = ']' if '[' == ch else ch
+            if '('==ch and 1==i:
+                # ( ..subquery.. ) [ AS alias]
+                paren2+=1
+                continue
+            
+            if 0 < paren2:
+                # ( ..subquery.. ) [ AS alias]
+                if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
+                    if not quote2:
+                        quote2 = ']' if '[' == ch else ch
+                    
+                    elif quote2 == ch:
+                        if (i<l) and (ch==r[i]) and ('"'==ch or '`'==ch or '\''==ch ):
+                            # double-escaped quote in identifier or string
+                            i+=1
+                        
+                        elif '\''==ch:
+                            # maybe-escaped quote in string
+                            escaped = False
+                            j = i-2
+                            while 0<=j and '\\'==r[j]:
+                                escaped = not escaped
+                                j-=1
+                                
+                            if not escaped:
+                                quote2 = None
+                        
+                        else:
+                            quote2 = None
+                    
                     continue
                 
-                elif quote == ch:
-                    if (i<l) and (ch==r[i]):
-                        # double-escaped quote in identifier
-                        s += ch
-                        i += 1
+                elif quote2:
+                    continue
+                
+                elif '(' == ch:
+                    paren2+=1
+                    continue
+                
+                elif ')' == ch:
+                    
+                    paren2-=1
+                    if 0 > paren2:
+                        err = ['paren',i]
+                        break
+                    
+                    elif 0 == paren2:
+                        if quote2:
+                            err = ['quote',i]
+                            break
+                        
+                        subquery = r[0:i]
+                        s = subquery
                         continue
+                    
                     else:
-                        if len(s):
-                            stack.insert(0,[1, s])
-                            ids.insert(0,s)
-                            s = ''
-                        else:
+                        continue
+                else:
+                    continue
+            else:
+                # [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+                if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
+                    # sql quote
+                    if not quote:
+                        if len(s) or (']' == ch):
                             err = ['invalid',i]
                             break
-                        quote = None
+                        quote = ']' if '[' == ch else ch
+                        continue
+                    
+                    elif quote == ch:
+                        if (i<l) and (ch==r[i]):
+                            # double-escaped quote in identifier
+                            s += ch
+                            i += 1
+                            continue
+                        else:
+                            if len(s):
+                                stack.insert(0,[1, s])
+                                ids.insert(0,s)
+                                s = ''
+                            else:
+                                err = ['invalid',i]
+                                break
+                            quote = None
+                            continue
+                    
+                    elif quote:
+                        s += ch
                         continue
                 
-                elif quote:
+                if quote:
+                    # part of sql-quoted value
                     s += ch
                     continue
-            
-            if quote:
-                # part of sql-quoted value
-                s += ch
-                continue
-            
-            if '*' == ch:
-                # placeholder
-                if len(s):
-                    err = ['invalid',i]
-                    break
-                stack.insert(0,[10, '*'])
-                ids.insert(0,10)
-            
-            elif '.' == ch:
-                # separator
-                if len(s):
-                    stack.insert(0,[1, s])
-                    ids.insert(0,s)
-                    s = ''
-                if not len(stack) or 1 != stack[0][0]:
-                    # error, mismatched separator
-                    err = ['invalid',i]
-                    break
                 
-                stack.insert(0,[0, '.'])
-                ids.insert(0,0)
-            
-            elif '(' == ch:
-                # left paren
-                paren += 1
-                if len(s):
-                    # identifier is function
-                    stack.insert(0,[2, s])
-                    funcs.insert(0,s)
-                    s = ''
-                if not len(stack) or (2 != stack[0][0] and 1 != stack[0][0]):
+                if '*' == ch:
+                    # placeholder
+                    if len(s):
+                        err = ['invalid',i]
+                        break
+                    stack.insert(0,[10, '*'])
+                    ids.insert(0,10)
+                
+                elif '.' == ch:
+                    # separator
+                    if len(s):
+                        stack.insert(0,[1, s])
+                        ids.insert(0,s)
+                        s = ''
+                    if not len(stack) or 1 != stack[0][0]:
+                        # error, mismatched separator
+                        err = ['invalid',i]
+                        break
+                    
+                    stack.insert(0,[0, '.'])
+                    ids.insert(0,0)
+                
+                elif '(' == ch:
+                    # left paren
+                    paren += 1
+                    if len(s):
+                        # identifier is function
+                        stack.insert(0,[2, s])
+                        funcs.insert(0,s)
+                        s = ''
+                    if not len(stack) or (2 != stack[0][0] and 1 != stack[0][0]):
+                        err = ['invalid',i]
+                        break
+                    if 1 == stack[0][0]:
+                        stack[0][0] = 2
+                        funcs.insert(0,ids.pop(0))
+                    stacks.insert(0,[])
+                    stack = stacks[0]
+                
+                elif ')' == ch:
+                    # right paren
+                    paren -= 1
+                    if len(s):
+                        keyword = s.upper() in keywords2
+                        stack.insert(0,[5 if keyword else 1, s])
+                        ids.insert(0, 5 if keyword else s)
+                        s = ''
+                    if len(stacks) < 2:
+                        err = ['invalid',i]
+                        break
+                    # reduce
+                    stacks[1].insert(0,[100, stacks.pop(0)])
+                    stack = stacks[0]
+                
+                elif Ref_spc_re.match(ch):
+                    # space separator
+                    if len(s):
+                        keyword = s.upper() in keywords2
+                        stack.insert(0,[5 if keyword else 1, s])
+                        ids.insert(0, 5 if keyword else s)
+                        s = ''
+                    continue
+                
+                elif Ref_num_re.match(ch):
+                    if not len(s):
+                        err = ['invalid',i]
+                        break
+                    # identifier
+                    s += ch
+                
+                elif Ref_alf_re.match(ch):
+                    # identifier
+                    s += ch
+                
+                else:
                     err = ['invalid',i]
                     break
-                if 1 == stack[0][0]:
-                    stack[0][0] = 2
-                    funcs.insert(0,ids.pop(0))
-                stacks.insert(0,[])
-                stack = stacks[0]
-            
-            elif ')' == ch:
-                # right paren
-                paren -= 1
-                if len(s):
-                    keyword = s.upper() in keywords2
-                    stack.insert(0,[5 if keyword else 1, s])
-                    ids.insert(0, 5 if keyword else s)
-                    s = ''
-                if len(stacks) < 2:
-                    err = ['invalid',i]
-                    break
-                # reduce
-                stacks[1].insert(0,[100, stacks.pop(0)])
-                stack = stacks[0]
-            
-            elif Ref_spc_re.match(ch):
-                # space separator
-                if len(s):
-                    keyword = s.upper() in keywords2
-                    stack.insert(0,[5 if keyword else 1, s])
-                    ids.insert(0, 5 if keyword else s)
-                    s = ''
-                continue
-            
-            elif Ref_num_re.match(ch):
-                if not len(s):
-                    err = ['invalid',i]
-                    break
-                # identifier
-                s += ch
-            
-            elif Ref_alf_re.match(ch):
-                # identifier
-                s += ch
-            
-            else:
-                err = ['invalid',i]
-                break
         
         if len(s):
             stack.insert(0,[1, s])
             ids.insert(0,s)
             s = ''
         
-        if not err and paren: err = ['paren', l]
-        if not err and quote: err = ['quote', l]
+        if not err and (paren or paren2): err = ['paren', l]
+        if not err and (quote or quote2): err = ['quote', l]
         if not err and 1 != len(stacks): err = ['invalid', l]
         if err:
             err_pos = err[1]-1
@@ -1232,37 +1298,53 @@ class Ref:
         
         alias = None
         alias_q = ''
-        if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
-            alias = ids.pop(0)
-            alias_q = d.quote_name( alias )
-            ids.pop(0)
-        
-        col = None
-        col_q = ''
-        if len(ids) and (isinstance(ids[0],str) or 10 == ids[0]):
-            if isinstance(ids[0],str):
-                col = ids.pop(0)
-                col_q = d.quote_name( col )
-            else:
+        if subquery is not None:
+            if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
+                alias = ids.pop(0)
+                alias_q = d.quote_name( alias )
                 ids.pop(0)
-                col = col_q = '*'
-        
-        tbl = None
-        tbl_q = ''
-        if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
-            ids.pop(0)
-            tbl = ids.pop(0)
-            tbl_q = d.quote_name( tbl )
-        
-        dtb = None
-        dtb_q = ''
-        if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
-            ids.pop(0)
-            dtb = ids.pop(0)
-            dtb_q = d.quote_name( dtb )
-        
-        tbl_col = (dtb+'.' if dtb else '') + (tbl+'.' if tbl else '') + (col if col else '')
-        tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
+            
+            col = subquery
+            col_q = subquery
+            tbl = None
+            tbl_q = ''
+            dtb = None
+            dtb_q = ''
+            tbl_col = col
+            tbl_col_q = col_q
+            
+        else:
+            if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
+                alias = ids.pop(0)
+                alias_q = d.quote_name( alias )
+                ids.pop(0)
+            
+            col = None
+            col_q = ''
+            if len(ids) and (isinstance(ids[0],str) or 10 == ids[0]):
+                if isinstance(ids[0],str):
+                    col = ids.pop(0)
+                    col_q = d.quote_name( col )
+                else:
+                    ids.pop(0)
+                    col = col_q = '*'
+            
+            tbl = None
+            tbl_q = ''
+            if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
+                ids.pop(0)
+                tbl = ids.pop(0)
+                tbl_q = d.quote_name( tbl )
+            
+            dtb = None
+            dtb_q = ''
+            if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
+                ids.pop(0)
+                dtb = ids.pop(0)
+                dtb_q = d.quote_name( dtb )
+            
+            tbl_col = (dtb+'.' if dtb else '') + (tbl+'.' if tbl else '') + (col if col else '')
+            tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
         return Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs)
 
     def __init__( self, _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func=[] ):
@@ -1324,7 +1406,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
     
-    VERSION = '1.1.0'
+    VERSION = '1.2.0'
     
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1933,6 +2015,7 @@ class Dialect:
             self.dropView( view )
             return self
         
+        if is_string(tables): tables = tables.split(',')
         tables = self.refs( '*' if not tables else tables, self.tbls )
         options = {'ifexists':1} if empty(options) else options
         self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
@@ -1946,6 +2029,7 @@ class Dialect:
     
     def Select( self, columns='*', select_clause='select' ):
         if self.clau != select_clause: self.reset(select_clause)
+        if is_string(columns): columns = columns.split(',')
         columns = self.refs( '*' if not columns else columns, self.cols )
         if ('select_columns' not in self.clus) or not len(self.clus['select_columns']):
             self.clus['select_columns'] = columns
@@ -1960,6 +2044,8 @@ class Dialect:
             # using custom 'soft' view
             self.useView( view )
         else:
+            if is_string(tables): tables = tables.split(',')
+            if is_string(columns): columns = columns.split(',')
             tables = self.refs( tables, self.tbls )
             columns = self.refs( columns, self.cols )
             if ('insert_tables' not in self.clus) or not len(self.clus['insert_tables']):
@@ -2005,6 +2091,7 @@ class Dialect:
             # using custom 'soft' view
             self.useView( view )
         else:
+            if is_string(tables): tables = tables.split(',')
             tables = self.refs( tables, self.tbls )
             if ('update_tables' not in self.clus) or not len(self.clus['update_tables']):
                 self.clus['update_tables'] = tables
@@ -2062,6 +2149,7 @@ class Dialect:
             # using custom 'soft' view
             self.useView( view )
         else:
+            if is_string(tables): tables = tables.split(',')
             tables = self.refs( tables, self.tbls )
             if ('from_tables' not in self.clus) or not len(self.clus['from_tables']):
                 self.clus['from_tables'] = tables
@@ -2472,18 +2560,18 @@ class Dialect:
             rs = array( refs )
             refs = [ ]
             for i in range(len(rs)):
-                r = rs[ i ].split(',')
-                for j in range(len(r)):
-                    ref = Ref.parse( r[ j ], self )
-                    alias = ref.alias
-                    qualified = ref.full
-                    if alias not in lookup:
-                        lookup[ alias ] = ref
-                        if (qualified != alias) and (qualified not in lookup):
-                            lookup[ qualified ] = ref
-                    else:
-                        ref = lookup[ alias ]
-                    refs.append( ref )
+                #r = rs[ i ].split(',')
+                #for j in range(len(r)):
+                ref = Ref.parse( rs[ i ], self )
+                alias = ref.alias
+                qualified = ref.full
+                if alias not in lookup:
+                    lookup[ alias ] = ref
+                    if (qualified != alias) and (qualified not in lookup):
+                        lookup[ qualified ] = ref
+                else:
+                    ref = lookup[ alias ]
+                refs.append( ref )
         return refs
     
     def tbl( self, table ):

@@ -3,7 +3,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 1.1.0
+*   @version: 1.2.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -131,7 +131,7 @@ class StringTemplate
             $out .= ');';
         }
         // create_function is deprecated in PHP 7.2+
-        if ( version_compare(PHP_VERSION, '7.2.0', '>=') )
+        if ( version_compare(PHP_VERSION, '5.3.0', '>=') )
             return eval('return function($args){'.$out.'};');
         else
             return create_function('$args', $out);
@@ -1146,6 +1146,8 @@ class DialectRef
     {
         // should handle field formats like:
         // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+        // and/or
+        // ( ..subquery.. ) [ AS alias]
         // and extract alias, dtb, tbl, col identifiers (if present)
         // and also extract F1,..,Fn function identifiers (if present)
         $r = trim( $r ); $l = strlen( $r ); $i = 0;
@@ -1153,174 +1155,262 @@ class DialectRef
         $ids = array(); $funcs = array(); $keywords2 = array('AS');
         // 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
         $s = ''; $err = null; $paren = 0; $quote = null;
+        $paren2 = 0; $quote2 = null; $subquery = null;
         while ( $i < $l )
         {
             $ch = $r[$i++];
             
-            if ( '"' === $ch || '`' === $ch || '\'' === $ch || '[' === $ch || ']' === $ch )
+            if ( '('===$ch && 1===$i )
             {
-                // sql quote
-                if ( !$quote )
+                // ( ..subquery.. ) [ AS alias]
+                $paren2++;
+                continue;
+            }
+            
+            if ( 0 < $paren2 )
+            {
+                // ( ..subquery.. ) [ AS alias]
+                if ( '"' === $ch || '`' === $ch || '\'' === $ch || '[' === $ch || ']' === $ch )
                 {
-                    if ( strlen($s) || (']' === $ch) )
+                    if ( !$quote2 )
                     {
-                        $err = array('invalid',$i);
-                        break;
+                        $quote2 = '[' === $ch ? ']' : $ch;
                     }
-                    $quote = '[' === $ch ? ']' : $ch;
+                    elseif ( $quote2 === $ch )
+                    {
+                        if ( ($i<$l) && ($ch===$r[$i]) && ('"'===$ch || '`'===$ch || '\''===$ch ) )
+                        {
+                            // double-escaped quote in identifier or string
+                            $i++;
+                        }
+                        elseif ( '\''===$ch )
+                        {
+                            // maybe-escaped quote in string
+                            $escaped = false;
+                            $j = $i-2;
+                            while( 0<=$j && '\\'===$r[$j] )
+                            {
+                                $escaped = !$escaped;
+                                $j--;
+                            }
+                            if ( !$escaped )
+                            {
+                                $quote2 = null;
+                            }
+                        }
+                        else
+                        {
+                            $quote2 = null;
+                        }
+                    }
                     continue;
                 }
-                elseif ( $quote === $ch )
+                elseif ( $quote2 )
                 {
-                    if ( ($i<$l) && ($ch===$r[$i]) )
+                    continue;
+                }
+                elseif ( '(' === $ch )
+                {
+                    $paren2++;
+                    continue;
+                }
+                elseif ( ')' === $ch )
+                {
+                    $paren2--;
+                    if ( 0 > $paren2 )
                     {
-                        // double-escaped quote in identifier
-                        $s .= $ch;
-                        $i++;
+                        $err = array('paren',$i);
+                        break;
+                    }
+                    elseif ( 0 === $paren2 )
+                    {
+                        if ( $quote2 )
+                        {
+                            $err = array('quote',$i);
+                            break;
+                        }
+                        $subquery = substr($r, 0, $i);
+                        $s = $subquery;
                         continue;
                     }
                     else
                     {
-                        if ( strlen($s) )
-                        {
-                            array_unshift($stack, array(1, $s));
-                            array_unshift($ids, $s);
-                            $s = '';
-                        }
-                        else
+                        continue;
+                    }
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+                if ( '"' === $ch || '`' === $ch || '\'' === $ch || '[' === $ch || ']' === $ch )
+                {
+                    // sql quote
+                    if ( !$quote )
+                    {
+                        if ( strlen($s) || (']' === $ch) )
                         {
                             $err = array('invalid',$i);
                             break;
                         }
-                        $quote = null;
+                        $quote = '[' === $ch ? ']' : $ch;
+                        continue;
+                    }
+                    elseif ( $quote === $ch )
+                    {
+                        if ( ($i<$l) && ($ch===$r[$i]) )
+                        {
+                            // double-escaped quote in identifier
+                            $s .= $ch;
+                            $i++;
+                            continue;
+                        }
+                        else
+                        {
+                            if ( strlen($s) )
+                            {
+                                array_unshift($stack, array(1, $s));
+                                array_unshift($ids, $s);
+                                $s = '';
+                            }
+                            else
+                            {
+                                $err = array('invalid',$i);
+                                break;
+                            }
+                            $quote = null;
+                            continue;
+                        }
+                    }
+                    elseif ( $quote )
+                    {
+                        $s .= $ch;
                         continue;
                     }
                 }
-                elseif ( $quote )
+                
+                if ( $quote )
                 {
+                    // part of sql-quoted value
                     $s .= $ch;
                     continue;
                 }
-            }
-            
-            if ( $quote )
-            {
-                // part of sql-quoted value
-                $s .= $ch;
-                continue;
-            }
-            
-            if ( '*' === $ch )
-            {
-                // placeholder
-                if ( strlen($s) )
+                
+                if ( '*' === $ch )
+                {
+                    // placeholder
+                    if ( strlen($s) )
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    array_unshift($stack, array(10, '*'));
+                    array_unshift($ids, 10);
+                }
+                
+                elseif ( '.' === $ch )
+                {
+                    // separator
+                    if ( strlen($s) )
+                    {
+                        array_unshift($stack, array(1, $s));
+                        array_unshift($ids, $s);
+                        $s = '';
+                    }
+                    if ( empty($stack) || 1 !== $stack[0][0] )
+                    {
+                        // error, mismatched separator
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    array_unshift($stack, array(0, '.'));
+                    array_unshift($ids, 0);
+                }
+                
+                elseif ( '(' === $ch )
+                {
+                    // left paren
+                    $paren++;
+                    if ( strlen($s) )
+                    {
+                        // identifier is function
+                        array_unshift($stack, array(2, $s));
+                        array_unshift($funcs, $s);
+                        $s = '';
+                    }
+                    if ( empty($stack) || (2 !== $stack[0][0] && 1 !== $stack[0][0]) )
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    if ( 1 === $stack[0][0] )
+                    {
+                        $stack[0][0] = 2;
+                        array_unshift($funcs, array_shift($ids));
+                    }
+                    array_unshift($stacks, array());
+                    $stack =& $stacks[0];
+                }
+                
+                elseif ( ')' === $ch )
+                {
+                    // right paren
+                    $paren--;
+                    if ( strlen($s) )
+                    {
+                        $keyword = in_array(strtoupper($s), $keywords2);
+                        array_unshift($stack, array($keyword ? 5 : 1, $s));
+                        array_unshift($ids, $keyword ? 5 : $s);
+                        $s = '';
+                    }
+                    if ( count($stacks) < 2 )
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    // reduce
+                    array_unshift($stacks[1], array(100, array_shift($stacks)));
+                    $stack =& $stacks[0];
+                }
+                
+                elseif ( preg_match('/\\s/u',$ch) )
+                {
+                    // space separator
+                    if ( strlen($s) )
+                    {
+                        $keyword = in_array(strtoupper($s), $keywords2);
+                        array_unshift($stack, array($keyword ? 5 : 1, $s));
+                        array_unshift($ids, $keyword ? 5 : $s);
+                        $s = '';
+                    }
+                    continue;
+                }
+                
+                elseif ( preg_match('/[0-9]/ui',$ch) )
+                {
+                    if ( !strlen($s) )
+                    {
+                        $err = array('invalid',$i);
+                        break;
+                    }
+                    // identifier
+                    $s .= $ch;
+                }
+                
+                elseif ( preg_match('/[a-z_]/ui',$ch) )
+                {
+                    // identifier
+                    $s .= $ch;
+                }
+                
+                else
                 {
                     $err = array('invalid',$i);
                     break;
                 }
-                array_unshift($stack, array(10, '*'));
-                array_unshift($ids, 10);
-            }
-            
-            elseif ( '.' === $ch )
-            {
-                // separator
-                if ( strlen($s) )
-                {
-                    array_unshift($stack, array(1, $s));
-                    array_unshift($ids, $s);
-                    $s = '';
-                }
-                if ( empty($stack) || 1 !== $stack[0][0] )
-                {
-                    // error, mismatched separator
-                    $err = array('invalid',$i);
-                    break;
-                }
-                array_unshift($stack, array(0, '.'));
-                array_unshift($ids, 0);
-            }
-            
-            elseif ( '(' === $ch )
-            {
-                // left paren
-                $paren++;
-                if ( strlen($s) )
-                {
-                    // identifier is function
-                    array_unshift($stack, array(2, $s));
-                    array_unshift($funcs, $s);
-                    $s = '';
-                }
-                if ( empty($stack) || (2 !== $stack[0][0] && 1 !== $stack[0][0]) )
-                {
-                    $err = array('invalid',$i);
-                    break;
-                }
-                if ( 1 === $stack[0][0] )
-                {
-                    $stack[0][0] = 2;
-                    array_unshift($funcs, array_shift($ids));
-                }
-                array_unshift($stacks, array());
-                $stack =& $stacks[0];
-            }
-            
-            elseif ( ')' === $ch )
-            {
-                // right paren
-                $paren--;
-                if ( strlen($s) )
-                {
-                    $keyword = in_array(strtoupper($s), $keywords2);
-                    array_unshift($stack, array($keyword ? 5 : 1, $s));
-                    array_unshift($ids, $keyword ? 5 : $s);
-                    $s = '';
-                }
-                if ( count($stacks) < 2 )
-                {
-                    $err = array('invalid',$i);
-                    break;
-                }
-                // reduce
-                array_unshift($stacks[1], array(100, array_shift($stacks)));
-                $stack =& $stacks[0];
-            }
-            
-            elseif ( preg_match('/\\s/u',$ch) )
-            {
-                // space separator
-                if ( strlen($s) )
-                {
-                    $keyword = in_array(strtoupper($s), $keywords2);
-                    array_unshift($stack, array($keyword ? 5 : 1, $s));
-                    array_unshift($ids, $keyword ? 5 : $s);
-                    $s = '';
-                }
-                continue;
-            }
-            
-            elseif ( preg_match('/[0-9]/ui',$ch) )
-            {
-                if ( !strlen($s) )
-                {
-                    $err = array('invalid',$i);
-                    break;
-                }
-                // identifier
-                $s .= $ch;
-            }
-            
-            elseif ( preg_match('/[a-z_]/ui',$ch) )
-            {
-                // identifier
-                $s .= $ch;
-            }
-            
-            else
-            {
-                $err = array('invalid',$i);
-                break;
             }
         }
         if ( strlen($s) )
@@ -1329,65 +1419,82 @@ class DialectRef
             array_unshift($ids, $s);
             $s = '';
         }
-        if ( !$err && $paren ) $err = array('paren', $l);
-        if ( !$err && $quote ) $err = array('quote', $l);
+        if ( !$err && ($paren || $paren2) ) $err = array('paren', $l);
+        if ( !$err && ($quote || $quote2) ) $err = array('quote', $l);
         if ( !$err && 1 !== count($stacks) ) $err = array('invalid', $l);
         if ( $err )
         {
             $err_pos = $err[1]-1; $err_type = $err[0];
-            if ( 'paren' == $err_type )
+            if ( 'paren' === $err_type )
             {
                 // error, mismatched parentheses
                 throw new \InvalidArgumentException('Dialect: Mismatched parentheses "'.$r.'" at position '.$err_pos.'.');
             }
-            elseif ( 'quote' == $err_type )
+            elseif ( 'quote' === $err_type )
             {
                 // error, mismatched quotes
                 throw new \InvalidArgumentException('Dialect: Mismatched quotes "'.$r.'" at position '.$err_pos.'.');
             }
-            else//if ( 'invalid' == $err_type )
+            else//if ( 'invalid' === $err_type )
             {
                 // error, invalid character
                 throw new \InvalidArgumentException('Dialect: Invalid character "'.$r.'" at position '.$err_pos.'.');
             }
         }
         $alias = null; $alias_q = '';
-        if ( (count($ids) >= 3) && (5 === $ids[1]) && (is_string($ids[0])) )
+        if ( null != $subquery )
         {
-            $alias = array_shift($ids);
-            $alias_q = $d->quote_name( $alias );
-            array_shift($ids);
+            if ( (count($ids) >= 3) && (5 === $ids[1]) && (is_string($ids[0])) )
+            {
+                $alias = array_shift($ids);
+                $alias_q = $d->quote_name( $alias );
+                array_shift($ids);
+            }
+            $col = $subquery; $col_q = $subquery;
+            $tbl = null; $tbl_q = '';
+            $dtb = null; $dtb_q = '';
+            $tbl_col = $col;
+            $tbl_col_q = $col_q;
         }
-        $col = null; $col_q = '';
-        if ( !empty($ids) && (is_string($ids[0]) || 10 === $ids[0]) )
+        else
         {
-            if ( 10 === $ids[0] )
+            if ( (count($ids) >= 3) && (5 === $ids[1]) && (is_string($ids[0])) )
+            {
+                $alias = array_shift($ids);
+                $alias_q = $d->quote_name( $alias );
+                array_shift($ids);
+            }
+            $col = null; $col_q = '';
+            if ( !empty($ids) && (is_string($ids[0]) || 10 === $ids[0]) )
+            {
+                if ( 10 === $ids[0] )
+                {
+                    array_shift($ids);
+                    $col = $col_q = '*';
+                }
+                else
+                {
+                    $col = array_shift($ids);
+                    $col_q = $d->quote_name( $col );
+                }
+            }
+            $tbl = null; $tbl_q = '';
+            if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
             {
                 array_shift($ids);
-                $col = $col_q = '*';
+                $tbl = array_shift($ids);
+                $tbl_q = $d->quote_name( $tbl );
             }
-            else
+            $dtb = null; $dtb_q = '';
+            if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
             {
-                $col = array_shift($ids);
-                $col_q = $d->quote_name( $col );
+                array_shift($ids);
+                $dtb = array_shift($ids);
+                $dtb_q = $d->quote_name( $dtb );
             }
+            $tbl_col = ($dtb ? $dtb.'.' : '') . ($tbl ? $tbl.'.' : '') . ($col ? $col : '');
+            $tbl_col_q = ($dtb ? $dtb_q.'.' : '') . ($tbl ? $tbl_q.'.' : '') . ($col ? $col_q : '');
         }
-        $tbl = null; $tbl_q = '';
-        if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
-        {
-            array_shift($ids);
-            $tbl = array_shift($ids);
-            $tbl_q = $d->quote_name( $tbl );
-        }
-        $dtb = null; $dtb_q = '';
-        if ( (count($ids) >= 2) && (0 === $ids[0]) && (is_string($ids[1])) )
-        {
-            array_shift($ids);
-            $dtb = array_shift($ids);
-            $dtb_q = $d->quote_name( $dtb );
-        }
-        $tbl_col = ($dtb ? $dtb.'.' : '') . ($tbl ? $tbl.'.' : '') . ($col ? $col : '');
-        $tbl_col_q = ($dtb ? $dtb_q.'.' : '') . ($tbl ? $tbl_q.'.' : '') . ($col ? $col_q : '');
         return new self($col, $col_q, $tbl, $tbl_q, $dtb, $dtb_q, $alias, $alias_q, $tbl_col, $tbl_col_q, $funcs);
     }
     
@@ -1479,7 +1586,7 @@ class DialectRef
  
 class Dialect
 {
-    const VERSION = "1.1.0";
+    const VERSION = "1.2.0";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
     
     public static $dialects = array(
@@ -1501,9 +1608,9 @@ class Dialect
 		 "BINARY"		=> "VARBINARY"
 		,"SMALLINT"		=> "TINYINT"
 		,"MEDIUMINT"	=> "MEDIUMINT"
-		,"INT"			=> "UNSIGNED INT"
-		,"SIGNED_INT"	=> "INT"
-		,"BIGINT"		=> "UNSIGNED BIGINT"
+		,"INT"          => "UNSIGNED INT"
+		,"SIGNED_INT"   => "INT"
+		,"BIGINT"       => "UNSIGNED BIGINT"
 		,"SIGNED_BIGINT"=> "BIGINT"
 		,"FLOAT"		=> "FLOAT"
 		,"DOUBLE"   	=> "DOUBLE"
@@ -1522,7 +1629,7 @@ class Dialect
 
 
     ,"postgresql"       => array(
-         "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\""."\"\""), array("E","","E","") )
+         "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\"","\"\""), array("E","","E","") )
         
         ,"functions"    => array(
          "strpos"       => array("position(",2," in ",1,")")
@@ -2259,6 +2366,7 @@ class Dialect
             $this->dropView( $view );
             return $this;
         }
+        if ( is_string($tables) ) $tables = explode(',', $tables);
         $tables = $this->refs( empty($tables) ? '*' : $tables, $this->tbls );
         $options = empty($options) ? array('ifexists'=>1) : (array)$options;
         $this->clus['view'] = !empty($options['view']) ? 1 : null;
@@ -2274,6 +2382,7 @@ class Dialect
     public function Select( $columns='*', $select_clause='select' )
     {
         if ( $this->clau !== $select_clause ) $this->reset($select_clause);
+        if ( is_string($columns) ) $columns = explode(',', $columns);
         $columns = $this->refs( empty($columns) ? '*' : $columns, $this->cols );
         if ( empty($this->clus['select_columns']) )
             $this->clus['select_columns'] = $columns;
@@ -2293,6 +2402,8 @@ class Dialect
         }
         else
         {
+            if ( is_string($tables) ) $tables = explode(',', $tables);
+            if ( is_string($columns) ) $columns = explode(',', $columns);
             $tables = $this->refs( $tables, $this->tbls );
             $columns = $this->refs( $columns, $this->cols );
             if ( empty($this->clus['insert_tables']) )
@@ -2362,6 +2473,7 @@ class Dialect
         }
         else
         {
+            if ( is_string($tables) ) $tables = explode(',', $tables);
             $tables = $this->refs( $tables, $this->tbls );
             if ( empty($this->clus['update_tables']) )
                 $this->clus['update_tables'] = $tables;
@@ -2453,6 +2565,7 @@ class Dialect
         }
         else
         {
+            if ( is_string($tables) ) $tables = explode(',', $tables);
             $tables = $this->refs( $tables, $this->tbls );
             if ( empty($this->clus['from_tables']) )
                 $this->clus['from_tables'] = $tables;
@@ -3052,11 +3165,11 @@ class Dialect
         {
             $rs = (array)$refs;
             $refs = array( );
-            foreach ($rs as $r)
+            foreach ($rs as $ref)
             {
-                $r = explode( ',', $r );
+                /*$r = explode( ',', $r );
                 foreach ($r as $ref)
-                {
+                {*/
                     $ref = DialectRef::parse( $ref, $this );
                     $alias = $ref->alias; $qualified = $ref->full;
                     if ( !isset($lookup[ $alias ]) ) 
@@ -3070,7 +3183,7 @@ class Dialect
                         $ref = $lookup[ $alias ];
                     }
                     $refs[] = $ref;
-                }
+                /*}*/
             }
         }
         return $refs;

@@ -30,6 +30,14 @@ var query4 = [
         dialect.Select('col1,col2').From('anothertable').Where({'id':1}).sql( )
     ].join('');
 
+var query5 = dialect.Select('anothertable.col1,anothertable.col2,dynamictable.*').From(['anothertable','('+
+            dialect.subquery()
+            .Select('col3')
+            .From('table')
+            .Where({'col4':1})
+            .sql()+
+        ') AS dynamictable']).Where({'id':1}).sql( );
+
 echo( 'SQL dialect = ' + dialect.type );
 echo( );
 echo( query );
@@ -43,3 +51,5 @@ echo( );
 echo( query3 );
 echo( );
 echo( query4 );
+echo( );
+echo( query5 );

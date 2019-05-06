@@ -1,4 +1,4 @@
-Dialect.VERSION = 1.1.0
+Dialect.VERSION = 1.2.0
 
 SQL dialect = mysql
 
@@ -21,4 +21,10 @@ FROM `anothertable`))
 INSERT INTO `table` (`col1`,`col2`)
 SELECT `col1`,`col2`
 FROM `anothertable`
+WHERE (`id` = 1)
+
+SELECT `anothertable`.`col1`,`anothertable`.`col2`,`dynamictable`.*
+FROM `anothertable`,(SELECT `col3`
+FROM `table`
+WHERE (`col4` = 1)) AS `dynamictable`
 WHERE (`id` = 1)

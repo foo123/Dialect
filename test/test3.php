@@ -32,6 +32,15 @@ $query4 = implode('',array(
         $dialect->Insert('table',array('col1','col2'))->sql( ),
         $dialect->Select('col1,col2')->From('anothertable')->Where(array('id'=>1))->sql( )
     ));
+
+$query5 = $dialect->Select('anothertable.col1,anothertable.col2,dynamictable.*')->From(array('anothertable','('.
+            $dialect->subquery()
+            ->Select('col3')
+            ->From('table')
+            ->Where(array('col4'=>1))
+            ->sql().
+        ') AS dynamictable'))->Where(array('id'=>1))->sql( );
+
 echo_( 'SQL dialect = ' . $dialect->type );
 echo_( );
 echo_( $query );
@@ -45,3 +54,5 @@ echo_( );
 echo_( $query3 );
 echo_( );
 echo_( $query4 );
+echo_( );
+echo_( $query5 );

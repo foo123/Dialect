@@ -2,7 +2,7 @@
 *   Dialect, 
 *   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
 * 
-*   @version: 1.1.0
+*   @version: 1.2.0
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1253,10 +1253,13 @@ var Ref_spc_re = /\s/, Ref_num_re = /[0-9]/, Ref_alf_re = /[a-z_]/i;
 Ref.parse = function( r, d ) {
     // should handle field formats like:
     // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+    // and/or
+    // ( ..subquery.. ) [ AS alias]
     // and extract alias, dtb, tbl, col identifiers (if present)
     // and also extract F1,..,Fn function identifiers (if present)
     var i, l, stacks, stack, ids, funcs, keywords2 = ['AS'],
         s, err, err_pos, err_type, paren, quote, ch, keyword,
+        paren2, quote2, subquery, escaped, j,
         col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q,
         tbl_col, tbl_col_q
     ;
@@ -1265,174 +1268,262 @@ Ref.parse = function( r, d ) {
     ids = []; funcs = [];
     // 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
     s = ''; err = null; paren = 0; quote = null;
+    paren2 = 0; quote2 = null; subquery = null;
     while ( i < l )
     {
         ch = r.charAt(i++);
         
-        if ( '"' === ch || '`' === ch || '\'' === ch || '[' === ch || ']' === ch )
+        if ( '('===ch && 1===i )
         {
-            // sql quote
-            if ( !quote )
+            // ( ..subquery.. ) [ AS alias]
+            paren2++;
+            continue;
+        }
+        
+        if ( 0 < paren2 )
+        {
+            // ( ..subquery.. ) [ AS alias]
+            if ( '"' === ch || '`' === ch || '\'' === ch || '[' === ch || ']' === ch )
             {
-                if ( s.length || (']' === ch) )
+                if ( !quote2 )
                 {
-                    err = ['invalid',i];
-                    break;
+                    quote2 = '[' === ch ? ']' : ch;
                 }
-                quote = '[' === ch ? ']' : ch;
+                else if ( quote2 === ch )
+                {
+                    if ( (i<l) && (ch===r.charAt(i)) && ('"'===ch || '`'===ch || '\''===ch ) )
+                    {
+                        // double-escaped quote in identifier or string
+                        i++;
+                    }
+                    else if ( '\''===ch )
+                    {
+                        // maybe-escaped quote in string
+                        escaped = false;
+                        j = i-2;
+                        while( 0<=j && '\\'===r.charAt(j) )
+                        {
+                            escaped = !escaped;
+                            j--;
+                        }
+                        if ( !escaped )
+                        {
+                            quote2 = null;
+                        }
+                    }
+                    else
+                    {
+                        quote2 = null;
+                    }
+                }
                 continue;
             }
-            else if ( quote === ch )
+            else if ( quote2 )
             {
-                if ( (i<l) && (ch===r.charAt(i)) )
+                continue;
+            }
+            else if ( '(' === ch )
+            {
+                paren2++;
+                continue;
+            }
+            else if ( ')' === ch )
+            {
+                paren2--;
+                if ( 0 > paren2 )
                 {
-                    // double-escaped quote in identifier
-                    s += ch;
-                    i++;
+                    err = ['paren',i];
+                    break;
+                }
+                else if ( 0 === paren2 )
+                {
+                    if ( quote2 )
+                    {
+                        err = ['quote',i];
+                        break;
+                    }
+                    subquery = r.slice(0, i);
+                    s = subquery;
                     continue;
                 }
                 else
                 {
-                    if ( s.length )
-                    {
-                        stack.unshift([1, s]);
-                        ids.unshift(s);
-                        s = '';
-                    }
-                    else
+                    continue;
+                }
+            }
+            else
+            {
+                continue;
+            }
+        }
+        else
+        {
+            // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
+            if ( '"' === ch || '`' === ch || '\'' === ch || '[' === ch || ']' === ch )
+            {
+                // sql quote
+                if ( !quote )
+                {
+                    if ( s.length || (']' === ch) )
                     {
                         err = ['invalid',i];
                         break;
                     }
-                    quote = null;
+                    quote = '[' === ch ? ']' : ch;
+                    continue;
+                }
+                else if ( quote === ch )
+                {
+                    if ( (i<l) && (ch===r.charAt(i)) )
+                    {
+                        // double-escaped quote in identifier
+                        s += ch;
+                        i++;
+                        continue;
+                    }
+                    else
+                    {
+                        if ( s.length )
+                        {
+                            stack.unshift([1, s]);
+                            ids.unshift(s);
+                            s = '';
+                        }
+                        else
+                        {
+                            err = ['invalid',i];
+                            break;
+                        }
+                        quote = null;
+                        continue;
+                    }
+                }
+                else if ( quote )
+                {
+                    s += ch;
                     continue;
                 }
             }
-            else if ( quote )
+            
+            if ( quote )
             {
+                // part of sql-quoted value
                 s += ch;
                 continue;
             }
-        }
-        
-        if ( quote )
-        {
-            // part of sql-quoted value
-            s += ch;
-            continue;
-        }
-        
-        if ( '*' === ch )
-        {
-            // placeholder
-            if ( s.length )
+            
+            if ( '*' === ch )
+            {
+                // placeholder
+                if ( s.length )
+                {
+                    err = ['invalid',i];
+                    break;
+                }
+                stack.unshift([10, '*']);
+                ids.unshift(10);
+            }
+            
+            else if ( '.' === ch )
+            {
+                // separator
+                if ( s.length )
+                {
+                    stack.unshift([1, s]);
+                    ids.unshift(s);
+                    s = '';
+                }
+                if ( !stack.length || 1 !== stack[0][0] )
+                {
+                    // error, mismatched separator
+                    err = ['invalid',i];
+                    break;
+                }
+                stack.unshift([0, '.']);
+                ids.unshift(0);
+            }
+            
+            else if ( '(' === ch )
+            {
+                // left paren
+                paren++;
+                if ( s.length )
+                {
+                    // identifier is function
+                    stack.unshift([2, s]);
+                    funcs.unshift(s);
+                    s = '';
+                }
+                if ( !stack.length || (2 !== stack[0][0] && 1 !== stack[0][0]) )
+                {
+                    err = ['invalid',i];
+                    break;
+                }
+                if ( 1 === stack[0][0] )
+                {
+                    stack[0][0] = 2;
+                    funcs.unshift(ids.shift());
+                }
+                stacks.unshift([]);
+                stack = stacks[0];
+            }
+            
+            else if ( ')' === ch )
+            {
+                // right paren
+                paren--;
+                if ( s.length )
+                {
+                    keyword = -1 < keywords2.indexOf(s.toUpperCase());
+                    stack.unshift([keyword ? 5 : 1, s]);
+                    ids.unshift(keyword ? 5 : s);
+                    s = '';
+                }
+                if ( stacks.length < 2 )
+                {
+                    err = ['invalid',i];
+                    break;
+                }
+                // reduce
+                stacks[1].unshift([100, stacks.shift()]);
+                stack = stacks[0];
+            }
+            
+            else if ( Ref_spc_re.test(ch) )
+            {
+                // space separator
+                if ( s.length )
+                {
+                    keyword = -1 < keywords2.indexOf(s.toUpperCase());
+                    stack.unshift([keyword ? 5 : 1, s]);
+                    ids.unshift(keyword ? 5 : s);
+                    s = '';
+                }
+                continue;
+            }
+            
+            else if ( Ref_num_re.test(ch) )
+            {
+                if ( !s.length )
+                {
+                    err = ['invalid',i];
+                    break;
+                }
+                // identifier
+                s += ch;
+            }
+            
+            else if ( Ref_alf_re.test(ch) )
+            {
+                // identifier
+                s += ch;
+            }
+            
+            else
             {
                 err = ['invalid',i];
                 break;
             }
-            stack.unshift([10, '*']);
-            ids.unshift(10);
-        }
-        
-        else if ( '.' === ch )
-        {
-            // separator
-            if ( s.length )
-            {
-                stack.unshift([1, s]);
-                ids.unshift(s);
-                s = '';
-            }
-            if ( !stack.length || 1 !== stack[0][0] )
-            {
-                // error, mismatched separator
-                err = ['invalid',i];
-                break;
-            }
-            stack.unshift([0, '.']);
-            ids.unshift(0);
-        }
-        
-        else if ( '(' === ch )
-        {
-            // left paren
-            paren++;
-            if ( s.length )
-            {
-                // identifier is function
-                stack.unshift([2, s]);
-                funcs.unshift(s);
-                s = '';
-            }
-            if ( !stack.length || (2 !== stack[0][0] && 1 !== stack[0][0]) )
-            {
-                err = ['invalid',i];
-                break;
-            }
-            if ( 1 === stack[0][0] )
-            {
-                stack[0][0] = 2;
-                funcs.unshift(ids.shift());
-            }
-            stacks.unshift([]);
-            stack = stacks[0];
-        }
-        
-        else if ( ')' === ch )
-        {
-            // right paren
-            paren--;
-            if ( s.length )
-            {
-                keyword = -1 < keywords2.indexOf(s.toUpperCase());
-                stack.unshift([keyword ? 5 : 1, s]);
-                ids.unshift(keyword ? 5 : s);
-                s = '';
-            }
-            if ( stacks.length < 2 )
-            {
-                err = ['invalid',i];
-                break;
-            }
-            // reduce
-            stacks[1].unshift([100, stacks.shift()]);
-            stack = stacks[0];
-        }
-        
-        else if ( Ref_spc_re.test(ch) )
-        {
-            // space separator
-            if ( s.length )
-            {
-                keyword = -1 < keywords2.indexOf(s.toUpperCase());
-                stack.unshift([keyword ? 5 : 1, s]);
-                ids.unshift(keyword ? 5 : s);
-                s = '';
-            }
-            continue;
-        }
-        
-        else if ( Ref_num_re.test(ch) )
-        {
-            if ( !s.length )
-            {
-                err = ['invalid',i];
-                break;
-            }
-            // identifier
-            s += ch;
-        }
-        
-        else if ( Ref_alf_re.test(ch) )
-        {
-            // identifier
-            s += ch;
-        }
-        
-        else
-        {
-            err = ['invalid',i];
-            break;
         }
     }
     if ( s.length )
@@ -1441,8 +1532,8 @@ Ref.parse = function( r, d ) {
         ids.unshift(s);
         s = '';
     }
-    if ( !err && paren ) err = ['paren', l];
-    if ( !err && quote ) err = ['quote', l];
+    if ( !err && (paren || paren2) ) err = ['paren', l];
+    if ( !err && (quote || quote2) ) err = ['quote', l];
     if ( !err && 1 !== stacks.length ) err = ['invalid', l];
     if ( err )
     {
@@ -1464,42 +1555,59 @@ Ref.parse = function( r, d ) {
         }
     }
     alias = null; alias_q = '';
-    if ( (ids.length >= 3) && (5 === ids[1]) && ('string' === typeof ids[0]) )
+    if ( null != subquery )
     {
-        alias = ids.shift();
-        alias_q = d.quote_name( alias );
-        ids.shift();
+        if ( (ids.length >= 3) && (5 === ids[1]) && ('string' === typeof ids[0]) )
+        {
+            alias = ids.shift();
+            alias_q = d.quote_name( alias );
+            ids.shift();
+        }
+        col = subquery; col_q = subquery;
+        tbl = null; tbl_q = '';
+        dtb = null; dtb_q = '';
+        tbl_col = col;
+        tbl_col_q = col_q;
     }
-    col = null; col_q = '';
-    if ( ids.length && ('string' === typeof ids[0] || 10 === ids[0]) )
+    else
     {
-        if ( 10 === ids[0] )
+        if ( (ids.length >= 3) && (5 === ids[1]) && ('string' === typeof ids[0]) )
+        {
+            alias = ids.shift();
+            alias_q = d.quote_name( alias );
+            ids.shift();
+        }
+        col = null; col_q = '';
+        if ( ids.length && ('string' === typeof ids[0] || 10 === ids[0]) )
+        {
+            if ( 10 === ids[0] )
+            {
+                ids.shift();
+                col = col_q = '*';
+            }
+            else
+            {
+                col = ids.shift();
+                col_q = d.quote_name( col );
+            }
+        }
+        tbl = null; tbl_q = '';
+        if ( (ids.length >= 2) && (0 === ids[0]) && ('string' === typeof ids[1]) )
         {
             ids.shift();
-            col = col_q = '*';
+            tbl = ids.shift();
+            tbl_q = d.quote_name( tbl );
         }
-        else
+        dtb = null; dtb_q = '';
+        if ( (ids.length >= 2) && (0 === ids[0]) && ('string' === typeof ids[1]) )
         {
-            col = ids.shift();
-            col_q = d.quote_name( col );
+            ids.shift();
+            dtb = ids.shift();
+            dtb_q = d.quote_name( dtb );
         }
+        tbl_col = (dtb ? dtb+'.' : '') + (tbl ? tbl+'.' : '') + (col ? col : '');
+        tbl_col_q = (dtb ? dtb_q+'.' : '') + (tbl ? tbl_q+'.' : '') + (col ? col_q : '');
     }
-    tbl = null; tbl_q = '';
-    if ( (ids.length >= 2) && (0 === ids[0]) && ('string' === typeof ids[1]) )
-    {
-        ids.shift();
-        tbl = ids.shift();
-        tbl_q = d.quote_name( tbl );
-    }
-    dtb = null; dtb_q = '';
-    if ( (ids.length >= 2) && (0 === ids[0]) && ('string' === typeof ids[1]) )
-    {
-        ids.shift();
-        dtb = ids.shift();
-        dtb_q = d.quote_name( dtb );
-    }
-    tbl_col = (dtb ? dtb+'.' : '') + (tbl ? tbl+'.' : '') + (col ? col : '');
-    tbl_col_q = (dtb ? dtb_q+'.' : '') + (tbl ? tbl_q+'.' : '') + (col ? col_q : '');
     return new Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs);
 };
 Ref[PROTO] = {
@@ -1751,7 +1859,7 @@ function Dialect( type )
         Dialect.dialects[ self.type ][ 'clauses' ] = self.clauses;
     }
 }
-Dialect.VERSION = "1.1.0";
+Dialect.VERSION = "1.2.0";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.aliases = dialect_aliases;
@@ -2351,6 +2459,7 @@ Dialect[PROTO] = {
             self.dropView( view );
             return self;
         }
+        if ( is_string(tables) ) tables = tables.split(',');
         tables = self.refs( null==tables ? '*' : tables, self.tbls );
         options = options || {ifexists:1};
         self.clus.view = options.view ? 1 : null;
@@ -2367,6 +2476,7 @@ Dialect[PROTO] = {
         var self = this;
         select_clause = select_clause || 'select';
         if ( self.clau !== select_clause ) self.reset(select_clause);
+        if ( is_string(columns) ) columns = columns.split(',');
         columns = self.refs( null==columns ? '*' : columns, self.cols );
         if ( !self.clus.select_columns )
             self.clus.select_columns = columns;
@@ -2387,6 +2497,8 @@ Dialect[PROTO] = {
         }
         else
         {
+            if ( is_string(tables) ) tables = tables.split(',');
+            if ( is_string(columns) ) columns = columns.split(',');
             tables = self.refs( tables, self.tbls );
             columns = self.refs( columns, self.cols );
             if ( !self.clus.insert_tables )
@@ -2459,6 +2571,7 @@ Dialect[PROTO] = {
         }
         else
         {
+            if ( is_string(tables) ) tables = tables.split(',');
             tables = self.refs( tables, self.tbls );
             if ( !self.clus.update_tables )
                 self.clus.update_tables = tables;
@@ -2556,6 +2669,7 @@ Dialect[PROTO] = {
         }
         else
         {
+            if ( is_string(tables) ) tables = tables.split(',');
             tables = self.refs( tables, self.tbls );
             if ( !self.clus.from_tables )
                 self.clus.from_tables = tables;
@@ -3166,10 +3280,10 @@ Dialect[PROTO] = {
             refs = [ ];
             for (i=0,l=rs.length; i<l; i++)
             {
-                r = rs[ i ].split(',');
+                /*r = rs[ i ].split(',');
                 for (j=0,m=r.length; j<m; j++)
-                {
-                    ref = Ref.parse( r[ j ], self );
+                {*/
+                    ref = Ref.parse( rs[ i ], self );
                     alias = ref.alias; qualified = ref.full;
                     if ( !hasOwnProperty.call(lookup,alias) ) 
                     {
@@ -3182,7 +3296,7 @@ Dialect[PROTO] = {
                         ref = lookup[ alias ];
                     }
                     refs.push( ref );
-                }
+                /*}*/
             }
         }
         return refs;
