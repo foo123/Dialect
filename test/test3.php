@@ -35,9 +35,9 @@ $query4 = implode('',array(
 
 $query5 = $dialect->Select('anothertable.col1,anothertable.col2,dynamictable.*')->From(array('anothertable','('.
             $dialect->subquery()
-            ->Select('col3')
+            ->Select($quoted_id)
             ->From('table')
-            ->Where(array('col4'=>1))
+            ->Where(array('col4'=>array('like'=>'foo')))
             ->sql().
         ') AS dynamictable'))->Where(array('id'=>1))->sql( );
 

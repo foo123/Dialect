@@ -1259,7 +1259,7 @@ Ref.parse = function( r, d ) {
     // and also extract F1,..,Fn function identifiers (if present)
     var i, l, stacks, stack, ids, funcs, keywords2 = ['AS'],
         s, err, err_pos, err_type, paren, quote, ch, keyword,
-        paren2, quote2, subquery, escaped, j,
+        paren2, quote2, quote2pos, dbl_quote, esc_quote,subquery, escaped, j,
         col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q,
         tbl_col, tbl_col_q
     ;
@@ -1268,7 +1268,7 @@ Ref.parse = function( r, d ) {
     ids = []; funcs = [];
     // 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
     s = ''; err = null; paren = 0; quote = null;
-    paren2 = 0; quote2 = null; subquery = null;
+    paren2 = 0; quote2 = null; quote2pos = null; subquery = null;
     while ( i < l )
     {
         ch = r.charAt(i++);
@@ -1288,32 +1288,48 @@ Ref.parse = function( r, d ) {
                 if ( !quote2 )
                 {
                     quote2 = '[' === ch ? ']' : ch;
+                    quote2pos = i-1;
                 }
                 else if ( quote2 === ch )
                 {
-                    if ( (i<l) && (ch===r.charAt(i)) && ('"'===ch || '`'===ch || '\''===ch ) )
+                    dbl_quote = (('"'===ch || '`'===ch) && (d.qn[3]===ch+ch)) || ('\''===ch && d.q[3]===ch+ch);
+                    
+                    esc_quote = (('"'===ch || '`'===ch) && (d.qn[3]==='\\'+ch)) || ('\''===ch && d.q[3]==='\\'+ch);
+                    
+                    if ( dbl_quote && (i<l) && (ch===r.charAt(i)) )
                     {
                         // double-escaped quote in identifier or string
                         i++;
                     }
-                    else if ( '\''===ch )
+                    else if ( esc_quote )
                     {
                         // maybe-escaped quote in string
                         escaped = false;
-                        j = i-2;
-                        while( 0<=j && '\\'===r.charAt(j) )
+                        // handle special case of " ESCAPE '\' "
+                        if ( (-1!==d.e[1].indexOf("'\\'")) && ("'\\'"===r.slice(quote2pos, i)) )
                         {
-                            escaped = !escaped;
-                            j--;
+                            // pass
+                        }
+                        else
+                        {
+                            // else find out if quote is escaped or not
+                            j = i-2;
+                            while( 0<=j && '\\'===r.charAt(j) )
+                            {
+                                escaped = !escaped;
+                                j--;
+                            }
                         }
                         if ( !escaped )
                         {
                             quote2 = null;
+                            quote2pos = null;
                         }
                     }
                     else
                     {
                         quote2 = null;
+                        quote2pos = null;
                     }
                 }
                 continue;

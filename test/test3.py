@@ -47,7 +47,7 @@ query4 = ''.join([
     ])
 
 query5 = dialect.Select('anothertable.col1,anothertable.col2,dynamictable.*').From(['anothertable','('+
-            dialect.subquery().Select('col3').From('table').Where({'col4':1}).sql()+
+            dialect.subquery().Select(quoted_id).From('table').Where({'col4':{'like':'foo'}}).sql()+
         ') AS dynamictable']).Where({'id':1}).sql( )
 
 echo( 'SQL dialect = ' + dialect.type )

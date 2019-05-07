@@ -1155,7 +1155,7 @@ class DialectRef
         $ids = array(); $funcs = array(); $keywords2 = array('AS');
         // 0 = SEP, 1 = ID, 2 = FUNC, 5 = Keyword, 10 = *, 100 = Subtree
         $s = ''; $err = null; $paren = 0; $quote = null;
-        $paren2 = 0; $quote2 = null; $subquery = null;
+        $paren2 = 0; $quote2 = null; $quote2pos = null; $subquery = null;
         while ( $i < $l )
         {
             $ch = $r[$i++];
@@ -1175,32 +1175,49 @@ class DialectRef
                     if ( !$quote2 )
                     {
                         $quote2 = '[' === $ch ? ']' : $ch;
+                        $quote2pos = $i-1;
                     }
                     elseif ( $quote2 === $ch )
                     {
-                        if ( ($i<$l) && ($ch===$r[$i]) && ('"'===$ch || '`'===$ch || '\''===$ch ) )
+                        $dbl_quote = (('"'===$ch || '`'===$ch) && ($d->qn[3]===$ch.$ch)) || ('\''===$ch && $d->q[3]===$ch.$ch);
+                        
+                        $esc_quote = (('"'===$ch || '`'===$ch) && ($d->qn[3]==='\\'.$ch)) || ('\''===$ch && $d->q[3]==='\\'.$ch);
+                        
+                        if ( $dbl_quote && ($i<$l) && ($ch===$r[$i]) )
                         {
                             // double-escaped quote in identifier or string
                             $i++;
                         }
-                        elseif ( '\''===$ch )
+                        elseif ( $esc_quote )
                         {
                             // maybe-escaped quote in string
                             $escaped = false;
-                            $j = $i-2;
-                            while( 0<=$j && '\\'===$r[$j] )
+                            // handle special case of " ESCAPE '\' "
+                            if ( (false!==strpos($d->e[1],"'\\'")) && ("'\\'"===substr($r, $quote2pos, $i-$quote2pos)) )
                             {
-                                $escaped = !$escaped;
-                                $j--;
+                                // pass
                             }
+                            else
+                            {
+                                // else find out if quote is escaped or not
+                                $j = $i-2;
+                                while( 0<=$j && '\\'===$r[$j] )
+                                {
+                                    $escaped = !$escaped;
+                                    $j--;
+                                }
+                            }
+                            
                             if ( !$escaped )
                             {
                                 $quote2 = null;
+                                $quote2pos = null;
                             }
                         }
                         else
                         {
                             $quote2 = null;
+                            $quote2pos = null;
                         }
                     }
                     continue;

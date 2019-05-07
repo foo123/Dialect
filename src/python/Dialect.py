@@ -1096,6 +1096,7 @@ class Ref:
         quote = None
         paren2 = 0
         quote2 = None
+        quote2pos = None
         subquery = None
         while i < l:
             ch = r[i]
@@ -1111,25 +1112,37 @@ class Ref:
                 if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
                     if not quote2:
                         quote2 = ']' if '[' == ch else ch
+                        quote2pos = i-1
                     
                     elif quote2 == ch:
-                        if (i<l) and (ch==r[i]) and ('"'==ch or '`'==ch or '\''==ch ):
+                        dbl_quote = (('"'==ch or '`'==ch) and (d.qn[3]==ch+ch)) or ('\''==ch and d.q[3]==ch+ch)
+                        
+                        esc_quote = (('"'==ch or '`'==ch) and (d.qn[3]=='\\'+ch)) or ('\''==ch and d.q[3]=='\\'+ch)
+                        
+                        if dbl_quote and (i<l) and (ch==r[i]):
                             # double-escaped quote in identifier or string
                             i+=1
                         
-                        elif '\''==ch:
+                        elif esc_quote:
                             # maybe-escaped quote in string
                             escaped = False
-                            j = i-2
-                            while 0<=j and '\\'==r[j]:
-                                escaped = not escaped
-                                j-=1
+                            # handle special case of " ESCAPE '\' "
+                            if (-1!=d.e[1].find("'\\'")) and ("'\\'"==r[quote2pos:i]):
+                                pass
+                            else:
+                                # else find out if quote is escaped or not
+                                j = i-2
+                                while 0<=j and '\\'==r[j]:
+                                    escaped = not escaped
+                                    j-=1
                                 
                             if not escaped:
                                 quote2 = None
+                                quote2pos = None
                         
                         else:
                             quote2 = None
+                            quote2pos = None
                     
                     continue
                 

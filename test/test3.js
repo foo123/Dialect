@@ -32,9 +32,9 @@ var query4 = [
 
 var query5 = dialect.Select('anothertable.col1,anothertable.col2,dynamictable.*').From(['anothertable','('+
             dialect.subquery()
-            .Select('col3')
+            .Select(quoted_id)
             .From('table')
-            .Where({'col4':1})
+            .Where({'col4':{like:'foo'}})
             .sql()+
         ') AS dynamictable']).Where({'id':1}).sql( );
 
