@@ -1072,6 +1072,9 @@ Ref_alf_re = re.compile(r'[a-z_]', re.I)
 class Ref:
 
     def parse( r, d ):
+        # catch passing instance as well
+        if isinstance(r, Ref): return r
+        
         global Ref_spc_re
         global Ref_num_re
         global Ref_alf_re

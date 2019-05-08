@@ -1,7 +1,7 @@
 /**
-*   Dialect, 
+*   Dialect,
 *   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
-* 
+*
 *   @version: 1.2.0
 *   https://github.com/foo123/Dialect
 *
@@ -21,7 +21,7 @@ else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require
     define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
 else if ( !(name in root) ) /* Browser/WebWorker/.. */
     (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];} );
-}(  /* current root */          'undefined' !== typeof self ? self : this, 
+}(  /* current root */          'undefined' !== typeof self ? self : this,
     /* module name */           "Dialect",
     /* module factory */        function ModuleFactory__Dialect( undef ){
 "use strict";
@@ -103,22 +103,22 @@ StringTemplate.multisplit_re = function multisplit_re( tpl, re ) {
     a.push([1, tpl.slice(i)]);
     return a;
 };
-StringTemplate.arg = function( key, argslen ) { 
+StringTemplate.arg = function( key, argslen ) {
     var i, k, kn, kl, givenArgsLen, out = 'args';
-    
+
     if ( arguments.length && null != key )
     {
-        if ( key.substr ) 
+        if ( key.substr )
             key = key.length ? key.split('.') : [];
-        else 
+        else
             key = [key];
         kl = key.length;
         givenArgsLen = !!(argslen && argslen.substr);
-        
+
         for (i=0; i<kl; i++)
         {
             k = key[ i ]; kn = +k;
-            if ( !isNaN(kn) ) 
+            if ( !isNaN(kn) )
             {
                 if ( kn < 0 ) k = givenArgsLen ? (argslen+(-kn)) : (out+'.length-'+(-kn));
                 out += '[' + k + ']';
@@ -129,12 +129,12 @@ StringTemplate.arg = function( key, argslen ) {
             }
         }
     }
-    return out; 
+    return out;
 };
 StringTemplate.compile = function( tpl, raw ) {
-    var l = tpl.length, 
+    var l = tpl.length,
         i, notIsSub, s, out;
-    
+
     if ( true === raw )
     {
         out = '"use strict"; return (';
@@ -160,13 +160,13 @@ StringTemplate.compile = function( tpl, raw ) {
 };
 StringTemplate[PROTO] = {
     constructor: StringTemplate
-    
+
     ,id: null
     ,tpl: null
     ,_parsed: false
     ,_args: null
     ,_renderer: null
-    
+
     ,dispose: function( ) {
         var self = this;
         self.id = null;
@@ -189,8 +189,8 @@ StringTemplate[PROTO] = {
             self._parsed = true;
             var tpl = self._args[0], replacements = self._args[1], compiled = self._args[2];
             self._args = null;
-            self.tpl = replacements instanceof RegExp 
-                ? StringTemplate.multisplit_re(tpl, replacements) 
+            self.tpl = replacements instanceof RegExp
+                ? StringTemplate.multisplit_re(tpl, replacements)
                 : StringTemplate.multisplit( tpl, replacements );
             if ( true === compiled )
             {
@@ -398,7 +398,7 @@ function multisplit( tpl, delims, postop )
         roottpl, block, cur_block, prev_arg, prev_opt_args,
         delim1 = [IDL, lenIDL, IDR, lenIDR], delim2 = [OBL, lenOBL, OBR, lenOBR],
         delim_order = [null,0,null,0,null,0,null,0], delim;
-    
+
     postop = true === postop;
     a = new TplEntry({type: 0, val: '', algn: ''});
     cur_arg = {
@@ -416,7 +416,7 @@ function multisplit( tpl, delims, postop )
     };
     roottpl = a; block = null;
     opt_args = null; subtpl = {}; cur_tpl = null; arg_tpl = {}; start_tpl = null;
-    
+
     // hard-coded merge-sort for arbitrary delims parsing based on str len
     if ( delim1[1] < delim1[3] )
     {
@@ -457,9 +457,9 @@ function multisplit( tpl, delims, postop )
         delim_order[i+1] = delim2[end_i+1];
         end_i += 2; i += 2;
     }
-    
+
     stack = null; s = '';
-    
+
     i = 0;
     while( i < l )
     {
@@ -470,7 +470,7 @@ function multisplit( tpl, delims, postop )
             i += 2;
             continue;
         }
-        
+
         delim = null;
         if ( delim_order[0] === tpl.substr(i,delim_order[1]) )
             delim = delim_order[0];
@@ -480,11 +480,11 @@ function multisplit( tpl, delims, postop )
             delim = delim_order[4];
         else if ( delim_order[6] === tpl.substr(i,delim_order[7]) )
             delim = delim_order[6];
-        
+
         if ( IDL === delim )
         {
             i += lenIDL;
-            
+
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
@@ -495,7 +495,7 @@ function multisplit( tpl, delims, postop )
         else if ( IDR === delim )
         {
             i += lenIDR;
-            
+
             // argument
             argument = s; s = '';
             if ( -1 < (p=argument.indexOf(DEF)) )
@@ -596,7 +596,7 @@ function multisplit( tpl, delims, postop )
                 end_i = 0;
             }
             if ( negative && (null === default_value) ) default_value = '';
-            
+
             c = argument[CHAR](0);
             if ( ALGN === c )
             {
@@ -607,7 +607,7 @@ function multisplit( tpl, delims, postop )
             {
                 aligned = 0;
             }
-            
+
             c = argument[CHAR](0);
             if ( DOT === c )
             {
@@ -618,13 +618,13 @@ function multisplit( tpl, delims, postop )
             {
                 localised = 0;
             }
-            
+
             template = -1 < argument.indexOf(REF) ? argument.split(REF) : [argument,null];
             argument = template[0]; template = template[1];
             nested = -1 < argument.indexOf(DOT) ? argument.split(DOT) : null;
-            
+
             if ( cur_tpl && !HAS(arg_tpl,cur_tpl) ) arg_tpl[cur_tpl] = {};
-            
+
             if ( TPL+OBL === tpl.substr(i,2+lenOBL) )
             {
                 // template definition
@@ -634,12 +634,12 @@ function multisplit( tpl, delims, postop )
                 if ( cur_tpl && argument.length)
                     arg_tpl[cur_tpl][argument] = template;
             }
-            
+
             if ( !argument.length ) continue; // template definition only
-            
+
             if ( (null==template) && cur_tpl && HAS(arg_tpl,cur_tpl) && HAS(arg_tpl[cur_tpl],argument) )
                 template = arg_tpl[cur_tpl][argument];
-            
+
             if ( optional && !cur_arg.opt )
             {
                 cur_arg.name = argument;
@@ -706,14 +706,14 @@ function multisplit( tpl, delims, postop )
         else if ( OBL === delim )
         {
             i += lenOBL;
-            
+
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
                 else a = new TplEntry({type: 0, val: s, algn: ''}, a);
             }
             s = '';
-            
+
             // comment
             if ( COMMENT === tpl[CHAR](i) )
             {
@@ -725,7 +725,7 @@ function multisplit( tpl, delims, postop )
                 s = '';
                 continue;
             }
-            
+
             // optional block
             stack = new StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl]);
             if ( start_tpl ) cur_tpl = start_tpl;
@@ -750,7 +750,7 @@ function multisplit( tpl, delims, postop )
         else if ( OBR === delim )
         {
             i += lenOBR;
-            
+
             b = a;
             cur_block = block;
             prev_arg = cur_arg;
@@ -839,7 +839,7 @@ function multisplit( tpl, delims, postop )
 function optional_block( args, block, SUB, FN, index, alignment, orig_args )
 {
     var opt_vars, opt_v, opt_arg, arr, rs, re, ri, len, block_arg = null, out = '';
-    
+
     if ( -1 === block.type )
     {
         // optional block, check if optional variables can be rendered
@@ -852,7 +852,7 @@ function optional_block( args, block, SUB, FN, index, alignment, orig_args )
                 opt_v = opt_vars.value;
                 opt_arg = walk( args, opt_v[1], [String(opt_v[0])], opt_v[6] ? null : orig_args );
                 if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
-                
+
                 if ( (0 === opt_v[2] && null == opt_arg) ||
                     (1 === opt_v[2] && null != opt_arg)
                 )
@@ -865,7 +865,7 @@ function optional_block( args, block, SUB, FN, index, alignment, orig_args )
     {
         block_arg = walk( args, block.key, [String(block.name)], block.loc ? null : orig_args );
     }
-    
+
     arr = is_array( block_arg ); len = arr ? block_arg.length : -1;
     //if ( !block.algn ) alignment = '';
     if ( arr && (len > block.start) )
@@ -892,7 +892,7 @@ function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
     {
         // using custom function or sub-template
         opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
-        
+
         if ( HAS(SUB,symbol.stpl) || HAS(GrammarTemplate.subGlobal,symbol.stpl) )
         {
             // sub-template
@@ -900,7 +900,7 @@ function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
             {
                 opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
             }
-            
+
             if ( (null == opt_arg) && (null !== symbol.dval) )
             {
                 // default value if missing
@@ -930,13 +930,13 @@ function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
             else if ( HAS(FN,'*') )                                 fn = FN['*'];
             else if ( HAS(GrammarTemplate.fnGlobal,symbol.stpl) )   fn = GrammarTemplate.fnGlobal[symbol.stpl];
             else if ( GrammarTemplate.fnGlobal['*'] )               fn = GrammarTemplate.fnGlobal['*'];
-            
+
             if ( is_array(opt_arg) )
             {
                 index = null != index ? index : symbol.start;
                 opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
             }
-            
+
             if ( "function" === typeof fn )
             {
                 var fn_arg = {
@@ -953,7 +953,7 @@ function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
             {
                 opt_arg = String(fn);
             }
-            
+
             out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
             if ( symbol.algn ) out = align(out, alignment);
         }
@@ -967,7 +967,7 @@ function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
     {
         // plain symbol argument
         opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
-        
+
         // default value if missing
         if ( is_array(opt_arg) )
         {
@@ -1034,12 +1034,12 @@ GrammarTemplate.align = align;
 GrammarTemplate.main = main;
 GrammarTemplate[PROTO] = {
     constructor: GrammarTemplate
-    
+
     ,id: null
     ,tpl: null
     ,fn: null
     ,_args: null
-    
+
     ,dispose: function( ) {
         var self = this;
         self.id = null;
@@ -1094,7 +1094,7 @@ function is_obj( o )
 function is_string_or_array( o )
 {
     var to_string = toString.call(o);
-    return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string); 
+    return (o instanceof Array || o instanceof String || '[object Array]' === to_string || '[object String]' === to_string);
 }
 function empty( o )
 {
@@ -1147,7 +1147,7 @@ function fmap( x, F )
     var i, k, r = l&15, q = r&1, Fx=new Array(l);
     if ( q ) Fx[0] = F(x[0]);
     for (i=q; i<r; i+=2)
-    { 
+    {
         k = i;
         Fx[i  ] = F(x[k  ]);
         Fx[i+1] = F(x[k+1]);
@@ -1181,7 +1181,7 @@ function ffilter( x, F )
     var i, k, r = l&15, q = r&1, Fx=[];
     if ( q && F(x[0]) ) Fx.push(x[0]);
     for (i=q; i<r; i+=2)
-    { 
+    {
         k = i;
         if ( F(x[  k]) ) Fx.push(x[k]);
         if ( F(x[++k]) ) Fx.push(x[k]);
@@ -1251,6 +1251,9 @@ function Ref( _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func
 }
 var Ref_spc_re = /\s/, Ref_num_re = /[0-9]/, Ref_alf_re = /[a-z_]/i;
 Ref.parse = function( r, d ) {
+    // catch passing instance as well
+    if ( r instanceof Ref ) return r;
+
     // should handle field formats like:
     // [ F1(..Fn( ] [[dtb.]tbl.]col [ )..) ] [ AS alias ]
     // and/or
@@ -1272,14 +1275,14 @@ Ref.parse = function( r, d ) {
     while ( i < l )
     {
         ch = r.charAt(i++);
-        
+
         if ( '('===ch && 1===i )
         {
             // ( ..subquery.. ) [ AS alias]
             paren2++;
             continue;
         }
-        
+
         if ( 0 < paren2 )
         {
             // ( ..subquery.. ) [ AS alias]
@@ -1293,9 +1296,9 @@ Ref.parse = function( r, d ) {
                 else if ( quote2 === ch )
                 {
                     dbl_quote = (('"'===ch || '`'===ch) && (d.qn[3]===ch+ch)) || ('\''===ch && d.q[3]===ch+ch);
-                    
+
                     esc_quote = (('"'===ch || '`'===ch) && (d.qn[3]==='\\'+ch)) || ('\''===ch && d.q[3]==='\\'+ch);
-                    
+
                     if ( dbl_quote && (i<l) && (ch===r.charAt(i)) )
                     {
                         // double-escaped quote in identifier or string
@@ -1420,14 +1423,14 @@ Ref.parse = function( r, d ) {
                     continue;
                 }
             }
-            
+
             if ( quote )
             {
                 // part of sql-quoted value
                 s += ch;
                 continue;
             }
-            
+
             if ( '*' === ch )
             {
                 // placeholder
@@ -1439,7 +1442,7 @@ Ref.parse = function( r, d ) {
                 stack.unshift([10, '*']);
                 ids.unshift(10);
             }
-            
+
             else if ( '.' === ch )
             {
                 // separator
@@ -1458,7 +1461,7 @@ Ref.parse = function( r, d ) {
                 stack.unshift([0, '.']);
                 ids.unshift(0);
             }
-            
+
             else if ( '(' === ch )
             {
                 // left paren
@@ -1483,7 +1486,7 @@ Ref.parse = function( r, d ) {
                 stacks.unshift([]);
                 stack = stacks[0];
             }
-            
+
             else if ( ')' === ch )
             {
                 // right paren
@@ -1504,7 +1507,7 @@ Ref.parse = function( r, d ) {
                 stacks[1].unshift([100, stacks.shift()]);
                 stack = stacks[0];
             }
-            
+
             else if ( Ref_spc_re.test(ch) )
             {
                 // space separator
@@ -1517,7 +1520,7 @@ Ref.parse = function( r, d ) {
                 }
                 continue;
             }
-            
+
             else if ( Ref_num_re.test(ch) )
             {
                 if ( !s.length )
@@ -1528,13 +1531,13 @@ Ref.parse = function( r, d ) {
                 // identifier
                 s += ch;
             }
-            
+
             else if ( Ref_alf_re.test(ch) )
             {
                 // identifier
                 s += ch;
             }
-            
+
             else
             {
                 err = ['invalid',i];
@@ -1628,7 +1631,7 @@ Ref.parse = function( r, d ) {
 };
 Ref[PROTO] = {
      constructor: Ref
-    
+
     ,_func: null
     ,_col: null
     ,col: null
@@ -1642,7 +1645,7 @@ Ref[PROTO] = {
     ,qualified: null
     ,full: null
     ,aliased: null
-    
+
     ,cloned: function( alias, alias_q, func ) {
         var self = this;
         if ( !arguments.length )
@@ -1658,10 +1661,10 @@ Ref[PROTO] = {
         {
             func = self._func;
         }
-        return new Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q, 
+        return new Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q,
                     self._qualified, self.qualified, func );
     }
-    
+
     ,dispose: function( ) {
         var self = this;
         self._func = null;
@@ -1684,7 +1687,7 @@ Ref[PROTO] = {
 var dialects = {
  "mysql"            : {
      "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
-    
+
     ,"functions"    : {
      "strpos"       : ["POSITION(",2," IN ",1,")"]
     ,"strlen"       : ["LENGTH(",1,")"]
@@ -1695,7 +1698,7 @@ var dialects = {
     ,"random"       : ["RAND()"]
     ,"now"          : ["NOW()"]
     }
-    
+
 	,"types"    	: {
 	 "BINARY"		: "VARBINARY"
 	,"SMALLINT"		: "TINYINT"
@@ -1715,14 +1718,14 @@ var dialects = {
 	,"TEXT"			: "TEXT"
 	,"BLOB"			: "BLOB"
 	}
-    
+
     ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
 }
 
 
 ,"postgresql"       : {
      "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
-    
+
     ,"functions"    : {
      "strpos"       : ["position(",2," in ",1,")"]
     ,"strlen"       : ["length(",1,")"]
@@ -1733,7 +1736,7 @@ var dialects = {
     ,"random"       : ["random()"]
     ,"now"          : ["now()"]
     }
-    
+
 	,"types"    	: {
 	 "BINARY"		: "BYTEA"
 	,"SMALLINT"		: "SMALLINT"
@@ -1753,14 +1756,14 @@ var dialects = {
 	,"TEXT"			: "TEXT"
 	,"BLOB"			: "BLOB"
 	}
-    
+
     ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
 }
 
 
 ,"transactsql"      : {
      "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
-    
+
     ,"functions"    : {
      "strpos"       : ["CHARINDEX(",2,",",1,")"]
     ,"strlen"       : ["LEN(",1,")"]
@@ -1771,7 +1774,7 @@ var dialects = {
     ,"random"       : ["RAND()"]
     ,"now"          : ["CURRENT_TIMESTAMP"]
     }
-    
+
 	,"types"    	: {
 	 "BINARY"		: "VARBINARY"
 	,"SMALLINT"		: "TINYINT"
@@ -1791,14 +1794,14 @@ var dialects = {
 	,"TEXT"			: "TEXT"
 	,"BLOB"			: "TEXT"
 	}
-    
+
     ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
 }
 
 
 ,"sqlite"           : {
      "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
-    
+
     ,"functions"    : {
      "strpos"       : ["instr(",2,",",1,")"]
     ,"strlen"       : ["length(",1,")"]
@@ -1809,7 +1812,7 @@ var dialects = {
     ,"random"       : ["random()"]
     ,"now"          : ["datetime('now')"]
     }
-    
+
 	,"types"    	: {
 	 "BINARY"		: "BLOB"
 	,"SMALLINT"		: "INTEGER"
@@ -1829,7 +1832,7 @@ var dialects = {
 	,"TEXT"			: "TEXT"
 	,"BLOB"			: "BLOB"
 	}
-    
+
     ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
 }
 };
@@ -1845,25 +1848,25 @@ function Dialect( type )
     var self = this;
     if ( !arguments.length ) type = 'mysql';
     if ( !(self instanceof Dialect) ) return new Dialect( type );
-    
+
     if ( type && hasOwnProperty.call(Dialect.aliases, type) ) type = Dialect.aliases[ type ];
     if ( !type || !Dialect.dialects[ type ] || !Dialect.dialects[ type ][ 'clauses' ] )
     {
         throw new TypeError('Dialect: SQL dialect does not exist for "'+type+'"');
     }
-    
+
     self.clau = null;
     self.clus = null;
     self.tbls = null;
     self.cols = null;
     self.vews = { };
     self.tpls = { };
-    
+
     self.db = null;
     self.escdb = null;
     self.escdbn = null;
     self.p = '';
-    
+
     self.type = type;
     self.clauses = Dialect.dialects[ self.type ][ 'clauses' ];
     self.q  = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ];
@@ -1884,25 +1887,25 @@ Dialect.GrammarTemplate = GrammarTemplate;
 Dialect.Ref = Ref;
 Dialect[PROTO] = {
     constructor: Dialect
-    
+
     ,clau: null
     ,clus: null
     ,tbls: null
     ,cols: null
     ,vews: null
     ,tpls: null
-    
+
     ,db: null
     ,escdb: null
     ,escdbn: null
     ,p: null
-    
+
     ,type: null
     ,clauses: null
     ,q: null
     ,qn: null
     ,e: null
-    
+
     ,dispose: function( ) {
         var self = this;
         self.clau = null;
@@ -1911,12 +1914,12 @@ Dialect[PROTO] = {
         self.cols = null;
         self.vews = null;
         self.tpls = null;
-        
+
         self.db = null;
         self.escdb = null;
         self.escdbn = null;
         self.p = null;
-        
+
         self.type = null;
         self.clauses = null;
         self.q = null;
@@ -1924,11 +1927,11 @@ Dialect[PROTO] = {
         self.e = null;
         return self;
     }
-    
+
 	,toString: function( ) {
         return this.sql( ) || '';
     }
-    
+
     ,driver: function( db ) {
         var self = this;
         if ( arguments.length )
@@ -1938,7 +1941,7 @@ Dialect[PROTO] = {
         }
         return self.db;
     }
-    
+
     ,escape: function( escdb, does_quote ) {
         var self = this;
         if ( 2 > arguments.length ) does_quote = false;
@@ -1949,7 +1952,7 @@ Dialect[PROTO] = {
         }
         return self.escdb;
     }
-    
+
     ,escapeId: function( escdbn, does_quote ) {
         var self = this;
         if ( 2 > arguments.length ) does_quote = false;
@@ -1960,7 +1963,7 @@ Dialect[PROTO] = {
         }
         return self.escdbn;
     }
-    
+
     ,prefix: function( prefix ) {
         var self = this;
         if ( arguments.length )
@@ -1970,7 +1973,7 @@ Dialect[PROTO] = {
         }
         return self.p;
     }
-    
+
     ,reset: function( clause ) {
         var self = this, i, l, c;
         /*if ( !clause || !hasOwnProperty.call(self.clauses,clause) )
@@ -1985,7 +1988,7 @@ Dialect[PROTO] = {
         //    self.clauses/*[ self.clau ]*/ = new Dialect.GrammarTemplate( self.clauses/*[ self.clau ]*/ );
         return self;
     }
-    
+
     ,clear: function( ) {
         var self = this;
         self.clau = null;
@@ -1994,7 +1997,7 @@ Dialect[PROTO] = {
         self.cols = null;
         return self;
     }
-    
+
     ,subquery: function( ) {
         var self = this, sub, esc, escn;
         sub = new Dialect( self.type );
@@ -2006,7 +2009,7 @@ Dialect[PROTO] = {
         sub.vews = self.vews;
         return sub;
     }
-    
+
     ,sql: function( ) {
         var self = this, query = null;
         if ( self.clau /*&& hasOwnProperty.call(self.clauses, self.clau )*/ )
@@ -2043,15 +2046,15 @@ Dialect[PROTO] = {
         self.clear( );
         return query;
     }
-    
+
     ,createView: function( view ) {
         var self = this;
         if ( view && self.clau )
         {
             self.vews[ view ] = {
-                clau:self.clau, 
-                clus:self.clus, 
-                tbls:self.tbls, 
+                clau:self.clau,
+                clus:self.clus,
+                tbls:self.tbls,
                 cols:self.cols
             };
             // make existing where / having conditions required
@@ -2071,18 +2074,18 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,useView: function( view ) {
         // using custom 'soft' view
         var self = this, selected_columns, select_columns;
-        
+
         selected_columns = self.clus['select_columns'];
-            
+
         view = self.vews[ view ];
         self.clus = defaults( self.clus, view.clus, true, true );
         self.tbls = defaults( {}, view.tbls, true );
         self.cols = defaults( {}, view.cols, true );
-        
+
         // handle name resolution and recursive re-aliasing in views
         if ( !!selected_columns )
         {
@@ -2099,7 +2102,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,dropView: function( view ) {
         var self = this;
         if ( view && hasOwnProperty.call(self.vews,view) )
@@ -2108,15 +2111,15 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,prepareTpl: function( tpl /*, query, left, right*/ ) {
-        var self = this, pattern, sql, 
+        var self = this, pattern, sql,
             args, argslen, query, left, right, use_internal_query;
         if ( !empty(tpl) )
         {
-            args = arguments; 
+            args = arguments;
             argslen = args.length;
-            
+
             if ( 1 === argslen )
             {
                 query = null;
@@ -2145,13 +2148,13 @@ Dialect[PROTO] = {
                 right = args[ 3 ];
                 use_internal_query = false;
             }
-            
+
             // custom delimiters
             left = left ? esc_re( left ) : '%';
             right = right ? esc_re( right ) : '%';
             // custom prepared parameter format
             pattern = RE(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right);
-            
+
             if ( use_internal_query )
             {
                 sql = new Dialect.StringTemplate( self.sql( ), pattern );
@@ -2161,15 +2164,15 @@ Dialect[PROTO] = {
             {
                 sql = new Dialect.StringTemplate( query, pattern );
             }
-            
+
             self.tpls[ tpl ] = {
-                'sql':sql, 
+                'sql':sql,
                 'types':null
             };
         }
         return self;
     }
-    
+
     ,prepared: function( tpl, args ) {
         var self = this, sql, types, type, params, k, v, tmp, i, l, tpli, k;
         if ( !empty(tpl) && hasOwnProperty.call(self.tpls,tpl) )
@@ -2210,7 +2213,7 @@ Dialect[PROTO] = {
                 type = hasOwnProperty.call(types,k) ? types[k] : "s";
                 switch(type)
                 {
-                    case 'r': 
+                    case 'r':
                         // raw param
                         if ( is_array(v) )
                         {
@@ -2221,13 +2224,13 @@ Dialect[PROTO] = {
                             params[k] = v;
                         }
                         break;
-                    
-                    case 'l': 
+
+                    case 'l':
                         // like param
-                        params[k] = self.like( v ); 
+                        params[k] = self.like( v );
                         break;
-                    
-                    case 'f': 
+
+                    case 'f':
                         if ( is_array(v) )
                         {
                             // array of references, e.g fields
@@ -2241,7 +2244,7 @@ Dialect[PROTO] = {
                             params[k] = Ref.parse( v, self ).aliased;
                         }
                         break;
-                    
+
                     case 'd':
                         if ( is_array(v) )
                         {
@@ -2254,8 +2257,8 @@ Dialect[PROTO] = {
                             params[k] = self.intval( v );
                         }
                         break;
-                    
-                    case 's': 
+
+                    case 's':
                     default:
                         if ( is_array(v) )
                         {
@@ -2274,7 +2277,7 @@ Dialect[PROTO] = {
         }
         return '';
     }
-    
+
     ,prepare: function( query, args, left, right ) {
         var self = this, pattern, offset, m, pos, len, i, l, tmp, param, type, prepared;
         if ( query && args )
@@ -2282,7 +2285,7 @@ Dialect[PROTO] = {
             // custom delimiters
             left = left ? esc_re( left ) : '%';
             right = right ? esc_re( right ) : '%';
-            
+
             // custom prepared parameter format
             pattern = RE(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right);
             prepared = '';
@@ -2296,7 +2299,7 @@ Dialect[PROTO] = {
                     type = m[1] ? m[1].slice(0,-1) : "s";
                     switch( type )
                     {
-                        case 'r': 
+                        case 'r':
                             // raw param
                             if ( is_array(args[param]) )
                             {
@@ -2307,13 +2310,13 @@ Dialect[PROTO] = {
                                 param = args[param];
                             }
                             break;
-                        
-                        case 'l': 
+
+                        case 'l':
                             // like param
-                            param = self.like( args[param] ); 
+                            param = self.like( args[param] );
                             break;
-                            
-                        case 'f': 
+
+                        case 'f':
                             if ( is_array(args[param]) )
                             {
                                 // array of references, e.g fields
@@ -2327,8 +2330,8 @@ Dialect[PROTO] = {
                                 param = Ref.parse( args[param], self ).aliased;
                             }
                             break;
-                            
-                        case 'd': 
+
+                        case 'd':
                             if ( is_array(args[param]) )
                             {
                                 // array of integers param
@@ -2340,8 +2343,8 @@ Dialect[PROTO] = {
                                 param = self.intval( args[param] );
                             }
                             break;
-                            
-                        case 's': 
+
+                        case 's':
                         default:
                             if ( is_array(args[param]) )
                             {
@@ -2368,7 +2371,7 @@ Dialect[PROTO] = {
         }
         return query;
     }
-    
+
     ,dropTpl: function( tpl ) {
         var self = this;
         if ( !empty(tpl) && hasOwnProperty.call(self.tpls,tpl) )
@@ -2378,7 +2381,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,StartTransaction: function( type, start_transaction_clause ) {
         var self = this;
         start_transaction_clause = start_transaction_clause || 'start_transaction';
@@ -2386,21 +2389,21 @@ Dialect[PROTO] = {
         self.clus.type = type || null;
         return self;
     }
-    
+
     ,CommitTransaction: function( commit_transaction_clause ) {
         var self = this;
         commit_transaction_clause = commit_transaction_clause || 'commit_transaction';
         if ( self.clau !== commit_transaction_clause ) self.reset(commit_transaction_clause);
         return self;
     }
-    
+
     ,RollbackTransaction: function( rollback_transaction_clause ) {
         var self = this;
         rollback_transaction_clause = rollback_transaction_clause || 'rollback_transaction';
         if ( self.clau !== rollback_transaction_clause ) self.reset(rollback_transaction_clause);
         return self;
     }
-    
+
     ,Transaction: function( options, transact_clause ) {
         var self = this, statements;
         transact_clause = transact_clause || 'transact';
@@ -2416,7 +2419,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Create: function( table, options, create_clause ) {
         var self = this, cols, opts;
         create_clause = create_clause || 'create';
@@ -2441,7 +2444,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Alter: function( table, options, alter_clause ) {
         var self = this, cols, opts;
         alter_clause = alter_clause || 'alter';
@@ -2463,7 +2466,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Drop: function( tables, options, drop_clause ) {
         var self = this, view;
         drop_clause = drop_clause || 'drop';
@@ -2487,7 +2490,7 @@ Dialect[PROTO] = {
             self.clus.drop_tables = self.clus.drop_tables.concat(tables);
         return self;
     }
-    
+
     ,Select: function( columns, select_clause ) {
         var self = this;
         select_clause = select_clause || 'select';
@@ -2500,7 +2503,7 @@ Dialect[PROTO] = {
             self.clus.select_columns = self.clus.select_columns.concat(columns);
         return self;
     }
-    
+
     ,Insert: function( tables, columns, insert_clause ) {
         var self = this, view;
         insert_clause = insert_clause || 'insert';
@@ -2528,7 +2531,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Values: function( values ) {
         var self = this, count, insert_values, vals, i, val, j, l, vs;
         if ( empty(values) ) return self;
@@ -2574,7 +2577,7 @@ Dialect[PROTO] = {
         self.clus.values_values = insert_values;
         return self;
     }
-    
+
     ,Update: function( tables, update_clause ) {
         var self = this, view;
         update_clause = update_clause || 'update';
@@ -2596,7 +2599,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Set: function( fields_values ) {
         var self = this, set_values, set_case_value, f, field, value, COLS;
         if ( empty(fields_values) ) return self;
@@ -2607,7 +2610,7 @@ Dialect[PROTO] = {
             if ( !hasOwnProperty.call(fields_values,f) ) continue;
             field = self.refs( f, COLS )[0].full;
             value = fields_values[f];
-            
+
             if ( is_obj(value) )
             {
                 if ( hasOwnProperty.call(value,'raw') )
@@ -2666,14 +2669,14 @@ Dialect[PROTO] = {
         self.clus.set_values = set_values;
         return self;
     }
-    
+
     ,Delete: function( delete_clause ) {
         var self = this;
         delete_clause = delete_clause || 'delete';
         if ( self.clau !== delete_clause ) self.reset(delete_clause);
         return self;
     }
-    
+
     ,From: function( tables ) {
         var self = this, view, tables;
         if ( empty(tables) ) return self;
@@ -2694,7 +2697,7 @@ Dialect[PROTO] = {
         }
         return self;
     }
-    
+
     ,Join: function( table, on_cond, join_type ) {
         var self = this, join_clause, field, cond;
         table = self.refs( table, self.tbls )[0].aliased;
@@ -2733,7 +2736,7 @@ Dialect[PROTO] = {
         else self.clus.join_clauses.push(join_clause);
         return self;
     }
-    
+
     ,Where: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
@@ -2745,7 +2748,7 @@ Dialect[PROTO] = {
         self.clus.where_conditions = conditions;
         return self;
     }
-    
+
     ,Group: function( col ) {
         var self = this, group_condition;
         group_condition = self.refs( col, self.cols )[0].alias;
@@ -2754,7 +2757,7 @@ Dialect[PROTO] = {
         self.clus.group_conditions = group_condition;
         return self;
     }
-    
+
     ,Having: function( conditions, boolean_connective ) {
         var self = this;
         if ( empty(conditions) ) return self;
@@ -2766,7 +2769,7 @@ Dialect[PROTO] = {
         self.clus.having_conditions = conditions;
         return self;
     }
-    
+
     ,Order: function( col, dir ) {
         var self = this, order_condition;
         dir = dir ? dir.toUpperCase() : "ASC";
@@ -2777,36 +2780,36 @@ Dialect[PROTO] = {
         self.clus.order_conditions = order_condition;
         return self;
     }
-    
+
     ,Limit: function( count, offset ) {
         var self = this;
         self.clus.count = int(count);
         self.clus.offset = int(offset);
         return self;
     }
-    
+
     ,Page: function( page, perpage ) {
         var self = this;
         page = int(page); perpage = int(perpage);
         return self.Limit( perpage, page*perpage );
     }
-    
+
     ,conditions: function( conditions, can_use_alias ) {
         var self = this, condquery, conds, f, field, value, fmt, op, type, v, COLS, cases, case_i, case_value;
         if ( empty(conditions) ) return '';
         if ( is_string(conditions) ) return conditions;
-        
+
         condquery = '';
         conds = [];
         COLS = self.cols;
         fmt = true === can_use_alias ? 'alias' : 'full';
-        
+
         for (f in conditions)
         {
             if ( !hasOwnProperty.call(conditions,f) ) continue;
-            
+
             value = conditions[ f ];
-            
+
             if ( is_obj( value ) )
             {
                 if ( hasOwnProperty.call(value,'raw') )
@@ -2814,7 +2817,7 @@ Dialect[PROTO] = {
                     conds.push(String(value['raw']));
                     continue;
                 }
-                
+
                 if ( hasOwnProperty.call(value,'or') )
                 {
                     cases = [];
@@ -2826,7 +2829,7 @@ Dialect[PROTO] = {
                     conds.push(cases.join(' OR '));
                     continue;
                 }
-                
+
                 if ( hasOwnProperty.call(value,'and') )
                 {
                     cases = [];
@@ -2838,7 +2841,7 @@ Dialect[PROTO] = {
                     conds.push(cases.join(' AND '));
                     continue;
                 }
-                
+
                 if ( hasOwnProperty.call(value,'either') )
                 {
                     cases = [];
@@ -2850,7 +2853,7 @@ Dialect[PROTO] = {
                     conds.push(cases.join(' OR '));
                     continue;
                 }
-                
+
                 if ( hasOwnProperty.call(value,'together') )
                 {
                     cases = [];
@@ -2862,10 +2865,10 @@ Dialect[PROTO] = {
                     conds.push(cases.join(' AND '));
                     continue;
                 }
-                
+
                 field = self.refs( f, COLS )[0][ fmt ];
                 type = hasOwnProperty.call(value,'type') ? value.type : 'string';
-                
+
                 if ( hasOwnProperty.call(value,'case') )
                 {
                     cases = field + " = CASE";
@@ -2905,7 +2908,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'contains') )
                 {
                     v = String(value.contains);
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -2919,7 +2922,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'not_contains') )
                 {
                     v = String(value.not_contains);
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -2933,7 +2936,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'in') )
                 {
                     v = array( value['in'] );
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -2951,7 +2954,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'not_in') )
                 {
                     v = array( value['not_in'] );
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -2969,7 +2972,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'between') )
                 {
                     v = array( value.between );
-                    
+
                     // partial between clause
                     if ( null == v[0] )
                     {
@@ -3025,7 +3028,7 @@ Dialect[PROTO] = {
                 else if ( hasOwnProperty.call(value,'not_between') )
                 {
                     v = array( value.not_between );
-                    
+
                     // partial between clause
                     if ( null == v[0] )
                     {
@@ -3082,7 +3085,7 @@ Dialect[PROTO] = {
                 {
                     op = hasOwnProperty.call(value,'gt') ? "gt" : "gte";
                     v = value[ op ];
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -3105,7 +3108,7 @@ Dialect[PROTO] = {
                 {
                     op = hasOwnProperty.call(value,'lt') ? "lt" : "lte";
                     v = value[ op ];
-                    
+
                     if ( 'raw' === type )
                     {
                         // raw, do nothing
@@ -3128,7 +3131,7 @@ Dialect[PROTO] = {
                 {
                     op = hasOwnProperty.call(value,'not_eq') ? "not_eq" : "not_equal";
                     v = value[ op ];
-                    
+
                     if ( 'raw' === type || null === v )
                     {
                         // raw, do nothing
@@ -3151,7 +3154,7 @@ Dialect[PROTO] = {
                 {
                     op = hasOwnProperty.call(value,'eq') ? "eq" : "equal";
                     v = value[ op ];
-                    
+
                     if ( 'raw' === type || null === v )
                     {
                         // raw, do nothing
@@ -3177,11 +3180,11 @@ Dialect[PROTO] = {
                 conds.push( null === value ? (field + " IS NULL") : (field + " = " + (is_int(value) ? value : self.quote(value))) );
             }
         }
-        
+
         if ( conds.length ) condquery = '(' + conds.join(') AND (') + ')';
         return condquery;
     }
-    
+
     ,joinConditions: function( join, conditions ) {
         var self = this, j = 0, f, ref, field, cond, where,
             main_table, main_id, join_table, join_id, join_alias,
@@ -3189,7 +3192,7 @@ Dialect[PROTO] = {
         for ( f in conditions )
         {
             if ( !hasOwnProperty.call(conditions,f) ) continue;
-            
+
             ref = Ref.parse( f, self );
             field = ref._col;
             if ( !hasOwnProperty.call(join, field ) ) continue;
@@ -3198,9 +3201,9 @@ Dialect[PROTO] = {
             main_id = join[field].id;
             join_table = join[field].join;
             join_id = join[field].join_id;
-            
+
             j++; join_alias = join_table+j;
-            
+
             where = { };
             if ( hasOwnProperty.call(join[field],'key') && field !== join[field].key )
             {
@@ -3222,16 +3225,16 @@ Dialect[PROTO] = {
                 where[join_alias+'.'+join_value] = cond;
             }
             self.Join(
-                join_table+" AS "+join_alias, 
-                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                join_table+" AS "+join_alias,
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id,
                 "inner"
             ).Where( where );
-            
+
             delete conditions[f];
         }
         return self;
     }
-    
+
     ,refs: function( refs, lookup, re_alias ) {
         var self = this;
         if ( true === re_alias )
@@ -3243,9 +3246,9 @@ Dialect[PROTO] = {
                 alias = ref.alias;
                 qualified = ref.qualified;
                 qualified_full = ref.full;
-                
+
                 if ( '*' === qualified_full ) continue;
-                
+
                 if ( !hasOwnProperty.call(lookup, alias ) )
                 {
                     if ( hasOwnProperty.call(lookup, qualified_full ) )
@@ -3253,13 +3256,13 @@ Dialect[PROTO] = {
                         ref2 = lookup[ qualified_full ];
                         alias2 = ref2.alias;
                         qualified_full2 = ref2.full;
-                        
+
                         if ( (qualified_full2 !== qualified_full) && (alias2 !== alias) && (alias2 === qualified_full) )
                         {
                             // handle recursive aliasing
                             /*if ( (qualified_full2 !== alias2) && hasOwnProperty.call(lookup, alias2 ) )
                                 delete lookup[ alias2 ];*/
-                            
+
                             ref2 = ref2.cloned( ref.alias );
                             refs[i] = lookup[ alias ] = ref2;
                         }
@@ -3301,14 +3304,14 @@ Dialect[PROTO] = {
                 {*/
                     ref = Ref.parse( rs[ i ], self );
                     alias = ref.alias; qualified = ref.full;
-                    if ( !hasOwnProperty.call(lookup,alias) ) 
+                    if ( !hasOwnProperty.call(lookup,alias) )
                     {
                         lookup[ alias ] = ref;
                         if ( (qualified !== alias) && !hasOwnProperty.call(lookup,qualified) )
                             lookup[ qualified ] = ref;
                     }
                     else
-                    {                    
+                    {
                         ref = lookup[ alias ];
                     }
                     refs.push( ref );
@@ -3317,7 +3320,7 @@ Dialect[PROTO] = {
         }
         return refs;
     }
-    
+
     ,tbl: function( table ) {
         var self = this;
         if ( is_array( table ) )
@@ -3327,7 +3330,7 @@ Dialect[PROTO] = {
         }
         return self.p + table;
     }
-    
+
     ,intval: function( v ) {
         var self = this;
         if ( is_array( v ) )
@@ -3337,7 +3340,7 @@ Dialect[PROTO] = {
         }
         return parseInt( v, 10 );
     }
-    
+
     ,quote_name: function( v, optional ) {
         var self = this, qn = self.qn, escn = self.escdbn, i, l, ve, c;
         optional = true === optional;
@@ -3371,7 +3374,7 @@ Dialect[PROTO] = {
             return qn[0] + ve + qn[1];
         }
     }
-    
+
     ,quote: function( v ) {
         var self = this, q = self.q, e = self.e, esc = self.escdb, hasBackSlash;
         if ( is_array( v ) )
@@ -3387,7 +3390,7 @@ Dialect[PROTO] = {
         }
         return (hasBackSlash ? e[2] : '') + q[0] + self.esc( v ) + q[1] + (hasBackSlash ? e[3] : '');
     }
-    
+
     ,esc: function( v ) {
         var self = this, chars, esc, i, l, ve, c, q, ve;
         if ( is_array( v ) )
@@ -3395,7 +3398,7 @@ Dialect[PROTO] = {
             for(i=0,l=v.length,ve=new Array(l); i<l; i++) ve[i] = self.esc( v[i] );
             return ve;
         }
-        else if ( self.escdb && !self.escdb[1] ) 
+        else if ( self.escdb && !self.escdb[1] )
         {
             return self.escdb[0]( v );
         }
@@ -3416,7 +3419,7 @@ Dialect[PROTO] = {
             return ve;
         }
     }
-    
+
     ,esc_like: function( v ) {
         var self = this;
         if ( is_array( v ) )
@@ -3426,7 +3429,7 @@ Dialect[PROTO] = {
         }
         return addslashes( v, '_%', '\\' );
     }
-    
+
     ,like: function( v ) {
         var self = this, q, e;
         if ( is_array( v ) )
@@ -3437,7 +3440,7 @@ Dialect[PROTO] = {
         q = self.q; e = self.escdb ? ['','','',''] : self.e;
         return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1];
     }
-    
+
     ,multi_like: function( f, v, trimmed ) {
         var self = this, like, ORs, ANDs, i, l, j, m;
         trimmed = false !== trimmed;
@@ -3453,7 +3456,7 @@ Dialect[PROTO] = {
         }
         return ORs.join(' OR ');
     }
-    
+
     ,sql_function: function( f, args ) {
         var self = this, func, is_arg, i, l, fi, argslen;
         if ( !hasOwnProperty.call(Dialect.dialects[ self.type ][ 'functions' ], f ) )
@@ -3470,7 +3473,7 @@ Dialect[PROTO] = {
         }
         return func;
     }
-    
+
     ,sql_type: function( data_type ) {
         var self = this;
 		data_type = String(data_type).toUpperCase();

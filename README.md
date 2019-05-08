@@ -360,7 +360,7 @@ dialect.dropTpl('prepared_query');
 * add support for subqueries [DONE]
 * allow general subqueries both as conditions in WHERE clauses ( eg IN ([SUBQUERY]) ) and/or as custom dynamic columns and tables (with aliases) ( eg SELECT column FROM ([SUBQUERY]) AS table) [DONE]
 * optimise and generalise grammar-templates abit, use only one (conditional) grammar template for all sql clauses for speed [DONE]
-* add full support for other sql vendors (e.g `Oracle`, 'DB2', .. )
+* add support for other sql vendors (e.g `Oracle`, `DB2`, .. )
 
 
 
