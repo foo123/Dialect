@@ -10,20 +10,20 @@ Dialect
 
 **see also:**  
 
-* [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
-* [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
-* [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Python, Browser / Node.js / XPCOM Javascript (can be used as plugins for Contemplate engine as well)
-* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [GrammarPattern](https://github.com/foo123/GrammarPattern) versatile grammar-based pattern-matching for Javascript
-* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM Javascript
-* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for PHP, Python, Browser / Node.js / XPCOM Javascript
+* [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Python, Browser / Node.js / XPCOM JavaScript (can be used as plugins for Contemplate engine as well)
+* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [TinyORM](https://github.com/foo123/TinyORM) a flexible, super-simple Object-Relational-Mapper w/ Relationships PHP, Python, JavaScript
+* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM JavaScript
+* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [RT](https://github.com/foo123/RT) client-side real-time communication for Node/XPCOM/JS with support for Poll / BOSH / WebSockets
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
+* [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
+* [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
 
 
 
