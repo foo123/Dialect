@@ -1,8 +1,8 @@
 ##
-#   Dialect, 
-#   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, Node/XPCOM/JS
-# 
-#   @version: 1.2.0
+#   Dialect,
+#   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, JavaScript
+#
+#   @version: 1.3.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -14,7 +14,7 @@
 import re, math, time
 #import random
 
-NEWLINE = re.compile(r'\n\r|\r\n|\n|\r') 
+NEWLINE = re.compile(r'\n\r|\r\n|\n|\r')
 SQUOTE = re.compile(r"'")
 T_REGEXP = type(SQUOTE)
 
@@ -35,9 +35,9 @@ def guid( ):
 
 def createFunction( args, sourceCode, additional_symbols=dict() ):
     # http://code.activestate.com/recipes/550804-create-a-restricted-python-function-from-a-string/
-    
-    funcName = 'py_dyna_func_' + guid( )
-    
+
+    funcName = 'dialect_dyna_func_' + guid( )
+
     # The list of symbols that are included by default in the generated
     # function's environment
     SAFE_SYMBOLS = [
@@ -50,7 +50,7 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
         "reduce", "repr", "str", "type", "zip", "xrange", "None",
         "Exception", "KeyboardInterrupt"
     ]
-    
+
     # Also add the standard exceptions
     __bi = __builtins__
     if type(__bi) is not dict:
@@ -59,13 +59,13 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
         if k.endswith("Error") or k.endswith("Warning"):
             SAFE_SYMBOLS.append(k)
     del __bi
-    
+
     # Include the sourcecode as the code of a function funcName:
     s = "def " + funcName + "(%s):\n" % args
     s += sourceCode # this should be already properly padded
 
     # Byte-compilation (optional)
-    byteCode = compile(s, "<string>", 'exec')  
+    byteCode = compile(s, "<string>", 'exec')
 
     # Setup the local and global dictionaries of the execution
     # environment for __TheFunction__
@@ -88,21 +88,21 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
 
     # Include the safe symbols
     for k in SAFE_SYMBOLS:
-        
+
         # try from current locals
         try:
           locs[k] = locals()[k]
           continue
         except KeyError:
           pass
-        
+
         # Try from globals
         try:
           globs[k] = globals()[k]
           continue
         except KeyError:
           pass
-        
+
         # Try from builtins
         try:
           bis[k] = bi_dict[k]
@@ -115,59 +115,59 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
 
     # Finally execute the Function statement:
     eval(byteCode, globs, locs)
-    
+
     # As a result, the function is defined as the item funcName
     # in the locals dictionary
     fct = locs[funcName]
     # Attach the function to the globals so that it can be recursive
     del locs[funcName]
     globs[funcName] = fct
-    
+
     # Attach the actual source code to the docstring
     fct.__doc__ = sourceCode
-    
+
     # return the compiled function object
     return fct
 
 
 class StringTemplate:
-    
+
     """
     StringTemplate for Python,
     https://github.com/foo123/StringTemplate
     """
-    
+
     VERSION = '1.0.0'
-    
+
     guid = guid
     createFunction = createFunction
-    
+
     def multisplit(tpl, reps, as_array=False):
         a = [ [1, tpl] ]
         reps = enumerate(reps) if as_array else reps.items()
         for r,s in reps:
-        
-            c = [ ] 
+
+            c = [ ]
             sr = s if as_array else r
             s = [0, s]
             for ai in a:
-            
+
                 if 1 == ai[ 0 ]:
-                
+
                     b = ai[ 1 ].split( sr )
                     bl = len(b)
                     c.append( [1, b[0]] )
                     if bl > 1:
                         for bj in b[1:]:
-                        
+
                             c.append( s )
                             c.append( [1, bj] )
-                        
+
                 else:
-                
+
                     c.append( ai )
-                
-            
+
+
             a = c
         return a
 
@@ -192,18 +192,18 @@ class StringTemplate:
             m = rex.search(tpl, i)
         a.append([1, tpl[i:]])
         return a
-    
+
     def arg(key=None, argslen=None):
         out = 'args'
-        
+
         if None != key:
-        
+
             if isinstance(key,str):
                 key = key.split('.') if len(key) else []
-            else: 
+            else:
                 key = [key]
             #givenArgsLen = bool(None !=argslen and isinstance(argslen,str))
-            
+
             for k in key:
                 is_numeric = False
                 try:
@@ -215,44 +215,44 @@ class StringTemplate:
                     out += '[' + str(kn) + ']';
                 else:
                     out += '["' + str(k) + '"]';
-                
+
         return out
 
     def compile(tpl, raw=False):
         global NEWLINE
         global SQUOTE
-        
+
         if True == raw:
-        
+
             out = 'return ('
             for tpli in tpl:
-            
-                notIsSub = tpli[ 0 ] 
+
+                notIsSub = tpli[ 0 ]
                 s = tpli[ 1 ]
                 out += s if notIsSub else StringTemplate.arg(s)
-            
+
             out += ')'
-            
+
         else:
-        
+
             out = 'return ('
             for tpli in tpl:
-            
+
                 notIsSub = tpli[ 0 ]
                 s = tpli[ 1 ]
                 if notIsSub: out += "'" + re.sub(NEWLINE, "' + \"\\n\" + '", re.sub(SQUOTE, "\\'", s)) + "'"
                 else: out += " + str(" + StringTemplate.arg(s,"argslen") + ") + "
-            
+
             out += ')'
-        
+
         return createFunction('args', "    " + out)
 
-    
+
     defaultArgs = re.compile(r'\$(-?[0-9]+)')
-    
+
     def __init__(self, tpl='', replacements=None, compiled=False):
         global T_REGEXP
-        
+
         self.id = None
         self.tpl = None
         self._renderer = None
@@ -261,7 +261,7 @@ class StringTemplate:
 
     def __del__(self):
         self.dispose()
-        
+
     def dispose(self):
         self.id = None
         self.tpl = None
@@ -269,7 +269,7 @@ class StringTemplate:
         self._args = None
         self._parsed = None
         return self
-    
+
     def parse(self):
         if self._parsed is False:
             # lazy init
@@ -281,23 +281,23 @@ class StringTemplate:
             self._parsed = True
             if compiled is True: self._renderer = StringTemplate.compile( self.tpl )
         return self
-    
+
     def render(self, args=None):
         if None == args: args = [ ]
-        
+
         if self._parsed is False:
             # lazy init
             self.parse( )
-            
+
         if self._renderer: return self._renderer( args )
-        
+
         out = ''
         for t in self.tpl:
             if 1 == t[0]: out += t[ 1 ]
             else:
                 s = t[ 1 ]
                 out += '' if s not in args else str(args[ s ])
-        
+
         return out
 
 # https://github.com/foo123/GrammarTemplate
@@ -415,7 +415,7 @@ def walk( obj, keys, keys_alt=None, obj_alt=None ):
                     found = 0
                     break
     return o if found else None
-    
+
 
 class StackEntry:
     def __init__(self, stack=None, value=None):
@@ -458,7 +458,7 @@ def multisplit( tpl, delims, postop=False ):
     aligned = 0
     localised = 0
     l = len(tpl)
-    
+
     delim1 = [IDL, lenIDL, IDR, lenIDR]
     delim2 = [OBL, lenOBL, OBR, lenOBR]
     delim_order = [None,0,None,0,None,0,None,0]
@@ -485,7 +485,7 @@ def multisplit( tpl, delims, postop=False ):
     cur_tpl = None
     arg_tpl = {}
     start_tpl = None
-    
+
     # hard-coded merge-sort for arbitrary delims parsing based on str len
     if delim1[1] < delim1[3]:
         s = delim1[0]
@@ -524,19 +524,19 @@ def multisplit( tpl, delims, postop=False ):
         delim_order[i+1] = delim2[end_i+1]
         end_i += 2
         i += 2
-    
+
     stack = None
     s = ''
-    
+
     i = 0
     while i < l:
-        
+
         c = tpl[i]
         if ESC == c:
             s += tpl[i+1] if i+1 < l else ''
             i += 2
             continue
-        
+
         delim = None
         if delim_order[0] == tpl[i:i+delim_order[1]]:
             delim = delim_order[0]
@@ -546,18 +546,18 @@ def multisplit( tpl, delims, postop=False ):
             delim = delim_order[4]
         elif delim_order[6] == tpl[i:i+delim_order[7]]:
             delim = delim_order[6]
-        
+
         if IDL == delim:
             i += lenIDL
-            
+
             if len(s):
                 if 0 == a.node['type']: a.node['val'] += s
                 else: a = TplEntry({'type': 0, 'val': s, 'algn': ''}, a)
             s = ''
-        
+
         elif IDR == delim:
             i += lenIDR
-            
+
             # argument
             argument = s
             s = ''
@@ -630,30 +630,30 @@ def multisplit( tpl, delims, postop=False ):
                 start_i = 0
                 end_i = 0
             if negative and default_value is None: default_value = ''
-            
+
             c = argument[0]
             if ALGN == c:
                 aligned = 1
                 argument = argument[1:]
             else:
                 aligned = 0
-            
+
             c = argument[0]
             if DOT == c:
                 localised = 1
                 argument = argument[1:]
             else:
                 localised = 0
-            
+
             p = argument.find(REF)
             template = argument.split(REF) if -1 < p else [argument,None]
             argument = template[0]
             template = template[1]
             p = argument.find(DOT)
             nested = argument.split(DOT) if -1 < p else None
-            
+
             if cur_tpl and (cur_tpl not in arg_tpl): arg_tpl[cur_tpl] = {}
-            
+
             if TPL+OBL == tpl[i:i+2+lenOBL]:
                 # template definition
                 i += 2
@@ -661,12 +661,12 @@ def multisplit( tpl, delims, postop=False ):
                 start_tpl = template
                 if cur_tpl and len(argument):
                     arg_tpl[cur_tpl][argument] = template
-            
+
             if not len(argument): continue # template definition only
-            
+
             if (template is None) and cur_tpl and (cur_tpl in arg_tpl) and (argument in arg_tpl[cur_tpl]):
                 template = arg_tpl[cur_tpl][argument]
-            
+
             if optional and not cur_arg['opt']:
                 cur_arg['name'] = argument
                 cur_arg['key'] = nested
@@ -680,7 +680,7 @@ def multisplit( tpl, delims, postop=False ):
                 cur_arg['end'] = end_i
                 # handle multiple optional arguments for same optional block
                 opt_args = StackEntry(None, [argument,nested,negative,start_i,end_i,optional,localised])
-                
+
             elif optional:
                 # handle multiple optional arguments for same optional block
                 if (start_i != end_i) and (cur_arg['start'] == cur_arg['end']):
@@ -696,7 +696,7 @@ def multisplit( tpl, delims, postop=False ):
                     cur_arg['start'] = start_i
                     cur_arg['end'] = end_i
                 opt_args = StackEntry(opt_args, [argument,nested,negative,start_i,end_i,optional,localised])
-            
+
             elif (not optional) and (cur_arg['name'] is None):
                 cur_arg['name'] = argument
                 cur_arg['key'] = nested
@@ -710,7 +710,7 @@ def multisplit( tpl, delims, postop=False ):
                 cur_arg['end'] = end_i
                 # handle multiple optional arguments for same optional block
                 opt_args = StackEntry(None, [argument,nested,negative,start_i,end_i,0,localised])
-            
+
             if 0 == a.node['type']: a.node['algn'] = compute_alignment(a.node['val'], 0, len(a.node['val']))
             a = TplEntry({
                 'type'    : 1,
@@ -724,15 +724,15 @@ def multisplit( tpl, delims, postop=False ):
                 'start'   : start_i,
                 'end'     : end_i
             }, a)
-        
+
         elif OBL == delim:
             i += lenOBL
-            
+
             if len(s):
                 if 0 == a.node['type']: a.node['val'] += s
                 else: a = TplEntry({'type': 0, 'val': s, 'algn': ''}, a)
             s = ''
-            
+
             # comment
             if COMMENT == tpl[i]:
                 j = i+1
@@ -745,7 +745,7 @@ def multisplit( tpl, delims, postop=False ):
                 a = TplEntry({'type': -100, 'val': s}, a)
                 s = ''
                 continue
-            
+
             # optional block
             stack = StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl])
             if start_tpl: cur_tpl = start_tpl
@@ -766,10 +766,10 @@ def multisplit( tpl, delims, postop=False ):
             opt_args = None
             a = TplEntry({'type': 0, 'val': '', 'algn': ''})
             block = a
-        
+
         elif OBR == delim:
             i += lenOBR
-            
+
             b = a
             cur_block = block
             prev_arg = cur_arg
@@ -784,12 +784,12 @@ def multisplit( tpl, delims, postop=False ):
                 stack = stack.prev
             else:
                 a = None
-            
+
             if len(s):
                 if 0 == b.node['type']: b.node['val'] += s
                 else: b = TplEntry({'type': 0, 'val': s, 'algn': ''}, b)
             s = ''
-            
+
             if start_tpl:
                 subtpl[start_tpl] = TplEntry({
                     'type'    : 2,
@@ -816,7 +816,7 @@ def multisplit( tpl, delims, postop=False ):
                     'opt_args': prev_opt_args,
                     'tpl'     : cur_block
                 }, a)
-        
+
         else:
             c = tpl[i]
             i += 1
@@ -830,7 +830,7 @@ def multisplit( tpl, delims, postop=False ):
                 a = TplEntry({'type': 100, 'val': "\n"}, a)
             else:
                 s += c
-    
+
     if len(s):
         if 0 == a.node['type']: a.node['val'] += s
         else: a = TplEntry({'type': 0, 'val': s, 'algn': ''}, a)
@@ -840,7 +840,7 @@ def multisplit( tpl, delims, postop=False ):
 def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
     out = ''
     block_arg = None
-    
+
     if -1 == block['type']:
         # optional block, check if optional variables can be rendered
         opt_vars = block['opt_args']
@@ -850,12 +850,12 @@ def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', or
                 opt_v = opt_vars.value
                 opt_arg = walk( args, opt_v[1], [str(opt_v[0])], None if opt_v[6] else orig_args )
                 if (block_arg is None) and (block['name'] == opt_v[0]): block_arg = opt_arg
-                
+
                 if ((0 == opt_v[2]) and (opt_arg is None)) or ((1 == opt_v[2]) and (opt_arg is not None)): return ''
                 opt_vars = opt_vars.prev
     else:
         block_arg = walk( args, block['key'], [str(block['name'])], None if block['loc'] else orig_args )
-    
+
     arr = is_array( block_arg )
     lenn = len(block_arg) if arr else -1
     #if not block['algn']: alignment = ''
@@ -868,7 +868,7 @@ def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', or
             ri += 1
     elif (not arr) and (block['start'] == block['end']):
         out = main( args, block['tpl'], SUB, FN, None, alignment, orig_args )
-    
+
     return out
 
 def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
@@ -876,12 +876,12 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
     if symbol['stpl'] and ((SUB and (symbol['stpl'] in SUB)) or (symbol['stpl'] in GrammarTemplate.subGlobal) or (FN and ((symbol['stpl'] in FN) or ('*' in FN))) or ((symbol['stpl'] in GrammarTemplate.fnGlobal) or ('*' in GrammarTemplate.fnGlobal))):
         # using custom function or sub-template
         opt_arg = walk( args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args )
-        
+
         if (SUB and (symbol['stpl'] in SUB)) or (symbol['stpl'] in GrammarTemplate.subGlobal):
             # sub-template
             if (index is not None) and ((0 != index) or (symbol['start'] != symbol['end']) or (not symbol['opt'])) and is_array(opt_arg):
                 opt_arg = opt_arg[ index ] if index < len(opt_arg) else None
-            
+
             if (opt_arg is None) and (symbol['dval'] is not None):
                 # default value if missing
                 out = symbol['dval']
@@ -901,11 +901,11 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
             elif FN and ('*' in FN):                         fn = FN['*']
             elif symbol['stpl'] in GrammarTemplate.fnGlobal: fn = GrammarTemplate.fnGlobal[symbol['stpl']]
             elif '*' in GrammarTemplate.fnGlobal:            fn = GrammarTemplate.fnGlobal['*']
-            
+
             if is_array(opt_arg):
                 index = index if index is not None else symbol['start']
                 opt_arg = opt_arg[ index ] if index < len(opt_arg) else None
-            
+
             if callable(fn):
                 fn_arg = {
                     #'value'               : opt_arg,
@@ -918,25 +918,25 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
                 opt_arg = fn( opt_arg, fn_arg )
             else:
                 opt_arg = str(fn)
-            
+
             out = symbol['dval'] if (opt_arg is None) and (symbol['dval'] is not None) else str(opt_arg)
             if symbol['algn']: out = align(out, alignment)
-    
+
     elif symbol['opt'] and (symbol['dval'] is not None):
         # boolean optional argument
         out = symbol['dval']
-    
+
     else:
         # plain symbol argument
         opt_arg = walk( args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args )
-        
+
         # default value if missing
         if is_array(opt_arg):
             index = index if index is not None else symbol['start']
             opt_arg = opt_arg[ index ] if index < len(opt_arg) else None
         out = symbol['dval'] if (opt_arg is None) and (symbol['dval'] is not None) else str(opt_arg)
         if symbol['algn']: out = align(out, alignment)
-    
+
     return out
 
 def main( args, tpl, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
@@ -965,9 +965,9 @@ class GrammarTemplate:
     GrammarTemplate for Python,
     https://github.com/foo123/GrammarTemplate
     """
-    
+
     VERSION = '3.0.0'
-    
+
 
     defaultDelimiters = ['<','>','[',']']
     fnGlobal = {}
@@ -976,7 +976,7 @@ class GrammarTemplate:
     multisplit = multisplit
     align = align
     main = main
-    
+
     def __init__(self, tpl='', delims=None, postop=False):
         self.id = None
         self.tpl = None
@@ -986,21 +986,21 @@ class GrammarTemplate:
 
     def __del__(self):
         self.dispose()
-        
+
     def dispose(self):
         self.id = None
         self.tpl = None
         self.fn = None
         self._args = None
         return self
-    
+
     def parse(self):
         if (self.tpl is None) and (self._args is not None):
             # lazy init
             self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1], self._args[2] )
             self._args = None
         return self
-    
+
     def render(self, args=None):
         # lazy init
         if self.tpl is None: self.parse( )
@@ -1021,12 +1021,12 @@ def is_obj( v ):
 
 def is_array( v ):
     return isinstance(v, (list,tuple))
-    
+
 def array( v ):
     return v if isinstance(v, list) else [v]
 
 def empty( v ):
-    return v == None or (isinstance(v, (tuple,list,str,dict)) and 0 == len(v))
+    return (isinstance(v, (tuple,list,str,dict)) and 0 == len(v)) or not v
 
 def addslashes( s, chars=None, esc='\\' ):
     global NULL_CHAR
@@ -1074,7 +1074,7 @@ class Ref:
     def parse( r, d ):
         # catch passing instance as well
         if isinstance(r, Ref): return r
-        
+
         global Ref_spc_re
         global Ref_num_re
         global Ref_alf_re
@@ -1104,28 +1104,28 @@ class Ref:
         while i < l:
             ch = r[i]
             i += 1
-            
+
             if '('==ch and 1==i:
                 # ( ..subquery.. ) [ AS alias]
                 paren2+=1
                 continue
-            
+
             if 0 < paren2:
                 # ( ..subquery.. ) [ AS alias]
                 if '"' == ch or '`' == ch or '\'' == ch or '[' == ch or ']' == ch:
                     if not quote2:
                         quote2 = ']' if '[' == ch else ch
                         quote2pos = i-1
-                    
+
                     elif quote2 == ch:
                         dbl_quote = (('"'==ch or '`'==ch) and (d.qn[3]==ch+ch)) or ('\''==ch and d.q[3]==ch+ch)
-                        
+
                         esc_quote = (('"'==ch or '`'==ch) and (d.qn[3]=='\\'+ch)) or ('\''==ch and d.q[3]=='\\'+ch)
-                        
+
                         if dbl_quote and (i<l) and (ch==r[i]):
                             # double-escaped quote in identifier or string
                             i+=1
-                        
+
                         elif esc_quote:
                             # maybe-escaped quote in string
                             escaped = False
@@ -1138,40 +1138,40 @@ class Ref:
                                 while 0<=j and '\\'==r[j]:
                                     escaped = not escaped
                                     j-=1
-                                
+
                             if not escaped:
                                 quote2 = None
                                 quote2pos = None
-                        
+
                         else:
                             quote2 = None
                             quote2pos = None
-                    
+
                     continue
-                
+
                 elif quote2:
                     continue
-                
+
                 elif '(' == ch:
                     paren2+=1
                     continue
-                
+
                 elif ')' == ch:
-                    
+
                     paren2-=1
                     if 0 > paren2:
                         err = ['paren',i]
                         break
-                    
+
                     elif 0 == paren2:
                         if quote2:
                             err = ['quote',i]
                             break
-                        
+
                         subquery = r[0:i]
                         s = subquery
                         continue
-                    
+
                     else:
                         continue
                 else:
@@ -1186,7 +1186,7 @@ class Ref:
                             break
                         quote = ']' if '[' == ch else ch
                         continue
-                    
+
                     elif quote == ch:
                         if (i<l) and (ch==r[i]):
                             # double-escaped quote in identifier
@@ -1203,16 +1203,16 @@ class Ref:
                                 break
                             quote = None
                             continue
-                    
+
                     elif quote:
                         s += ch
                         continue
-                
+
                 if quote:
                     # part of sql-quoted value
                     s += ch
                     continue
-                
+
                 if '*' == ch:
                     # placeholder
                     if len(s):
@@ -1220,7 +1220,7 @@ class Ref:
                         break
                     stack.insert(0,[10, '*'])
                     ids.insert(0,10)
-                
+
                 elif '.' == ch:
                     # separator
                     if len(s):
@@ -1231,10 +1231,10 @@ class Ref:
                         # error, mismatched separator
                         err = ['invalid',i]
                         break
-                    
+
                     stack.insert(0,[0, '.'])
                     ids.insert(0,0)
-                
+
                 elif '(' == ch:
                     # left paren
                     paren += 1
@@ -1251,7 +1251,7 @@ class Ref:
                         funcs.insert(0,ids.pop(0))
                     stacks.insert(0,[])
                     stack = stacks[0]
-                
+
                 elif ')' == ch:
                     # right paren
                     paren -= 1
@@ -1266,7 +1266,7 @@ class Ref:
                     # reduce
                     stacks[1].insert(0,[100, stacks.pop(0)])
                     stack = stacks[0]
-                
+
                 elif Ref_spc_re.match(ch):
                     # space separator
                     if len(s):
@@ -1275,27 +1275,27 @@ class Ref:
                         ids.insert(0, 5 if keyword else s)
                         s = ''
                     continue
-                
+
                 elif Ref_num_re.match(ch):
                     if not len(s):
                         err = ['invalid',i]
                         break
                     # identifier
                     s += ch
-                
+
                 elif Ref_alf_re.match(ch):
                     # identifier
                     s += ch
-                
+
                 else:
                     err = ['invalid',i]
                     break
-        
+
         if len(s):
             stack.insert(0,[1, s])
             ids.insert(0,s)
             s = ''
-        
+
         if not err and (paren or paren2): err = ['paren', l]
         if not err and (quote or quote2): err = ['quote', l]
         if not err and 1 != len(stacks): err = ['invalid', l]
@@ -1311,7 +1311,7 @@ class Ref:
             else:# if 'invalid' == err_type:
                 # error, invalid character
                 raise ValueError('Dialect: Invalid character "'+r+'" at position '+str(err_pos)+'.')
-        
+
         alias = None
         alias_q = ''
         if subquery is not None:
@@ -1319,7 +1319,7 @@ class Ref:
                 alias = ids.pop(0)
                 alias_q = d.quote_name( alias )
                 ids.pop(0)
-            
+
             col = subquery
             col_q = subquery
             tbl = None
@@ -1328,13 +1328,13 @@ class Ref:
             dtb_q = ''
             tbl_col = col
             tbl_col_q = col_q
-            
+
         else:
             if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
                 alias = ids.pop(0)
                 alias_q = d.quote_name( alias )
                 ids.pop(0)
-            
+
             col = None
             col_q = ''
             if len(ids) and (isinstance(ids[0],str) or 10 == ids[0]):
@@ -1344,21 +1344,21 @@ class Ref:
                 else:
                     ids.pop(0)
                     col = col_q = '*'
-            
+
             tbl = None
             tbl_q = ''
             if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
                 ids.pop(0)
                 tbl = ids.pop(0)
                 tbl_q = d.quote_name( tbl )
-            
+
             dtb = None
             dtb_q = ''
             if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
                 ids.pop(0)
                 dtb = ids.pop(0)
                 dtb_q = d.quote_name( dtb )
-            
+
             tbl_col = (dtb+'.' if dtb else '') + (tbl+'.' if tbl else '') + (col if col else '')
             tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
         return Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs)
@@ -1377,7 +1377,7 @@ class Ref:
         self._func = [] if not _func else _func
         if len(self._func):
             for f in self._func: self.full = f+'('+self.full+')'
-        
+
         if self._alias is not None:
             self.alias = alias
             self.aliased = self.full + ' AS ' + self.alias
@@ -1393,12 +1393,12 @@ class Ref:
             alias_q = alias if alias_q is None else alias_q
         if func is None:
             func = self._func
-        return Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q, 
+        return Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q,
                     self._qualified, self.qualified, func )
-    
+
     def __del__( self ):
         self.dispose( )
-        
+
     def dispose( self ):
         self._func = None
         self._col = None
@@ -1421,9 +1421,9 @@ class Dialect:
     Dialect for Python,
     https://github.com/foo123/Dialect
     """
-    
-    VERSION = '1.2.0'
-    
+
+    VERSION = '1.3.0'
+
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
     GrammarTemplate = GrammarTemplate
@@ -1432,7 +1432,7 @@ class Dialect:
     dialects = {
      "mysql"            : {
          "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
-        
+
         ,"functions"    : {
          "strpos"       : ["POSITION(",2," IN ",1,")"]
         ,"strlen"       : ["LENGTH(",1,")"]
@@ -1443,7 +1443,7 @@ class Dialect:
         ,"random"       : ["RAND()"]
         ,"now"          : ["NOW()"]
         }
-        
+
 		,"types"    	: {
 		 "BINARY"		: "VARBINARY"
 		,"SMALLINT"		: "TINYINT"
@@ -1463,14 +1463,14 @@ class Dialect:
 		,"TEXT"			: "TEXT"
 		,"BLOB"			: "BLOB"
 		}
-		
-        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
+
+        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
     }
 
 
     ,"postgresql"       : {
          "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
-        
+
         ,"functions"    : {
          "strpos"       : ["position(",2," in ",1,")"]
         ,"strlen"       : ["length(",1,")"]
@@ -1481,7 +1481,7 @@ class Dialect:
         ,"random"       : ["random()"]
         ,"now"          : ["now()"]
         }
-        
+
 		,"types"    	: {
 		 "BINARY"		: "BYTEA"
 		,"SMALLINT"		: "SMALLINT"
@@ -1501,14 +1501,14 @@ class Dialect:
 		,"TEXT"			: "TEXT"
 		,"BLOB"			: "BLOB"
 		}
-		
-        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
+
+        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
     }
 
 
     ,"transactsql"      : {
          "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
-        
+
         ,"functions"    : {
          "strpos"       : ["CHARINDEX(",2,",",1,")"]
         ,"strlen"       : ["LEN(",1,")"]
@@ -1519,7 +1519,7 @@ class Dialect:
         ,"random"       : ["RAND()"]
         ,"now"          : ["CURRENT_TIMESTAMP"]
         }
-        
+
 		,"types"    	: {
 		 "BINARY"		: "VARBINARY"
 		,"SMALLINT"		: "TINYINT"
@@ -1539,14 +1539,14 @@ class Dialect:
 		,"TEXT"			: "TEXT"
 		,"BLOB"			: "TEXT"
 		}
-		
-        ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
+
+        ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
     }
 
 
     ,"sqlite"           : {
          "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
-        
+
         ,"functions"    : {
          "strpos"       : ["instr(",2,",",1,")"]
         ,"strlen"       : ["length(",1,")"]
@@ -1557,7 +1557,7 @@ class Dialect:
         ,"random"       : ["random()"]
         ,"now"          : ["datetime('now')"]
         }
-        
+
 		,"types"    	: {
 		 "BINARY"		: "BLOB"
 		,"SMALLINT"		: "INTEGER"
@@ -1577,11 +1577,11 @@ class Dialect:
 		,"TEXT"			: "TEXT"
 		,"BLOB"			: "BLOB"
 		}
-		
-        ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+
+        ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
     }
     }
-    
+
     aliases = {
         "mysqli"    : "mysql"
        ,"mariadb"   : "mysql"
@@ -1589,24 +1589,24 @@ class Dialect:
        ,"postgres"  : "postgresql"
        ,"postgre"   : "postgresql"
     }
-    
+
     def __init__( self, type='mysql' ):
         if type and (type in Dialect.aliases): type = Dialect.aliases[type]
         if (not type) or (type not in Dialect.dialects) or ('clauses' not in Dialect.dialects[ type ]):
             raise ValueError('Dialect: SQL dialect does not exist for "'+type+'"')
-        
+
         self.clau = None
         self.clus = None
         self.tbls = None
         self.cols = None
         self.vews = { }
         self.tpls = { }
-        
+
         self.db = None
         self.escdb = None
         self.escdbn = None
         self.p = '';
-        
+
         self.type = type
         self.clauses = Dialect.dialects[ self.type ][ 'clauses' ]
         self.q = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ]
@@ -1616,10 +1616,10 @@ class Dialect:
             self.clauses = Dialect.GrammarTemplate(self.clauses)
             Dialect.dialects[ self.type ][ 'clauses' ] = self.clauses
 
-    
+
     def __del__( self ):
         self.dispose()
-        
+
     def dispose( self ):
         self.clau = None
         self.clus = None
@@ -1627,12 +1627,12 @@ class Dialect:
         self.cols = None
         self.vews = None
         self.tpls = None
-        
+
         self.db = None
         self.escdb = None
         self.escdbn = None
         self.p = None
-        
+
         self.type = None
         self.clauses = None
         self.q = None
@@ -1643,14 +1643,14 @@ class Dialect:
     def __str__( self ):
         sql = self.sql( )
         return sql if sql else ''
-    
+
     def driver( self, *args ):
         if len(args):
             db = args[0]
             self.db = db if db else None
             return self
         return self.db
-    
+
     def escape( self, *args ):
         if len(args):
             escdb = args[0]
@@ -1658,7 +1658,7 @@ class Dialect:
             self.escdb = [escdb, does_quote] if escdb and callable(escdb) else None
             return self
         return self.escdb
-    
+
     def escapeId( self, *args ):
         if len(args):
             escdbn = args[0]
@@ -1666,14 +1666,14 @@ class Dialect:
             self.escdbn = [escdbn, does_quote] if escdbn and callable(escdbn) else None
             return self
         return self.escdb
-    
+
     def prefix( self, *args ):
         if len(args):
             prefix = args[0]
             self.p = prefix if prefix else ''
             return self
         return self.p
-    
+
     def reset( self, clause ):
         #if not clause or (clause not in self.clauses):
         #    raise ValueError('Dialect: SQL clause "'+str(clause)+'" does not exist for dialect "'+self.type+'"')
@@ -1686,14 +1686,14 @@ class Dialect:
         #if not isinstance(self.clauses, Dialect.GrammarTemplate):
         #    self.clauses = Dialect.GrammarTemplate( self.clauses )
         return self
-    
+
     def clear( self ):
         self.clau = None
         self.clus = None
         self.tbls = None
         self.cols = None
         return self
-    
+
     def subquery( self ):
         sub = Dialect( self.type )
         sub.driver( self.driver() ).prefix( self.prefix() )
@@ -1703,42 +1703,43 @@ class Dialect:
         if escdbn: sub.escapeId( escdbn[0], escdbn[1] )
         sub.vews = self.vews
         return sub
-    
+
     def sql( self ):
-        query = None
+        query = ''
         if self.clau: #and (self.clau in self.clauses):
+            clus = self.clus.copy()
             if 'select_columns' in self.clus:
-                self.clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' )
+                clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' )
             if 'from_tables' in self.clus:
-                self.clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' )
+                clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' )
             if 'insert_tables' in self.clus:
-                self.clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' )
+                clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' )
             if 'insert_columns' in self.clus:
-                self.clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' )
+                clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' )
             if 'update_tables' in self.clus:
-                self.clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' )
+                clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' )
             if 'create_table' in self.clus:
-                self.clus['create_table'] = map_join( self.clus['create_table'], 'full' )
+                clus['create_table'] = map_join( self.clus['create_table'], 'full' )
             if 'alter_table' in self.clus:
-                self.clus['alter_table'] = map_join( self.clus['alter_table'], 'full' )
+                clus['alter_table'] = map_join( self.clus['alter_table'], 'full' )
             if 'drop_tables' in self.clus:
-                self.clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' )
+                clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' )
             if 'where_conditions_required' in self.clus:
-                self.clus['where_conditions'] = ('('+str(self.clus['where_conditions_required'])+') AND ('+str(self.clus['where_conditions'])+')') if 'where_conditions' in self.clus else str(self.clus['where_conditions_required'])
-                del self.clus['where_conditions_required']
+                clus['where_conditions'] = ('('+str(self.clus['where_conditions_required'])+') AND ('+str(self.clus['where_conditions'])+')') if 'where_conditions' in self.clus else str(self.clus['where_conditions_required'])
+                #del self.clus['where_conditions_required']
             if 'having_conditions_required' in self.clus:
-                self.clus['having_conditions'] = ('('+str(self.clus['having_conditions_required'])+') AND ('+str(self.clus['having_conditions'])+')') if 'having_conditions' in self.clus else str(self.clus['having_conditions_required'])
-                del self.clus['having_conditions_required']
+                clus['having_conditions'] = ('('+str(self.clus['having_conditions_required'])+') AND ('+str(self.clus['having_conditions'])+')') if 'having_conditions' in self.clus else str(self.clus['having_conditions_required'])
+                #del self.clus['having_conditions_required']
             #query = self.clauses[ self.clau ].render( self.clus )
-            self.clus[ self.clau+'_clause' ] = 1
-            query = self.clauses.render( self.clus )
-        self.clear( )
+            clus[ self.clau+'_clause' ] = 1
+            query = self.clauses.render( clus )
+        #self.clear( )
         return query
-    
+
     def createView( self, view ):
         if view and self.clau:
             self.vews[ view ] = {
-                'clau':self.clau, 
+                'clau':self.clau,
                 'clus':self.clus,
                 'tbls':self.tbls,
                 'cols':self.cols
@@ -1754,16 +1755,16 @@ class Dialect:
                 del self.vews[ view ][ 'clus' ][ 'having_conditions' ]
             self.clear( )
         return self
-    
+
     def useView( self, view ):
         # using custom 'soft' view
         selected_columns = self.clus['select_columns']
-        
+
         view = self.vews[ view ]
         self.clus = defaults( self.clus, view['clus'], True, True )
         self.tbls = defaults( {}, view['tbls'], True )
         self.cols = defaults( {}, view['cols'], True )
-        
+
         # handle name resolution and recursive re-aliasing in views
         if selected_columns:
             selected_columns = self.refs( selected_columns, self.cols, True )
@@ -1774,19 +1775,19 @@ class Dialect:
                 else:
                     select_columns.append( selected_column )
             self.clus['select_columns'] = select_columns
-        
+
         return self
-    
+
     def dropView( self, view ):
         if view and (view in self.vews):
             del self.vews[ view ]
         return self
-    
+
     def prepareTpl( self, tpl, *args ):
                                 #, query, left, right
         if tpl:
             argslen = len(args)
-            
+
             if 0 == argslen:
                 query = None
                 left = None
@@ -1807,28 +1808,28 @@ class Dialect:
                 left = args[ 1 ]
                 right = args[ 2 ]
                 use_internal_query = False
-            
+
             # custom delimiters
             left = re.escape( left ) if left else '%'
             right = re.escape( right ) if right else '%'
             # custom prepared parameter format
             pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
-            
+
             if use_internal_query:
                 sql = Dialect.StringTemplate( self.sql( ), pattern )
                 #self.clear( )
             else:
                 sql = Dialect.StringTemplate( query, pattern )
-            
+
             self.tpls[ tpl ] = {
-                'sql':sql, 
+                'sql':sql,
                 'types':None
             }
         return self
-    
+
     def prepared( self, tpl, args ):
         if tpl and (tpl in self.tpls):
-            
+
             sql = self.tpls[tpl]['sql']
             types = self.tpls[tpl]['types']
             if types is None:
@@ -1847,24 +1848,24 @@ class Dialect:
                             types[ k[0] ] = "s"
                             sql.tpl[ i ][ 1 ] = k[0]
                 self.tpls[tpl]['types'] = types
-            
+
             params = { }
             for k in args:
-                
+
                 v = args[k]
                 type = types[k] if k in types else "s"
-                if 'r'==type: 
+                if 'r'==type:
                     # raw param
                     if is_array(v):
                         params[k] = ','.join(v)
                     else:
                         params[k] = v
-                
-                elif 'l'==type: 
+
+                elif 'l'==type:
                     # like param
                     params[k] = self.like( v )
-                
-                elif 'f'==type: 
+
+                elif 'f'==type:
                     if is_array(v):
                         # array of references, e.g fields
                         tmp = array( v )
@@ -1873,33 +1874,33 @@ class Dialect:
                     else:
                         # reference, e.g field
                         params[k] = Ref.parse( v, self ).aliased
-                
-                elif 'd'==type: 
+
+                elif 'd'==type:
                     if is_array(v):
                         # array of integers param
                         params[k] = ','.join(self.intval2str( array(v) ))
                     else:
                         # integer param
                         params[k] = self.intval2str( v )
-                
-                #elif 's'==type: 
-                else: 
+
+                #elif 's'==type:
+                else:
                     if is_array(v):
                         # array of strings param
                         params[k] = ','.join(self.quote( array(v) ))
                     else:
                         # string param
                         params[k] = self.quote( v )
-            
+
             return sql.render( params )
         return ''
-    
+
     def prepare( self, query, args, left=None, right=None ):
         if query and args:
             # custom delimiters
             left = re.escape( left ) if left else '%'
             right = re.escape( right ) if right else '%'
-            
+
             # custom prepared parameter format
             pattern = re.compile(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right)
             prepared = ''
@@ -1910,19 +1911,19 @@ class Dialect:
                 param = m.group(2)
                 if param in args:
                     type = m.group(1)[0:-1] if m.group(1) else "s"
-                    
-                    if 'r'==type: 
+
+                    if 'r'==type:
                         # raw param
                         if is_array(args[param]):
                             param = ','.join(args[param])
                         else:
                             param = args[param]
-                    
-                    elif 'l'==type: 
+
+                    elif 'l'==type:
                         # like param
                         param = self.like( args[param] )
-                    
-                    elif 'f'==type: 
+
+                    elif 'f'==type:
                         if is_array(args[param]):
                             # array of references, e.g fields
                             tmp = array( args[param] )
@@ -1931,54 +1932,54 @@ class Dialect:
                         else:
                             # reference, e.g field
                             param = Ref.parse( args[param], self ).aliased
-                    
-                    elif 'd'==type: 
+
+                    elif 'd'==type:
                         if is_array(args[param]):
                             # array of integers param
                             param = ','.join(self.intval2str( array(args[param]) ))
                         else:
                             # integer param
                             param = self.intval2str( args[param] )
-                    
-                    #elif 's'==type: 
-                    else: 
+
+                    #elif 's'==type:
+                    else:
                         if is_array(args[param]):
                             # array of strings param
                             param = ','.join(self.quote( array(args[param]) ))
                         else:
                             # string param
                             param = self.quote( args[param] )
-                    
+
                     prepared += query[0:pos] + param
                 else:
                     prepared += query[0:pos] + self.quote('')
                 query = query[pos+le:]
                 m = pattern.search( query )
-            
+
             if len(query): prepared += query
             return prepared
 
         return query
-    
+
     def dropTpl( self, tpl ):
         if tpl and (tpl in self.tpls):
            self.tpls[ tpl ]['sql'].dispose( )
            del self.tpls[ tpl ]
         return self
-    
+
     def StartTransaction( self, type=None, start_transaction_clause='start_transaction' ):
         if self.clau != start_transaction_clause: self.reset(start_transaction_clause)
         self.clus['type'] = type if not empty(type) else None
         return self
-    
+
     def CommitTransaction( self, commit_transaction_clause='commit_transaction' ):
         if self.clau != commit_transaction_clause: self.reset(commit_transaction_clause)
         return self
-    
+
     def RollbackTransaction( self, rollback_transaction_clause='rollback_transaction' ):
         if self.clau != rollback_transaction_clause: self.reset(rollback_transaction_clause)
         return self
-    
+
     def Transaction( self, options, transact_clause='transact' ):
         if self.clau != transact_clause: self.reset(transact_clause)
         options = {} if empty(options) else options
@@ -1991,7 +1992,7 @@ class Dialect:
             else:
                 self.clus['statements'] = self.clus['statements'] + statements
         return self
-    
+
     def Create( self, table, options=None, create_clause='create' ):
         if self.clau != create_clause: self.reset(create_clause)
         options = {'ifnotexists':1} if empty(options) else options
@@ -2008,7 +2009,7 @@ class Dialect:
             opts = array(options['table'])
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
-    
+
     def Alter( self, table, options=None, alter_clause='alter' ):
         if self.clau != alter_clause: self.reset(alter_clause)
         table = self.refs( table, self.tbls )
@@ -2022,7 +2023,7 @@ class Dialect:
             opts = array(options['table'])
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
-    
+
     def Drop( self, tables='*', options=None, drop_clause='drop' ):
         if self.clau != drop_clause: self.reset(drop_clause)
         view = tables[0] if is_array( tables ) else tables
@@ -2030,7 +2031,7 @@ class Dialect:
             # drop custom 'soft' view
             self.dropView( view )
             return self
-        
+
         if is_string(tables): tables = tables.split(',')
         tables = self.refs( '*' if not tables else tables, self.tbls )
         options = {'ifexists':1} if empty(options) else options
@@ -2042,7 +2043,7 @@ class Dialect:
         else:
             self.clus['drop_tables'] = self.clus['drop_tables'] + tables
         return self
-    
+
     def Select( self, columns='*', select_clause='select' ):
         if self.clau != select_clause: self.reset(select_clause)
         if is_string(columns): columns = columns.split(',')
@@ -2052,7 +2053,16 @@ class Dialect:
         else:
             self.clus['select_columns'] = self.clus['select_columns'] + columns
         return self
-    
+
+    def Union( self, selects, all=False, union_clause='union' ):
+        if self.clau != union_clause: self.reset(union_clause)
+        if ('union_selects' not in self.clus) or not len(self.clus['union_selects']):
+            self.clus['union_selects'] = array(selects)
+        else:
+            self.clus['union_selects'] = self.clus['union_selects'] + array(selects)
+        self.clus['union_all'] = '' if bool(all) else None
+        return self
+
     def Insert( self, tables, columns, insert_clause='insert' ):
         if self.clau != insert_clause: self.reset(insert_clause);
         view = tables[0] if is_array( tables ) else tables
@@ -2073,7 +2083,7 @@ class Dialect:
             else:
                 self.clus['insert_columns'] = self.clus['insert_columns'] + columns
         return self
-    
+
     def Values( self, values ):
         if empty(values): return self
         # array of arrays
@@ -2099,7 +2109,7 @@ class Dialect:
             insert_values = self.clus['values_values'] + ',' + insert_values
         self.clus['values_values'] = insert_values
         return self
-    
+
     def Update( self, tables, update_clause='update' ):
         if self.clau != update_clause: self.reset(update_clause)
         view = tables[0] if is_array( tables ) else tables
@@ -2114,7 +2124,7 @@ class Dialect:
             else:
                 self.clus['update_tables'] = self.clus['update_tables'] + tables
         return self
-    
+
     def Set( self, fields_values ):
         if empty(fields_values): return self
         set_values = []
@@ -2122,7 +2132,7 @@ class Dialect:
         for f in fields_values:
             field = self.refs( f, COLS )[0].full
             value = fields_values[f]
-            
+
             if is_obj(value):
                 if 'raw' in value:
                     set_values.append( field + " = " + value['raw'] )
@@ -2153,11 +2163,11 @@ class Dialect:
             set_values = self.clus['set_values'] + ',' + set_values
         self.clus['set_values'] = set_values
         return self
-    
+
     def Delete( self, delete_clause='delete' ):
         if self.clau != delete_clause: self.reset(delete_clause)
         return self
-    
+
     def From( self, tables ):
         if empty(tables): return self
         view = tables[0] if is_array( tables ) else tables
@@ -2172,7 +2182,7 @@ class Dialect:
             else:
                 self.clus['from_tables'] = self.clus['from_tables'] + tables
         return self
-    
+
     def Join( self, table, on_cond=None, join_type='' ):
         table = self.refs( table, self.tbls )[0].aliased
         join_type = None if empty(join_type) else str(join_type).upper()
@@ -2198,7 +2208,7 @@ class Dialect:
         if 'join_clauses' not in self.clus: self.clus['join_clauses'] = [join_clause]
         else: self.clus['join_clauses'].append(join_clause)
         return self
-    
+
     def Where( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
@@ -2208,14 +2218,14 @@ class Dialect:
             conditions = self.clus['where_conditions'] + " "+boolean_connective+" " + conditions
         self.clus['where_conditions'] = conditions
         return self
-    
+
     def Group( self, col ):
         group_condition = self.refs( col, self.cols )[0].alias
         if 'group_conditions' in self.clus and len(self.clus['group_conditions']) > 0:
             group_condition = self.clus['group_conditions'] + ',' + group_condition
         self.clus['group_conditions'] = group_condition
         return self
-    
+
     def Having( self, conditions, boolean_connective="and" ):
         if empty(conditions): return self
         boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
@@ -2225,7 +2235,7 @@ class Dialect:
             conditions = self.clus['having_conditions'] + " "+boolean_connective+" " + conditions
         self.clus['having_conditions'] = conditions
         return self
-    
+
     def Order( self, col, dir="asc" ):
         dir = dir.upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
@@ -2234,49 +2244,49 @@ class Dialect:
             order_condition = self.clus['order_conditions'] + ',' + order_condition
         self.clus['order_conditions'] = order_condition
         return self
-    
+
     def Limit( self, count, offset=0 ):
         self.clus['count'] = int(count,10) if is_string(count) else count
         self.clus['offset'] = int(offset,10) if is_string(offset) else offset
         return self
-    
+
     def Page( self, page, perpage ):
         page = int(page,10) if is_string(page) else page
         perpage = int(perpage,10) if is_string(perpage) else perpage
         return self.Limit( perpage, page*perpage )
-    
+
     def conditions( self, conditions, can_use_alias=False ):
         if empty(conditions): return ''
         if is_string(conditions): return conditions
-        
+
         condquery = ''
         conds = []
         COLS = self.cols
         fmt = 'alias' if can_use_alias is True else 'full'
-        
+
         for f in conditions:
-            
+
             value = conditions[f]
-            
+
             if is_obj( value ):
                 if 'raw' in value:
                     conds.append(str(value['raw']))
                     continue
-                
+
                 if 'or' in value:
                     cases = []
                     for or_cl in value['or']:
                         cases.append(self.conditions(or_cl, can_use_alias))
                     conds.append(' OR '.join(cases))
                     continue
-                
+
                 if 'and' in value:
                     cases = []
                     for and_cl in value['and']:
                         cases.append(self.conditions(and_cl, can_use_alias))
                     conds.append(' AND '.join(cases))
                     continue
-                
+
                 if 'either' in value:
                     cases = []
                     for either in value['either']:
@@ -2285,7 +2295,7 @@ class Dialect:
                         cases.append(self.conditions(case_i, can_use_alias))
                     conds.append(' OR '.join(cases))
                     continue
-                
+
                 if 'together' in value:
                     cases = []
                     for together in value['together']:
@@ -2294,10 +2304,10 @@ class Dialect:
                         cases.append(self.conditions(case_i, can_use_alias))
                     conds.append(' AND '.join(cases))
                     continue
-                
+
                 field = getattr(self.refs( f, COLS )[0], fmt)
                 type = value['type'] if 'type' in value else 'string'
-                
+
                 if 'case' in value:
                     cases = field + " = CASE"
                     if 'when' in value['case']:
@@ -2318,7 +2328,7 @@ class Dialect:
                     conds.append( field + " NOT LIKE " + (str(value['not_like']) if 'raw' == type else self.like(value['not_like'])) )
                 elif 'contains' in value:
                     v = str(value['contains'])
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2327,7 +2337,7 @@ class Dialect:
                     conds.append(self.sql_function('strpos', [field,v]) + ' > 0')
                 elif 'not_contains' in value:
                     v = str(value['not_contains'])
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2336,7 +2346,7 @@ class Dialect:
                     conds.append(self.sql_function('strpos', [field,v]) + ' = 0')
                 elif 'in' in value:
                     v = array( value['in'] )
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2347,7 +2357,7 @@ class Dialect:
                     conds.append( field + " IN (" + ','.join(v) + ")" )
                 elif 'not_in' in value:
                     v = array( value['not_in'] )
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2358,7 +2368,7 @@ class Dialect:
                     conds.append( field + " NOT IN (" + ','.join(v) + ")" )
                 elif 'between' in value:
                     v = array( value['between'] )
-                    
+
                     # partial between clause
                     if v[0] is None:
                         # switch to lte clause
@@ -2391,7 +2401,7 @@ class Dialect:
                         conds.append( field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]) )
                 elif 'not_between' in value:
                     v = array( value['not_between'] )
-                    
+
                     # partial between clause
                     if v[0] is None:
                         # switch to gt clause
@@ -2425,7 +2435,7 @@ class Dialect:
                 elif ('gt' in value) or ('gte' in value):
                     op = 'gt' if 'gt' in value else "gte"
                     v = value[ op ]
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2439,7 +2449,7 @@ class Dialect:
                 elif ('lt' in value) or ('lte' in value):
                     op = 'lt' if 'lt' in value else "lte"
                     v = value[ op ]
-                    
+
                     if 'raw' == type:
                         # raw, do nothing
                         pass
@@ -2453,7 +2463,7 @@ class Dialect:
                 elif ('not_equal' in value) or ('not_eq' in value):
                     op = 'not_equal' if 'not_equal' in value else "not_eq"
                     v = value[ op ]
-                    
+
                     if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
@@ -2467,7 +2477,7 @@ class Dialect:
                 elif ('equal' in value) or ('eq' in value):
                     op = 'equal' if 'equal' in value else "eq"
                     v = value[ op ]
-                    
+
                     if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
@@ -2481,15 +2491,15 @@ class Dialect:
             else:
                 field = getattr(self.refs( f, COLS )[0], fmt)
                 conds.append( (field + " IS NULL") if value is None else (field + " = " + (str(value) if is_int(value) else self.quote(value))) )
-        
+
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
-    
+
     def joinConditions( self, join, conditions ):
         j = 0
         conditions_copied = copy.copy(conditions)
         for f in conditions_copied:
-            
+
             ref = Ref.parse( f, self )
             field = ref._col
             if field not in join: continue
@@ -2498,10 +2508,10 @@ class Dialect:
             main_id = join[field]['id']
             join_table = join[field]['join']
             join_id = join[field]['join_id']
-            
+
             j += 1
             join_alias = join_table+str(j)
-            
+
             where = { }
             if ('key' in join[field]) and field != join[field]['key']:
                 join_key = join[field]['key']
@@ -2515,14 +2525,14 @@ class Dialect:
                 join_value = join_key
                 where[join_alias+'.'+join_value] = cond
             self.Join(
-                join_table+" AS "+join_alias, 
-                main_table+'.'+main_id+'='+join_alias+'.'+join_id, 
+                join_table+" AS "+join_alias,
+                main_table+'.'+main_id+'='+join_alias+'.'+join_id,
                 "inner"
             ).Where( where )
-            
+
             del conditions[f]
         return self
-    
+
     def refs( self, refs, lookup, re_alias=False ):
         if re_alias is True:
             for i in range(len(refs)):
@@ -2530,26 +2540,26 @@ class Dialect:
                 alias = ref.alias
                 qualified = ref.qualified
                 qualified_full = ref.full
-                
+
                 if '*' == qualified_full: continue
-                
+
                 if alias not in lookup:
-                    
+
                     if qualified_full in lookup:
-                        
+
                         ref2 = lookup[ qualified_full ]
                         alias2 = ref2.alias
                         qualified_full2 = ref2.full
-                        
+
                         if (qualified_full2 != qualified_full) and (alias2 != alias) and (alias2 == qualified_full):
-                            
+
                             # handle recursive aliasing
                             #if (qualified_full2 != alias2) and (alias2 in lookup):
                             #    del lookup[ alias2 ]
-                            
+
                             ref2 = ref2.cloned( ref.alias )
                             refs[i] = lookup[ alias ] = ref2
-                    
+
                     elif qualified in lookup:
                         ref2 = lookup[ qualified ]
                         if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
@@ -2560,18 +2570,18 @@ class Dialect:
                         refs[i] = lookup[ ref2.alias ] = ref2
                         if (ref2.alias != ref2.full) and (ref2.full not in lookup):
                             lookup[ ref2.full ] = ref2
-                    
+
                     else:
-                        
+
                         lookup[ alias ] = ref
-                        
+
                         if (alias != qualified_full) and (qualified_full not in lookup):
                             lookup[ qualified_full ] = ref
-                
+
                 else:
-                    
+
                     refs[i] = lookup[ alias ]
-                
+
         else:
             rs = array( refs )
             refs = [ ]
@@ -2589,21 +2599,21 @@ class Dialect:
                     ref = lookup[ alias ]
                 refs.append( ref )
         return refs
-    
+
     def tbl( self, table ):
         if is_array( table ): return [self.tbl( x ) for x in table]
         return self.p + table
-    
+
     def intval( self, v ):
         if is_int( v ): return v
         elif is_array( v ): return [self.intval( x ) for x in v]
         else: return int( v, 10 )
-    
+
     def intval2str( self, v ):
         if is_int( v ): return str(v)
         elif is_array( v ): return [self.intval2str( x ) for x in v]
         else: return str(self.intval( v ))
-    
+
     def quote_name( self, v, optional=False ):
         optional = optional is True
         qn = self.qn
@@ -2625,7 +2635,7 @@ class Dialect:
                 else:
                     ve += c
             return qn[0] + ve + qn[1]
-    
+
     def quote( self, v ):
         if is_array( v ): return [self.quote( x ) for x in v]
         q = self.q
@@ -2635,12 +2645,12 @@ class Dialect:
         if self.escdb:
             return self.escdb[0](v) if self.escdb[1] else ((e[2] if hasBackSlash else '') + q[0] + self.escdb[0](v) + q[1] + (e[3] if hasBackSlash else ''))
         return (e[2] if hasBackSlash else '') + q[0] + self.esc( v ) + q[1] + (e[3] if hasBackSlash else '')
-    
+
     def esc( self, v ):
         global NULL_CHAR
-        
+
         if is_array( v ): return [self.esc( x ) for x in v]
-        
+
         escdb = self.escdb
         v = str(v)
         if escdb and not escdb[1]: return escdb[0]( v )
@@ -2656,17 +2666,17 @@ class Dialect:
                 elif q[1] == c: ve += q[3]
                 else: ve += addslashes( c, chars, esc )
             return ve
-    
+
     def esc_like( self, v ):
         if is_array( v ): return [self.esc_like( x ) for x in v]
         return addslashes( str(v), '_%', '\\' )
-    
+
     def like( self, v ):
         if is_array( v ): return [self.like( x ) for x in v]
         q = self.q
         e = ['','','',''] if self.escdb else self.e
         return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]
-    
+
     def multi_like( self, f, v, trimmed=True ):
         trimmed = trimmed is not False
         like = f + " LIKE "
@@ -2678,7 +2688,7 @@ class Dialect:
             for j in range(len(ANDs)): ANDs[j] = like + self.like( ANDs[j] )
             ORs[i] = '(' + ' AND '.join(ANDs) + ')'
         return ' OR '.join(ORs)
-    
+
     def sql_function( self, f, args=None ):
         if f not in Dialect.dialects[ self.type ][ 'functions' ]:
             raise ValueError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"')
@@ -2692,7 +2702,7 @@ class Dialect:
             is_arg = not is_arg
         return func
 
-    
+
     def sql_type( self, data_type ):
         data_type = str(data_type).upper()
         if data_type not in Dialect.dialects[ self.type ][ 'types' ]:

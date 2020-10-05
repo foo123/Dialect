@@ -1,21 +1,21 @@
 Dialect
 =======
 
-**Cross-Vendor &amp; Cross-Platform SQL Query Builder for `PHP`, `Python`, `Browser` / `Node.js` / `XPCOM` `Javascript`**
+**Cross-Vendor &amp; Cross-Platform SQL Query Builder for PHP, Python, JavaScript**
 
 ![Dialect](/dialect.jpg)
 
 [Etymology of *"dialect"*](http://www.etymonline.com/index.php?term=dialect)
 
 
-**see also:**  
+**see also:**
 
 * [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Python, Browser / Node.js / XPCOM JavaScript (can be used as plugins for Contemplate engine as well)
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM JavaScript
-* [TinyORM](https://github.com/foo123/TinyORM) a flexible, super-simple Object-Relational-Mapper w/ Relationships PHP, Python, JavaScript
+* [TinyORM](https://github.com/foo123/TinyORM) a flexible, super-simple Object-Relational-Mapper w/ Relationships for PHP, Python, JavaScript
 * [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM JavaScript
@@ -31,17 +31,16 @@ Dialect
 
 * [Requirements](#requirements)
 * [DB vendor sql support](#db-vendor-sql-support)
+* [Dependencies](#dependencies)
 * [Features](#features)
 * [API Reference](#api-reference)
 * [TODO](#todo)
 * [Performance](#performance)
 
 
-
-
 ### Requirements
 
-* Support multiple DB vendors (eg. `MySQL`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), `Oracle`, .. )
+* Support multiple DB vendors (eg. `MySQL`, `MariaDB`, `PostgreSQL`, `SQLite`, `Transact-SQL` (`SQL Server`), ..)
 * Easily extended to new `DB`s ( prefereably through a, implementation-independent, config setting )
 * Light-weight ( one class/file per implementation if possible )
 * Speed
@@ -52,14 +51,21 @@ Dialect
 
 ### DB vendor sql support
 
-**(almost complete, easy to extend further)**
+**(complete except for `CREATE` and `ALTER` sql clauses which are only half-complete due to many different vendor-specific parameters)**
 
-1. [`MySQL`](http://dev.mysql.com/doc/refman/5.7/en/)
-2. [`PostgreSQL`](http://www.postgresql.org/docs/9.1/static/reference.html)
-3. [`Transact-SQL` (`SQL Server`)](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
+1. [`MySQL`](https://dev.mysql.com/doc/refman/5.7/en/)
+2. [`MariaDB`](https://mariadb.com/kb/en/sql-statements/)
+3. [`PostgreSQL`](https://www.postgresql.org/docs/9.1/reference.html)
 4. [`SQLite`](https://www.sqlite.org/lang.html)
-5. `Oracle`, .. [TODO]
+5. [`Transact-SQL` (`SQL Server`)](https://msdn.microsoft.com/en-us/library/bb510741.aspx)
 
+
+
+### Dependencies
+
+* **PHP: 5.2+**
+* **Python: 2.x or 3.x**
+* **JavaScript: ES5+**
 
 
 ### Features
@@ -67,13 +73,13 @@ Dialect
 
 **Grammar Templates**
 
-`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: [`grammar templates`](https://github.com/foo123/GrammarTemplate), to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` providers.
+`Dialect` (`v.0.5.0+`) uses a powerful, fast, flexible and intuitive concept: [`grammar templates`](https://github.com/foo123/GrammarTemplate), to configure an `sql` dialect, which is similar to the `SQL` (grammar) documentation format used by `SQL` vendors.
 
 
 `Dialect` uses a similar *grammar-like* template format, as a **description and generation** tool to produce `sql code` output relevant to a specific `sql` dialect.
 
 
-For example the `SELECT` clause of `MySql` can be modeled / described as follows:
+For example the `SELECT` clause of `MySql`/`MariaDB` can be modeled / described as follows:
 
 ```text
 SELECT <select_columns> [, <*select_columns> ]
@@ -118,7 +124,7 @@ SELECT rowid FROM <from_tables> [, <*from_tables> ]
 ```
 
 where `[..]` describe an optional block of `sql code` (depending on passed parameters) and `<..>` describe placeholders for `query` parameters / variables (i.e `non-terminals`).
-The optional block of code depends on whether <del>the (first)</del> **all** optional parameters defined inside (with `<?..>` or `<*..>` for rest parameters) exist. Then, that block (and any nested blocks it might contain) is output, else bypassed.
+The optional block of code depends on whether **all** optional parameters defined inside (with `<?..>` or `<*..>` for rest parameters) exist. Then, that block (and any nested blocks it might contain) is output, else bypassed.
 
 
 *(for various methods to emulate `LIMIT/OFFSET` clauses see, for example, [here](http://search.cpan.org/~davebaird/SQL-Abstract-Limit-0.12/lib/SQL/Abstract/Limit.pm) and a reasonable critic [here](http://blog.jooq.org/2014/06/09/stop-trying-to-emulate-sql-offset-pagination-with-your-in-house-db-framework/))*
@@ -127,7 +133,7 @@ The optional block of code depends on whether <del>the (first)</del> **all** opt
 `Dialect` will parse this into a (fast) `grammar` template and generate appropriate `sql` output depending on the parameters given automaticaly.
 
 
-It is very easy, intuitive and powerful to produce `sql code` for an arbitrary `SQL` provider,
+It is very easy, intuitive and powerful to produce `sql code` for an arbitrary `SQL` vendor,
 by defining the `grammar` of `sql clauses` (sometimes even directly from the `SQL` documentation page, or with only minor adjustments).
 
 
@@ -144,7 +150,7 @@ The whole point of `Dialect` from the start was to use intuitive configuration t
 **Multiple variations of a clause**
 
 
-`Dialect` supports using multiple variations of the same `SQL` clause, very easily. 
+`Dialect` supports using multiple variations of the same `SQL` clause, very easily.
 
 For example, a main `DELETE` clause for `SQLite` with `LIMIT` emulation and another variation (e.g `'delete_with_limit_clause'`) when `SQLite` is configured to allow `LIMIT` clauses in `DELETE` clauses (which is not a default setting out-of-the-box).
 
@@ -172,7 +178,7 @@ Reasons to support `soft views` are:
 
 
 `Dialect` stores a `sql` definition as a `view` and whenever this soft `view` is used, the actual `sql` definition
-is transparently used underneath (with some care for name resolution, selection, re-aliasing, conflicts and so on). 
+is transparently used underneath (with some care for name resolution, selection, re-aliasing, conflicts and so on).
 
 Soft `Views` are mostly useful for `SELECT` clauses (e.g selecting from a `wordpress` post with associated `meta fields` as if they are one single custom-made table with custom column aliases, this makes code more concise, modular, safer, cleaner and transferable to other DB configurations where indeed a single table can be used and so on)
 
@@ -216,16 +222,19 @@ dialect.RollbackTransaction( );
 dialect.Transaction( Object options );
 
 // initiate CREATE directive (resets the instance state to CREATE)
-dialect.Create( String table[, Object options] );
+dialect.Create( String table[, Object options] ); // NOTE: almost complete
 
 // initiate ALTER directive (resets the instance state to ALTER)
-dialect.Alter( String table[, Object options] );
+dialect.Alter( String table[, Object options] ); // NOTE: almost complete
 
 // initiate DROP directive (resets the instance state to DROP)
 dialect.Drop( String table[, Object options] );
 
 // initiate SELECT directive (resets the instance state to SELECT)
 dialect.Select( String | Array fields='*' );
+
+// initiate Union or Union All directive (resets the instance state to UNION)
+dialect.Union( Array select_subqueries, all=false );
 
 // initiate INSERT directive (resets the instance state to INSERT)
 dialect.Insert( String | Array tables, String | Array fields );
@@ -266,7 +275,7 @@ dialect.Limit( Number count [, Number offset=0] );
 // PAGE directive (an alias of LIMIT)
 dialect.Page( Number page, Number perpage );
 
-// get final sql code as string (resets the instance state after this)
+// get sql code (up to this point) as string
 // dialect.toString( ) will do same
 var sql_code = dialect.sql( );
 
@@ -290,7 +299,7 @@ var prepared_sql = dialect.prepare( String sql_code, Object parameters [, String
 var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", {key:'12'} );
 
 // available optional modifiers:
-// NOTE: any quotes will be added automaticaly, 
+// NOTE: any quotes will be added automaticaly,
 // quotes, for example for parameters representing strings, should not be added manualy
 // r:       raw, pass as is
 // l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
@@ -302,7 +311,7 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 
 
 //
-// EXPERIMENTAL FEATURE: 
+// EXPERIMENTAL FEATURE:
 // Create custom "soft" views and treat as usual tables
 
 // define/create a custom soft view
@@ -327,7 +336,7 @@ dialect.dropView('my_view');
 
 
 //
-// EXPERIMENTAL FEATURE: 
+// EXPERIMENTAL FEATURE:
 // Create prepared sql queries as pre-compiled templates (parses sql only once on template creation)
 
 // define/create a prepared sql query template
@@ -356,12 +365,15 @@ dialect.dropTpl('prepared_query');
 
 * add full support for custom soft views [DONE]
 * add support for native sql functions [DONE]
+* support `UNION [ALL]` clause [DONE]
 * add full support for sql directives (e.g `create table/view`, `drop table/view`, `begin transaction`, `alter table/view`) [ALMOST DONE]
 * add support for subqueries [DONE]
 * allow general subqueries both as conditions in WHERE clauses ( eg IN ([SUBQUERY]) ) and/or as custom dynamic columns and tables (with aliases) ( eg SELECT column FROM ([SUBQUERY]) AS table) [DONE]
 * optimise and generalise grammar-templates abit, use only one (conditional) grammar template for all sql clauses for speed [DONE]
-* add support for other sql vendors (e.g `Oracle`, `DB2`, .. )
+* add support for other sql vendors (e.g `Oracle`, .. )
 
 
 
 ### Performance
+
+(TODO)

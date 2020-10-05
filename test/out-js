@@ -1,11 +1,11 @@
-Dialect.VERSION = 1.2.0
+Dialect.VERSION = 1.3.0
 
 SQL dialect = transactsql
 
-SELECT COUNT([t].[f0]) AS [f0],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f11],[t].[f1] AS [f111],COUNT(DISTINCT([t].[f1])) AS [f22],COUNT(DISTINCT([t].[f2]))
+SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],COUNT([t].[f0]) AS [f0],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f11],[t].[f1] AS [f111],COUNT(DISTINCT([t].[f1])) AS [f22],COUNT(DISTINCT([t].[f2]))
 FROM [t]
 INNER JOIN [t2] ON (([t].[id] = [t2].[id]))
-WHERE (([t].[f1] = '2')) AND (([t].[f2] = '3') OR ([t].[f2] = '1'))
+WHERE (([t].[f1] = '2')) AND (([t].[f1] = %d:id%) AND ([t].[f1] = %d:id%) OR ([t].[f2] = '3') OR ([t].[f2] = '1'))
 ORDER BY 1
 OFFSET 100 ROWS FETCH NEXT 100 ROWS ONLY
 
@@ -13,21 +13,38 @@ SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
 FROM [t]
 WHERE ([t].[f1] = 12)
 
-SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
-FROM [t]
-WHERE ([t].[f1] = 12)
+SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3]
+FROM [t],[t]
+WHERE ([t].[f1] = 12) AND ([t].[f1] = 12)
 
-SELECT *
-FROM [table] AS [main]
+SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],COUNT([t].[f0]) AS [f0],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f11],[t].[f1] AS [f111],COUNT(DISTINCT([t].[f1])) AS [f22],COUNT(DISTINCT([t].[f2])),*
+FROM [t],[table] AS [main]
+INNER JOIN [t2] ON (([t].[id] = [t2].[id]))
 INNER JOIN [usermeta] AS [usermeta1] ON ([main].[ID]=[usermeta1].[user_id])
-WHERE ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[name] LIKE %l:name%) AND ([main].[str] = %str%) AND ([main].[year] = 2000) AND (([main].[foo] = ',*,') OR (CHARINDEX(',12,',[main].[foo]) > 0)) AND ([main].[null] IS NULL) AND ([main].[not_null] IS NOT NULL)
+WHERE (([t].[f1] = '2')) AND (([t].[f1] = %d:id%) AND ([t].[f1] = %d:id%) OR ([t].[f2] = '3') OR ([t].[f2] = '1') AND ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[name] LIKE %l:name%) AND ([main].[str] = %str%) AND ([main].[year] = 2000) AND (([main].[foo] = ',*,') OR (CHARINDEX(',12,',[main].[foo]) > 0)) AND ([main].[null] IS NULL) AND ([main].[not_null] IS NOT NULL))
 ORDER BY [main].[field1] ASC,[main].[field2] ASC
 OFFSET 2000 ROWS FETCH NEXT 1000 ROWS ONLY
 
-SELECT *
-FROM [table] AS [main]
+SELECT [t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],COUNT([t].[f0]) AS [f0],[t].[f1] AS [f1],[t].[f2] AS [f2],[t2].[f3] AS [f3],[t].[f1] AS [f11],[t].[f1] AS [f111],COUNT(DISTINCT([t].[f1])) AS [f22],COUNT(DISTINCT([t].[f2])),*
+FROM [t],[table] AS [main]
+INNER JOIN [t2] ON (([t].[id] = [t2].[id]))
 INNER JOIN [usermeta] AS [usermeta1] ON ([main].[ID]=[usermeta1].[user_id])
-WHERE ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[name] LIKE '%na\%me%' ESCAPE '\') AND ([main].[str] = 'a string') AND ([main].[year] = 2000) AND (([main].[foo] = ',*,') OR (CHARINDEX(',12,',[main].[foo]) > 0)) AND ([main].[null] IS NULL) AND ([main].[not_null] IS NOT NULL)
+WHERE (([t].[f1] = '2')) AND (([t].[f1] = '') AND ([t].[f1] = '') OR ([t].[f2] = '3') OR ([t].[f2] = '1') AND ([usermeta1].[meta_key] = 'project') AND ([usermeta1].[meta_value] IN (1,2,3)) AND ([main].[name] LIKE '%na\%me%' ESCAPE '\') AND ([main].[str] = 'a string') AND ([main].[year] = 2000) AND (([main].[foo] = ',*,') OR (CHARINDEX(',12,',[main].[foo]) > 0)) AND ([main].[null] IS NULL) AND ([main].[not_null] IS NOT NULL))
 ORDER BY [main].[field1] ASC,[main].[field2] ASC
 OFFSET 2000 ROWS FETCH NEXT 1000 ROWS ONLY
+
+(SELECT *
+FROM [t1]
+ORDER BY 1
+OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY)
+UNION ALL
+(SELECT *
+FROM [t2]
+ORDER BY 1
+OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY)
+
+SELECT *
+FROM [table]
+SELECT *
+FROM [table]
 

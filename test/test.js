@@ -79,6 +79,10 @@ var query = dialect
     
 var prepared = dialect.prepare(query, {'name':'na%me','str':'a string'});
 
+var union = dialect.Union([dialect.subquery().Select('*').From('t1').Limit(10).sql(), dialect.subquery().Select('*').From('t2').Limit(5).sql()], true).Limit(100).sql( );
+
+var sql = dialect.Select().From('table');
+
 echo( 'SQL dialect = ' + dialect.type );
 echo( );
 echo( query_soft_view );
@@ -90,4 +94,8 @@ echo( );
 echo( query );
 echo( );
 echo( prepared );
+echo( );
+echo( union );
+echo( );
+echo( [sql.sql(), sql.sql()].join("\n") );
 echo( );

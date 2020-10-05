@@ -86,6 +86,10 @@ $query = $dialect
     
 $prepared = $dialect->prepare($query, array('name'=>'na%me','str'=>'a string'));
 
+$union = $dialect->Union(array($dialect->subquery()->Select('*')->From('t1')->Limit(10)->sql(), $dialect->subquery()->Select('*')->From('t2')->Limit(5)->sql()), true)->Limit(100)->sql( );
+
+$sql = $dialect->Select()->From('table');
+
 echo_( 'SQL dialect = ' . $dialect->type );
 echo_( );
 echo_( $query_soft_view );
@@ -97,4 +101,8 @@ echo_( );
 echo_( $query );
 echo_( );
 echo_( $prepared );
+echo_( );
+echo_( $union );
+echo_( );
+echo_( implode("\n", array($sql->sql(), $sql->sql())) );
 echo_( );
