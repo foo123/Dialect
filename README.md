@@ -15,7 +15,7 @@ Dialect
 * [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Python, Browser / Node.js / XPCOM JavaScript (can be used as plugins for Contemplate engine as well)
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for PHP, Python, Browser / Node.js / XPCOM JavaScript
-* [TinyORM](https://github.com/foo123/TinyORM) a flexible, super-simple Object-Relational-Mapper w/ Relationships for PHP, Python, JavaScript
+* [DialectORM](https://github.com/foo123/DialectORM) a flexible, super-simple Object-Relational-Mapper w/ Relationships for PHP, Python, JavaScript
 * [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Browser / Node.js / XPCOM JavaScript
 * [Xpresion](https://github.com/foo123/Xpresion) a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Browser / Node.js / XPCOM JavaScript
