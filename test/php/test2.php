@@ -1,6 +1,6 @@
 <?php
-include "../src/php/Dialect.php";
-function echo_($s='')
+include "../../src/php/Dialect.php";
+function echo_($s = '')
 {
     echo $s . PHP_EOL;
 }
@@ -8,11 +8,11 @@ function echo_($s='')
 echo_('Dialect.VERSION = ' . Dialect::VERSION);
 echo_();
 
-$dialect = new Dialect( 'sqlserver' );
+$dialect = new Dialect('sqlserver');
 
-echo_($dialect->Create('new_table', array(
-    'ifnotexists'=> true,
-    'columns'=> array(
+echo_($dialect->clear()->Create('new_table', array(
+    'ifnotexists' => true,
+    'columns' => array(
         array('column'=>'id', 'type'=>'bigint(20)', 'isnotnull'=>1, 'auto_increment'=>1),
         array('column'=>'name', 'type'=>'tinytext', 'isnotnull'=>1, 'default_value'=>"''"),
         array('column'=>'categoryid', 'type'=>'bigint(20)', 'isnotnull'=>1, 'default_value'=>0),
@@ -30,7 +30,7 @@ echo_($dialect->Create('new_table', array(
 
 echo_();
 
-echo_($dialect->Create('new_view', array(
+echo_($dialect->clear()->Create('new_view', array(
     'view'=> true,
     'ifnotexists'=> true,
     'columns'=> array('id', 'name'),

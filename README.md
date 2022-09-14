@@ -5,6 +5,9 @@ Dialect
 
 ![Dialect](/dialect.jpg)
 
+version **1.4.0**
+
+
 [Etymology of *"dialect"*](http://www.etymonline.com/index.php?term=dialect)
 
 
@@ -297,8 +300,8 @@ var subquery_sql = dialect.subquery( ).Select('column').From('table').Where({'co
 // prepare a sql_code_string with passed parameters
 var prepared_sql = dialect.prepare( String sql_code, Object parameters [, String left_delimiter='%', String right_delimiter='%'] );
 
-// example, will automaticaly typecast the key to integer (i.e "d:" modifier)
-var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", {key:'12'} );
+// example, will automaticaly typecast the key to integer (i.e "i:" modifier)
+var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %i:key%", {key:'12'} );
 
 // available optional modifiers:
 // NOTE: any quotes will be added automaticaly,
@@ -306,7 +309,8 @@ var prepared = dialect.prepare("SELECT * FROM `table` WHERE `field` = %d:key%", 
 // r:       raw, pass as is
 // l:       typecast to string suitable for a "LIKE" argument with appropriate quotes
 // f:       typecast to escaped string or comma-separated list of escaped strings representing identifier, table or field reference(s) with appropriate quotes (see `.escapeId` method above)
-// d:       typecast to integer or comma-separated list of integers
+// i:       typecast to integer or comma-separated list of integers
+// d:       typecast to float or comma-separated list of floats
 // s:       typecast to escaped string or comma-separated list of escaped strings with appropriate quotes (see `.escape` method above)
 // if no modifier is present default typecasting is "s:" modifier, i.e as escaped and quoted string
 
@@ -371,7 +375,7 @@ dialect.dropTpl('prepared_query');
 * add full support for sql directives (e.g `create table/view`, `drop table/view`, `begin transaction`, `alter table/view`) [ALMOST DONE]
 * add support for subqueries [DONE]
 * allow general subqueries both as conditions in WHERE clauses ( eg IN ([SUBQUERY]) ) and/or as custom dynamic columns and tables (with aliases) ( eg SELECT column FROM ([SUBQUERY]) AS table) [DONE]
-* optimise and generalise grammar-templates abit, use only one (conditional) grammar template for all sql clauses for speed [DONE]
+* optimise and generalise grammar-templates abit, use different template per sql clause [DONE]
 * add support for other sql vendors (e.g `Oracle`, .. )
 
 

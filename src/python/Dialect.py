@@ -2,7 +2,7 @@
 #   Dialect,
 #   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, JavaScript
 #
-#   @version: 1.3.0
+#   @version: 1.4.0
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -18,7 +18,7 @@ NEWLINE = re.compile(r'\n\r|\r\n|\n|\r')
 SQUOTE = re.compile(r"'")
 T_REGEXP = type(SQUOTE)
 
-def pad( s, n, z='0', pad_right=False ):
+def pad(s, n, z = '0', pad_right = False):
     ps = str(s)
     if pad_right:
         while len(ps) < n: ps += z
@@ -27,16 +27,16 @@ def pad( s, n, z='0', pad_right=False ):
     return ps
 
 GUID = 0
-def guid( ):
+def guid():
     global GUID
     GUID += 1
     return pad(hex(int(time.time()))[2:],12)+'__'+pad(hex(GUID)[2:],4)#+'__'+pad(hex(random.randint(0, 1000))[2:],4)
 
 
-def createFunction( args, sourceCode, additional_symbols=dict() ):
+def createFunction(args, sourceCode, additional_symbols = dict()):
     # http://code.activestate.com/recipes/550804-create-a-restricted-python-function-from-a-string/
 
-    funcName = 'dialect_dyna_func_' + guid( )
+    funcName = 'dialect_dyna_func_' + guid()
 
     # The list of symbols that are included by default in the generated
     # function's environment
@@ -142,37 +142,37 @@ class StringTemplate:
     guid = guid
     createFunction = createFunction
 
-    def multisplit(tpl, reps, as_array=False):
+    def multisplit(tpl, reps, as_array = False):
         a = [ [1, tpl] ]
         reps = enumerate(reps) if as_array else reps.items()
         for r,s in reps:
 
-            c = [ ]
+            c = []
             sr = s if as_array else r
             s = [0, s]
             for ai in a:
 
-                if 1 == ai[ 0 ]:
+                if 1 == ai[0]:
 
-                    b = ai[ 1 ].split( sr )
+                    b = ai[1].split(sr)
                     bl = len(b)
-                    c.append( [1, b[0]] )
+                    c.append([1, b[0]])
                     if bl > 1:
                         for bj in b[1:]:
 
-                            c.append( s )
-                            c.append( [1, bj] )
+                            c.append(s)
+                            c.append([1, bj])
 
                 else:
 
-                    c.append( ai )
+                    c.append(ai)
 
 
             a = c
         return a
 
-    def multisplit_re( tpl, rex ):
-        a = [ ]
+    def multisplit_re(tpl, rex):
+        a = []
         i = 0
         m = rex.search(tpl, i)
         while m:
@@ -193,7 +193,7 @@ class StringTemplate:
         a.append([1, tpl[i:]])
         return a
 
-    def arg(key=None, argslen=None):
+    def arg(key = None, argslen = None):
         out = 'args'
 
         if None != key:
@@ -218,7 +218,7 @@ class StringTemplate:
 
         return out
 
-    def compile(tpl, raw=False):
+    def compile(tpl, raw = False):
         global NEWLINE
         global SQUOTE
 
@@ -227,8 +227,8 @@ class StringTemplate:
             out = 'return ('
             for tpli in tpl:
 
-                notIsSub = tpli[ 0 ]
-                s = tpli[ 1 ]
+                notIsSub = tpli[0]
+                s = tpli[1]
                 out += s if notIsSub else StringTemplate.arg(s)
 
             out += ')'
@@ -238,8 +238,8 @@ class StringTemplate:
             out = 'return ('
             for tpli in tpl:
 
-                notIsSub = tpli[ 0 ]
-                s = tpli[ 1 ]
+                notIsSub = tpli[0]
+                s = tpli[1]
                 if notIsSub: out += "'" + re.sub(NEWLINE, "' + \"\\n\" + '", re.sub(SQUOTE, "\\'", s)) + "'"
                 else: out += " + str(" + StringTemplate.arg(s,"argslen") + ") + "
 
@@ -250,7 +250,7 @@ class StringTemplate:
 
     defaultArgs = re.compile(r'\$(-?[0-9]+)')
 
-    def __init__(self, tpl='', replacements=None, compiled=False):
+    def __init__(self, tpl = '', replacements = None, compiled = False):
         global T_REGEXP
 
         self.id = None
@@ -277,31 +277,31 @@ class StringTemplate:
             replacements = self._args[1]
             compiled = self._args[2]
             self._args = None
-            self.tpl = StringTemplate.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else StringTemplate.multisplit( tpl, replacements )
+            self.tpl = StringTemplate.multisplit_re(tpl, replacements) if isinstance(replacements, T_REGEXP) else StringTemplate.multisplit(tpl, replacements)
             self._parsed = True
-            if compiled is True: self._renderer = StringTemplate.compile( self.tpl )
+            if compiled is True: self._renderer = StringTemplate.compile(self.tpl)
         return self
 
-    def render(self, args=None):
-        if None == args: args = [ ]
+    def render(self, args = None):
+        if None == args: args = []
 
         if self._parsed is False:
             # lazy init
-            self.parse( )
+            self.parse()
 
-        if self._renderer: return self._renderer( args )
+        if callable(self._renderer): return self._renderer(args)
 
         out = ''
         for t in self.tpl:
-            if 1 == t[0]: out += t[ 1 ]
+            if 1 == t[0]: out += t[1]
             else:
-                s = t[ 1 ]
-                out += '' if s not in args else str(args[ s ])
+                s = t[1]
+                out += '' if s not in args else str(args[s])
 
         return out
 
 # https://github.com/foo123/GrammarTemplate
-def compute_alignment( s, i, l ):
+def compute_alignment(s, i, l):
     alignment = ''
     while i < l:
         c = s[i]
@@ -312,7 +312,7 @@ def compute_alignment( s, i, l ):
             break
     return alignment
 
-def align( s, alignment ):
+def align(s, alignment):
     l = len(s)
     if l and len(alignment):
         aligned = '';
@@ -323,7 +323,7 @@ def align( s, alignment ):
         aligned = s
     return aligned
 
-def walk( obj, keys, keys_alt=None, obj_alt=None ):
+def walk(obj, keys, keys_alt = None, obj_alt = None):
     found = 0
     if keys:
         o = obj
@@ -418,18 +418,18 @@ def walk( obj, keys, keys_alt=None, obj_alt=None ):
 
 
 class StackEntry:
-    def __init__(self, stack=None, value=None):
+    def __init__(self, stack = None, value = None):
         self.prev = stack
         self.value = value
 
 class TplEntry:
-    def __init__(self, node=None, tpl=None ):
+    def __init__(self, node = None, tpl = None ):
         if tpl: tpl.next = self
         self.node = node
         self.prev = tpl
         self.next = None
 
-def multisplit( tpl, delims, postop=False ):
+def multisplit(tpl, delims, postop = False):
     IDL = delims[0]
     IDR = delims[1]
     OBL = delims[2]
@@ -837,7 +837,7 @@ def multisplit( tpl, delims, postop=False ):
     if 0 == a.node['type']: a.node['algn'] = compute_alignment(a.node['val'], 0, len(a.node['val']))
     return [roottpl, subtpl]
 
-def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
+def optional_block(args, block, SUB = None, FN = None, index = None, alignment = '', orig_args = None):
     out = ''
     block_arg = None
 
@@ -848,15 +848,15 @@ def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', or
         if opt_vars and opt_vars.value[5]:
             while opt_vars:
                 opt_v = opt_vars.value
-                opt_arg = walk( args, opt_v[1], [str(opt_v[0])], None if opt_v[6] else orig_args )
+                opt_arg = walk(args, opt_v[1], [str(opt_v[0])], None if opt_v[6] else orig_args)
                 if (block_arg is None) and (block['name'] == opt_v[0]): block_arg = opt_arg
 
                 if ((0 == opt_v[2]) and (opt_arg is None)) or ((1 == opt_v[2]) and (opt_arg is not None)): return ''
                 opt_vars = opt_vars.prev
     else:
-        block_arg = walk( args, block['key'], [str(block['name'])], None if block['loc'] else orig_args )
+        block_arg = walk(args, block['key'], [str(block['name'])], None if block['loc'] else orig_args)
 
-    arr = is_array( block_arg )
+    arr = is_array(block_arg)
     lenn = len(block_arg) if arr else -1
     #if not block['algn']: alignment = ''
     if arr and (lenn > block['start']):
@@ -864,23 +864,23 @@ def optional_block( args, block, SUB=None, FN=None, index=None, alignment='', or
         re = lenn-1 if -1==block['end'] else min(block['end'],lenn-1)
         ri = rs
         while ri <= re:
-            out += main( args, block['tpl'], SUB, FN, ri, alignment, orig_args )
+            out += main(args, block['tpl'], SUB, FN, ri, alignment, orig_args)
             ri += 1
     elif (not arr) and (block['start'] == block['end']):
-        out = main( args, block['tpl'], SUB, FN, None, alignment, orig_args )
+        out = main(args, block['tpl'], SUB, FN, None, alignment, orig_args)
 
     return out
 
-def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
+def non_terminal(args, symbol, SUB = None, FN = None, index = None, alignment = '', orig_args = None):
     out = ''
     if symbol['stpl'] and ((SUB and (symbol['stpl'] in SUB)) or (symbol['stpl'] in GrammarTemplate.subGlobal) or (FN and ((symbol['stpl'] in FN) or ('*' in FN))) or ((symbol['stpl'] in GrammarTemplate.fnGlobal) or ('*' in GrammarTemplate.fnGlobal))):
         # using custom function or sub-template
-        opt_arg = walk( args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args )
+        opt_arg = walk(args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args)
 
         if (SUB and (symbol['stpl'] in SUB)) or (symbol['stpl'] in GrammarTemplate.subGlobal):
             # sub-template
             if (index is not None) and ((0 != index) or (symbol['start'] != symbol['end']) or (not symbol['opt'])) and is_array(opt_arg):
-                opt_arg = opt_arg[ index ] if index < len(opt_arg) else None
+                opt_arg = opt_arg[index] if index < len(opt_arg) else None
 
             if (opt_arg is None) and (symbol['dval'] is not None):
                 # default value if missing
@@ -892,7 +892,7 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
                 if opt_arg is not None:
                     if is_array(opt_arg): tpl_args[tpl['name']] = opt_arg
                     else: tpl_args = opt_arg
-                out = optional_block( tpl_args, tpl, SUB, FN, None, alignment if symbol['algn'] else '', args if orig_args is None else orig_args )
+                out = optional_block(tpl_args, tpl, SUB, FN, None, alignment if symbol['algn'] else '', args if orig_args is None else orig_args)
                 #if symbol['algn']: out = align(out, alignment)
         else:#elif fn:
             # custom function
@@ -904,7 +904,7 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
 
             if is_array(opt_arg):
                 index = index if index is not None else symbol['start']
-                opt_arg = opt_arg[ index ] if index < len(opt_arg) else None
+                opt_arg = opt_arg[index] if index < len(opt_arg) else None
 
             if callable(fn):
                 fn_arg = {
@@ -915,7 +915,7 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
                     'originalArguments'   : orig_args,
                     'alignment'           : alignment
                 }
-                opt_arg = fn( opt_arg, fn_arg )
+                opt_arg = fn(opt_arg, fn_arg)
             else:
                 opt_arg = str(fn)
 
@@ -928,7 +928,7 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
 
     else:
         # plain symbol argument
-        opt_arg = walk( args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args )
+        opt_arg = walk(args, symbol['key'], [str(symbol['name'])], None if symbol['loc'] else orig_args)
 
         # default value if missing
         if is_array(opt_arg):
@@ -939,15 +939,15 @@ def non_terminal( args, symbol, SUB=None, FN=None, index=None, alignment='', ori
 
     return out
 
-def main( args, tpl, SUB=None, FN=None, index=None, alignment='', orig_args=None ):
+def main(args, tpl, SUB = None, FN = None, index = None, alignment = '', orig_args = None):
     out = ''
     current_alignment = alignment
     while tpl:
         tt = tpl.node['type']
         if -1 == tt: # optional code-block
-            out += optional_block( args, tpl.node, SUB, FN, index, current_alignment if tpl.node['algn'] else alignment, orig_args )
+            out += optional_block(args, tpl.node, SUB, FN, index, current_alignment if tpl.node['algn'] else alignment, orig_args)
         elif 1 == tt: # non-terminal
-            out += non_terminal( args, tpl.node, SUB, FN, index, current_alignment if tpl.node['algn'] else alignment, orig_args )
+            out += non_terminal(args, tpl.node, SUB, FN, index, current_alignment if tpl.node['algn'] else alignment, orig_args)
         elif 0 == tt: # terminal
             current_alignment += tpl.node['algn']
             out += tpl.node['val']
@@ -977,12 +977,12 @@ class GrammarTemplate:
     align = align
     main = main
 
-    def __init__(self, tpl='', delims=None, postop=False):
+    def __init__(self, tpl = '', delims = None, postop = False):
         self.id = None
         self.tpl = None
         self.fn = {}
         # lazy init
-        self._args = [ tpl, delims if delims else GrammarTemplate.defaultDelimiters, postop ]
+        self._args = [tpl, delims if delims else GrammarTemplate.defaultDelimiters, postop]
 
     def __del__(self):
         self.dispose()
@@ -997,38 +997,41 @@ class GrammarTemplate:
     def parse(self):
         if (self.tpl is None) and (self._args is not None):
             # lazy init
-            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1], self._args[2] )
+            self.tpl = GrammarTemplate.multisplit(self._args[0], self._args[1], self._args[2])
             self._args = None
         return self
 
-    def render(self, args=None):
+    def render(self, args = None):
         # lazy init
-        if self.tpl is None: self.parse( )
-        return GrammarTemplate.main( {} if None == args else args, self.tpl[0], self.tpl[1], self.fn )
+        if self.tpl is None: self.parse()
+        return GrammarTemplate.main({} if None == args else args, self.tpl[0], self.tpl[1], self.fn)
 
 
 import copy
 NULL_CHAR = chr(0)
 
-def is_int( v ):
+def is_int(v):
     return isinstance(v, int)
 
-def is_string( v ):
+def is_float(v):
+    return isinstance(v, float)
+
+def is_string(v):
     return isinstance(v, str)
 
-def is_obj( v ):
+def is_obj(v):
     return isinstance(v, dict)
 
-def is_array( v ):
+def is_array(v):
     return isinstance(v, (list,tuple))
 
-def array( v ):
-    return v if isinstance(v, list) else [v]
+def array(v):
+    return v if isinstance(v, list) else (list(v) if isinstance(v, tuple) else [v])
 
-def empty( v ):
+def empty(v):
     return (isinstance(v, (tuple,list,str,dict)) and 0 == len(v)) or not v
 
-def addslashes( s, chars=None, esc='\\' ):
+def addslashes(s, chars = None, esc = '\\'):
     global NULL_CHAR
     s2 = ''
     if chars is None: chars = '\\"\'' + NULL_CHAR
@@ -1036,19 +1039,19 @@ def addslashes( s, chars=None, esc='\\' ):
         s2 += c if c not in chars else ('\\0' if 0 == ord(c) else (esc+c))
     return s2
 
-def defaults( data, defau, overwrite=False, array_copy=False ):
+def defaults(data, defau, overwrite = False, array_copy = False):
     overwrite = overwrite is True
     array_copy = array_copy is True
     for k in defau:
         if overwrite or not(k in data):
-            data[ k ] = defau[ k ][:] if array_copy and isinstance(defau[ k ],list) else defau[ k ]
+            data[k] = defau[k][:] if array_copy and isinstance(defau[k], (list,tuple)) else defau[k]
     return data
 
-def map_join( arr, prop, sep=',' ):
+def map_join(arr, prop, sep = ','):
     joined = ''
     if arr and len(arr):
-        joined = getattr(arr[0], prop)
-        for i in range(1,len(arr)): joined += sep + getattr(arr[i], prop)
+        joined = str(getattr(arr[0], prop))
+        for i in range(1,len(arr)): joined += sep + str(getattr(arr[i], prop))
     return joined
 
 #def filter( data, filt, positive=True ):
@@ -1071,7 +1074,7 @@ Ref_alf_re = re.compile(r'[a-z_]', re.I)
 
 class Ref:
 
-    def parse( r, d ):
+    def parse(r, d):
         # catch passing instance as well
         if isinstance(r, Ref): return r
 
@@ -1084,7 +1087,7 @@ class Ref:
         # ( ..subquery.. ) [ AS alias]
         # and extract alias, dtb, tbl, col identifiers (if present)
         # and also extract F1,..,Fn function identifiers (if present)
-        r = r.strip( )
+        r = r.strip()
         l = len(r)
         i = 0
         stacks = [[]]
@@ -1317,7 +1320,7 @@ class Ref:
         if subquery is not None:
             if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
                 alias = ids.pop(0)
-                alias_q = d.quote_name( alias )
+                alias_q = d.quote_name(alias)
                 ids.pop(0)
 
             col = subquery
@@ -1332,38 +1335,38 @@ class Ref:
         else:
             if (len(ids) >= 3) and (5 == ids[1]) and isinstance(ids[0],str):
                 alias = ids.pop(0)
-                alias_q = d.quote_name( alias )
+                alias_q = d.quote_name(alias)
                 ids.pop(0)
 
             col = None
             col_q = ''
             if len(ids) and (isinstance(ids[0],str) or 10 == ids[0]):
-                if isinstance(ids[0],str):
-                    col = ids.pop(0)
-                    col_q = d.quote_name( col )
-                else:
+                if 10 == ids[0]:
                     ids.pop(0)
                     col = col_q = '*'
+                else:
+                    col = ids.pop(0)
+                    col_q = d.quote_name(col)
 
             tbl = None
             tbl_q = ''
             if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
                 ids.pop(0)
                 tbl = ids.pop(0)
-                tbl_q = d.quote_name( tbl )
+                tbl_q = d.quote_name(tbl)
 
             dtb = None
             dtb_q = ''
             if (len(ids) >= 2) and (0 == ids[0]) and isinstance(ids[1],str):
                 ids.pop(0)
                 dtb = ids.pop(0)
-                dtb_q = d.quote_name( dtb )
+                dtb_q = d.quote_name(dtb)
 
             tbl_col = (dtb+'.' if dtb else '') + (tbl+'.' if tbl else '') + (col if col else '')
             tbl_col_q = (dtb_q+'.' if dtb else '') + (tbl_q+'.' if tbl else '') + (col_q if col else '')
         return Ref(col, col_q, tbl, tbl_q, dtb, dtb_q, alias, alias_q, tbl_col, tbl_col_q, funcs)
 
-    def __init__( self, _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func=[] ):
+    def __init__(self, _col, col, _tbl, tbl, _dtb, dtb, _alias, alias, _qual, qual, _func = list()):
         self._col = _col
         self.col = col
         self._tbl = _tbl
@@ -1385,7 +1388,7 @@ class Ref:
             self.alias = self.full
             self.aliased = self.full
 
-    def cloned( self, alias=None, alias_q=None, func=None ):
+    def cloned(self, alias = None, alias_q = None, func = None):
         if alias is None and alias_q is None:
             alias = self._alias
             alias_q = self.alias
@@ -1393,13 +1396,13 @@ class Ref:
             alias_q = alias if alias_q is None else alias_q
         if func is None:
             func = self._func
-        return Ref( self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q,
-                    self._qualified, self.qualified, func )
+        return Ref(self._col, self.col, self._tbl, self.tbl, self._dtb, self.dtb, alias, alias_q,
+                    self._qualified, self.qualified, func)
 
-    def __del__( self ):
-        self.dispose( )
+    def __del__(self):
+        self.dispose()
 
-    def dispose( self ):
+    def dispose(self):
         self._func = None
         self._col = None
         self.col = None
@@ -1422,7 +1425,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
 
-    VERSION = '1.3.0'
+    VERSION = '1.4.0'
 
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate
@@ -1444,27 +1447,40 @@ class Dialect:
         ,"now"          : ["NOW()"]
         }
 
-		,"types"    	: {
-		 "BINARY"		: "VARBINARY"
-		,"SMALLINT"		: "TINYINT"
-		,"MEDIUMINT"	: "MEDIUMINT"
-		,"INT"			: "UNSIGNED INT"
-		,"SIGNED_INT"	: "INT"
-		,"BIGINT"		: "UNSIGNED BIGINT"
-		,"SIGNED_BIGINT": "BIGINT"
-		,"FLOAT"		: "FLOAT"
-		,"DOUBLE"   	: "DOUBLE"
-		,"BOOL"			: "TINYINT"
-		,"TIMESTAMP"	: "TIMESTAMP"
-		,"DATETIME"		: "DATETIME"
-		,"DATE"			: "DATE"
-		,"TIME"			: "TIME"
-		,"VARCHAR"	    : "VARCHAR"
-		,"TEXT"			: "TEXT"
-		,"BLOB"			: "BLOB"
-		}
+        ,"types"        : {
+         "BINARY"       : "VARBINARY"
+        ,"SMALLINT"     : "TINYINT"
+        ,"MEDIUMINT"    : "MEDIUMINT"
+        ,"INT"          : "UNSIGNED INT"
+        ,"SIGNED_INT"   : "INT"
+        ,"BIGINT"       : "UNSIGNED BIGINT"
+        ,"SIGNED_BIGINT": "BIGINT"
+        ,"FLOAT"        : "FLOAT"
+        ,"DOUBLE"       : "DOUBLE"
+        ,"BOOL"         : "TINYINT"
+        ,"TIMESTAMP"    : "TIMESTAMP"
+        ,"DATETIME"     : "DATETIME"
+        ,"DATE"         : "DATE"
+        ,"TIME"         : "TIME"
+        ,"VARCHAR"      : "VARCHAR"
+        ,"TEXT"         : "TEXT"
+        ,"BLOB"         : "BLOB"
+        }
 
-        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]]"
+        ,"clauses"      : {
+        "start_transaction" : "START TRANSACTION <type|>;",
+        "commit_transaction" : "COMMIT;",
+        "rollback_transaction" : "ROLLBACK;",
+        "transact" : "START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]",
+        "create" : "[<?view|>CREATE VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]UNIQUE KEY <name|> <type|> (<?uniquekey>[,<*uniquekey>])][[CONSTRAINT <?constraint> ]PRIMARY KEY <type|> (<?primarykey>)][[<?!index>KEY][<?index|>INDEX] <name|> <type|> (<?key>[,<*key>])][CHECK (<?check>)][<?column> <type>[ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ <?auto_increment|>AUTO_INCREMENT][ <?!primary><?unique|>UNIQUE KEY][ <?!unique><?primary|>PRIMARY KEY][ COMMENT '<?comment>'][ COLUMN_FORMAT <?format>][ STORAGE <?storage>]]][,\n<*col:COL>]]\n)][ <?options>:=[<opt:OPT>:=[[ENGINE=<?engine>][AUTO_INCREMENT=<?auto_increment>][CHARACTER SET=<?charset>][COLLATE=<?collation>]][, <*opt:OPT>]]][\nAS <?query>]]",
+        "alter" : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]",
+        "drop" : "DROP [<?view|>VIEW][<?!view>[<?temporary|>TEMPORARY ]TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]",
+        "union" : "(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]",
+        "select" : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]",
+        "insert" : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]",
+        "update" : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]",
+        "delete" : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <offset|0>,<?count>]"
+        }
     }
 
 
@@ -1482,27 +1498,40 @@ class Dialect:
         ,"now"          : ["now()"]
         }
 
-		,"types"    	: {
-		 "BINARY"		: "BYTEA"
-		,"SMALLINT"		: "SMALLINT"
-		,"MEDIUMINT"	: "INTEGER"
-		,"INT"			: "SERIAL"
-		,"SIGNED_INT"	: "INTEGER"
-		,"BIGINT"		: "BIGSERIAL"
-		,"SIGNED_BIGINT": "BIGINT"
-		,"FLOAT"		: "REAL"
-		,"DOUBLE"   	: "DOUBLE PRECISION"
-		,"BOOL"			: "BOOLEAN"
-		,"TIMESTAMP"	: "TIMESTAMP WITHOUT TIME ZONE"
-		,"DATETIME"		: "TIMESTAMP WITHOUT TIME ZONE"
-		,"DATE"			: "DATE"
-		,"TIME"			: "TIME WITHOUT TIME ZONE"
-		,"VARCHAR"	    : "VARCHAR"
-		,"TEXT"			: "TEXT"
-		,"BLOB"			: "BLOB"
-		}
+        ,"types"        : {
+         "BINARY"       : "BYTEA"
+        ,"SMALLINT"     : "SMALLINT"
+        ,"MEDIUMINT"    : "INTEGER"
+        ,"INT"          : "SERIAL"
+        ,"SIGNED_INT"   : "INTEGER"
+        ,"BIGINT"       : "BIGSERIAL"
+        ,"SIGNED_BIGINT": "BIGINT"
+        ,"FLOAT"        : "REAL"
+        ,"DOUBLE"       : "DOUBLE PRECISION"
+        ,"BOOL"         : "BOOLEAN"
+        ,"TIMESTAMP"    : "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATETIME"     : "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATE"         : "DATE"
+        ,"TIME"         : "TIME WITHOUT TIME ZONE"
+        ,"VARCHAR"      : "VARCHAR"
+        ,"TEXT"         : "TEXT"
+        ,"BLOB"         : "BLOB"
+        }
 
-        ,"clauses"      : "[<?start_transaction_clause|>START TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]]"
+        ,"clauses"      : {
+        "start_transaction" : "START TRANSACTION <type|>;",
+        "commit_transaction" : "COMMIT;",
+        "rollback_transaction" : "ROLLBACK;",
+        "transact" : "START TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]",
+        "create" : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>:=[<col:COL>:=[[<?column> <type>[ COLLATE <?collation>][ CONSTRAINT <?constraint>][ <?!isnull><?isnotnull|>NOT NULL][ <?!isnotnull><?isnull|>NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?unique|>UNIQUE][ <?primary|>PRIMARY KEY]]][,\n<*col:COL>]]\n)]]",
+        "alter" : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]",
+        "drop" : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]",
+        "union" : "(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]",
+        "select" : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]",
+        "insert" : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]",
+        "update" : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]",
+        "delete" : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]"
+        }
     }
 
 
@@ -1520,27 +1549,40 @@ class Dialect:
         ,"now"          : ["CURRENT_TIMESTAMP"]
         }
 
-		,"types"    	: {
-		 "BINARY"		: "VARBINARY"
-		,"SMALLINT"		: "TINYINT"
-		,"MEDIUMINT"	: "SMALLINT"
-		,"INT"			: "INT"
-		,"SIGNED_INT"	: "INT"
-		,"BIGINT"		: "BIGINT"
-		,"SIGNED_BIGINT": "BIGINT"
-		,"FLOAT"		: "FLOAT"
-		,"DOUBLE"   	: "REAL"
-		,"BOOL"			: "BIT"
-		,"TIMESTAMP"	: "DATETIME"
-		,"DATETIME"		: "DATETIME"
-		,"DATE"			: "DATE"
-		,"TIME"			: "TIME"
-		,"VARCHAR"	    : "VARCHAR"
-		,"TEXT"			: "TEXT"
-		,"BLOB"			: "TEXT"
-		}
+        ,"types"        : {
+         "BINARY"       : "VARBINARY"
+        ,"SMALLINT"     : "TINYINT"
+        ,"MEDIUMINT"    : "SMALLINT"
+        ,"INT"          : "INT"
+        ,"SIGNED_INT"   : "INT"
+        ,"BIGINT"       : "BIGINT"
+        ,"SIGNED_BIGINT": "BIGINT"
+        ,"FLOAT"        : "FLOAT"
+        ,"DOUBLE"       : "REAL"
+        ,"BOOL"         : "BIT"
+        ,"TIMESTAMP"    : "DATETIME"
+        ,"DATETIME"     : "DATETIME"
+        ,"DATE"         : "DATE"
+        ,"TIME"         : "TIME"
+        ,"VARCHAR"      : "VARCHAR"
+        ,"TEXT"         : "TEXT"
+        ,"BLOB"         : "TEXT"
+        }
 
-        ,"clauses"      : "[<?start_transaction_clause|>BEGIN TRANSACTION <type|>;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]][<?delete_clause|>DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]]"
+        ,"clauses"      : {
+        "start_transaction" : "BEGIN TRANSACTION <type|>;",
+        "commit_transaction" : "COMMIT;",
+        "rollback_transaction" : "ROLLBACK;",
+        "transact" : "BEGIN TRANSACTION  <type|>;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]",
+        "create" : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>[<?ifnotexists|>IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=<create_table> AND xtype='U')\n]CREATE TABLE <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ [CONSTRAINT <?constraint> ]DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)][<?ifnotexists|>\nGO]]",
+        "alter" : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]",
+        "drop" : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>[,<*drop_tables>]",
+        "union" : "(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]]",
+        "select" : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>][\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]][<?!order_conditions>[\nORDER BY 1\nOFFSET <offset|0> ROWS FETCH NEXT <?count> ROWS ONLY]]",
+        "insert" : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]",
+        "update" : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]",
+        "delete" : "DELETE \nFROM <from_tables>[,<*from_tables>][\nWHERE <?where_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]]"
+        }
     }
 
 
@@ -1558,27 +1600,40 @@ class Dialect:
         ,"now"          : ["datetime('now')"]
         }
 
-		,"types"    	: {
-		 "BINARY"		: "BLOB"
-		,"SMALLINT"		: "INTEGER"
-		,"MEDIUMINT"	: "INTEGER"
-		,"INT"			: "INTEGER"
-		,"SIGNED_INT"	: "INTEGER"
-		,"BIGINT"		: "INTEGER"
-		,"SIGNED_BIGINT": "INTEGER"
-		,"FLOAT"		: "REAL"
-		,"DOUBLE"   	: "REAL"
-		,"BOOL"			: "INTEGER"
-		,"TIMESTAMP"	: "TEXT"
-		,"DATETIME"		: "TEXT"
-		,"DATE"			: "TEXT"
-		,"TIME"			: "TEXT"
-		,"VARCHAR"	    : "TEXT"
-		,"TEXT"			: "TEXT"
-		,"BLOB"			: "BLOB"
-		}
+        ,"types"        : {
+         "BINARY"       : "BLOB"
+        ,"SMALLINT"     : "INTEGER"
+        ,"MEDIUMINT"    : "INTEGER"
+        ,"INT"          : "INTEGER"
+        ,"SIGNED_INT"   : "INTEGER"
+        ,"BIGINT"       : "INTEGER"
+        ,"SIGNED_BIGINT": "INTEGER"
+        ,"FLOAT"        : "REAL"
+        ,"DOUBLE"       : "REAL"
+        ,"BOOL"         : "INTEGER"
+        ,"TIMESTAMP"    : "TEXT"
+        ,"DATETIME"     : "TEXT"
+        ,"DATE"         : "TEXT"
+        ,"TIME"         : "TEXT"
+        ,"VARCHAR"      : "TEXT"
+        ,"TEXT"         : "TEXT"
+        ,"BLOB"         : "BLOB"
+        }
 
-        ,"clauses"      : "[<?start_transaction_clause|>BEGIN <type|> TRANSACTION;][<?commit_transaction_clause|>COMMIT;][<?rollback_transaction_clause|>ROLLBACK;][<?transact_clause|>BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]][<?create_clause|>[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]][<?alter_clause|>ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]][<?drop_clause|>DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>][<?union_clause|>(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?select_clause|>SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]][<?insert_clause|>INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]][<?update_clause|>UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]][<?delete_clause|>[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]]"
+        ,"clauses"      : {
+        "start_transaction" : "BEGIN <type|> TRANSACTION;",
+        "commit_transaction" : "COMMIT;",
+        "rollback_transaction" : "ROLLBACK;",
+        "transact" : "BEGIN <type|> TRANSACTION;\n<statements>;[\n<*statements>;]\n[<?rollback|>ROLLBACK;][<?!rollback>COMMIT;]",
+        "create" : "[<?view|>CREATE[ <?temporary|>TEMPORARY] VIEW[ <?ifnotexists|>IF NOT EXISTS] <create_table> [(\n<?columns>[,\n<*columns>]\n)] AS <query>][<?!view>CREATE[ <?temporary|>TEMPORARY] TABLE[ <?ifnotexists|>IF NOT EXISTS] <create_table> [<?!query>(\n<columns>:=[<col:COL>:=[[[CONSTRAINT <?constraint> ]<?column> <type|>[ <?isnotnull|>NOT NULL][ DEFAULT <?default_value>][ CHECK (<?check>)][ <?!primary><?unique|>UNIQUE][ <?!unique><?primary|>PRIMARY KEY[ <?auto_increment|>AUTOINCREMENT][ COLLATE <?collation>]]]][,\n<*col:COL>]]\n)[ <?without_rowid|>WITHOUT ROWID]][AS <?query>]]",
+        "alter" : "ALTER [<?view|>VIEW][<?!view>TABLE] <alter_table>\n<columns>[ <?options>]",
+        "drop" : "DROP [<?view|>VIEW][<?!view>TABLE][ <?ifexists|>IF EXISTS] <drop_tables>",
+        "union" : "(<union_selects>)[\nUNION[<?union_all|> ALL]\n(<*union_selects>)][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]",
+        "select" : "SELECT <select_columns>[,<*select_columns>]\nFROM <from_tables>[,<*from_tables>][\n<?join_clauses>:=[<join:JOIN>:=[[<?type> ]JOIN <table>[ ON <?cond>]][\n<*join:JOIN>]]][\nWHERE <?where_conditions>][\nGROUP BY <?group_conditions>[,<*group_conditions>]][\nHAVING <?having_conditions>][\nORDER BY <?order_conditions>[,<*order_conditions>]][\nLIMIT <?count> OFFSET <offset|0>]",
+        "insert" : "INSERT INTO <insert_tables> (<insert_columns>[,<*insert_columns>])\n[VALUES <?values_values>[,<*values_values>]]",
+        "update" : "UPDATE <update_tables>\nSET <set_values>[,<*set_values>][\nWHERE <?where_conditions>]",
+        "delete" : "[<?!order_conditions><?!count>DELETE FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]][DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nORDER BY <?order_conditions> [, <*order_conditions>][\nLIMIT <?count> OFFSET <offset|0>]\n)][<?!order_conditions>DELETE FROM <from_tables> [, <*from_tables>] WHERE rowid IN (\nSELECT rowid FROM <from_tables> [, <*from_tables>][\nWHERE <?where_conditions>]\nLIMIT <?count> OFFSET <offset|0>\n)]"
+        }
     }
     }
 
@@ -1590,7 +1645,7 @@ class Dialect:
        ,"postgre"   : "postgresql"
     }
 
-    def __init__( self, type='mysql' ):
+    def __init__(self, type = 'mysql'):
         if type and (type in Dialect.aliases): type = Dialect.aliases[type]
         if (not type) or (type not in Dialect.dialects) or ('clauses' not in Dialect.dialects[ type ]):
             raise ValueError('Dialect: SQL dialect does not exist for "'+type+'"')
@@ -1599,8 +1654,8 @@ class Dialect:
         self.clus = None
         self.tbls = None
         self.cols = None
-        self.vews = { }
-        self.tpls = { }
+        self.vews = {}
+        self.tpls = {}
 
         self.db = None
         self.escdb = None
@@ -1608,19 +1663,16 @@ class Dialect:
         self.p = '';
 
         self.type = type
-        self.clauses = Dialect.dialects[ self.type ][ 'clauses' ]
-        self.q = Dialect.dialects[ self.type ][ 'quotes' ][ 0 ]
-        self.qn = Dialect.dialects[ self.type ][ 'quotes' ][ 1 ]
-        self.e = Dialect.dialects[ self.type ][ 'quotes' ][ 2 ] if 1 < len(Dialect.dialects[ self.type ][ 'quotes' ]) else ['','','','']
-        if not isinstance(self.clauses, Dialect.GrammarTemplate):
-            self.clauses = Dialect.GrammarTemplate(self.clauses)
-            Dialect.dialects[ self.type ][ 'clauses' ] = self.clauses
+        self.clauses = Dialect.dialects[self.type]['clauses']
+        self.q = Dialect.dialects[self.type]['quotes'][0]
+        self.qn = Dialect.dialects[self.type]['quotes'][1]
+        self.e = Dialect.dialects[self.type]['quotes'][2] if 1 < len(Dialect.dialects[self.type]['quotes']) else ['','','','']
 
 
-    def __del__( self ):
+    def __del__(self):
         self.dispose()
 
-    def dispose( self ):
+    def dispose(self):
         self.clau = None
         self.clus = None
         self.tbls = None
@@ -1640,18 +1692,18 @@ class Dialect:
         self.e = None
         return self
 
-    def __str__( self ):
-        sql = self.sql( )
+    def __str__(self):
+        sql = self.sql()
         return sql if sql else ''
 
-    def driver( self, *args ):
+    def driver(self, *args):
         if len(args):
             db = args[0]
             self.db = db if db else None
             return self
         return self.db
 
-    def escape( self, *args ):
+    def escape(self, *args):
         if len(args):
             escdb = args[0]
             does_quote = bool(args[1]) if len(args)>1 else False
@@ -1659,7 +1711,7 @@ class Dialect:
             return self
         return self.escdb
 
-    def escapeId( self, *args ):
+    def escapeId(self, *args):
         if len(args):
             escdbn = args[0]
             does_quote = bool(args[1]) if len(args)>1 else False
@@ -1667,123 +1719,119 @@ class Dialect:
             return self
         return self.escdb
 
-    def prefix( self, *args ):
+    def prefix(self, *args):
         if len(args):
             prefix = args[0]
             self.p = prefix if prefix else ''
             return self
         return self.p
 
-    def reset( self, clause ):
-        #if not clause or (clause not in self.clauses):
-        #    raise ValueError('Dialect: SQL clause "'+str(clause)+'" does not exist for dialect "'+self.type+'"')
-        self.clus = { }
-        self.tbls = { }
-        self.cols = { }
-        self.clau = clause
-        #if not isinstance(self.clauses[ self.clau ], Dialect.GrammarTemplate):
-        #    self.clauses[ self.clau ] = Dialect.GrammarTemplate( self.clauses[ self.clau ] )
-        #if not isinstance(self.clauses, Dialect.GrammarTemplate):
-        #    self.clauses = Dialect.GrammarTemplate( self.clauses )
+    def reset(self, clause):
+        if not clause or (clause not in self.clauses):
+            raise ValueError('Dialect: SQL clause "'+str(clause)+'" does not exist for dialect "'+self.type+'"')
+        self.clus = {}
+        self.tbls = {}
+        self.cols = {}
+        self.clau = str(clause)
+        if not isinstance(self.clauses[self.clau], Dialect.GrammarTemplate):
+            self.clauses[self.clau] = Dialect.GrammarTemplate(self.clauses[self.clau])
         return self
 
-    def clear( self ):
+    def clear(self):
         self.clau = None
         self.clus = None
         self.tbls = None
         self.cols = None
         return self
 
-    def subquery( self ):
-        sub = Dialect( self.type )
-        sub.driver( self.driver() ).prefix( self.prefix() )
+    def subquery(self):
+        sub = Dialect(self.type)
+        sub.driver(self.driver()).prefix(self.prefix())
         escdb = self.escape()
         escdbn = self.escapeId()
-        if escdb: sub.escape( escdb[0], escdb[1] )
-        if escdbn: sub.escapeId( escdbn[0], escdbn[1] )
+        if escdb: sub.escape(escdb[0], escdb[1])
+        if escdbn: sub.escapeId(escdbn[0], escdbn[1])
         sub.vews = self.vews
         return sub
 
-    def sql( self ):
+    def sql(self):
         query = ''
-        if self.clau: #and (self.clau in self.clauses):
+        if self.clau and (self.clau in self.clauses):
             clus = self.clus.copy()
             if 'select_columns' in self.clus:
-                clus['select_columns'] = map_join( self.clus['select_columns'], 'aliased' )
+                clus['select_columns'] = map_join(self.clus['select_columns'], 'aliased')
             if 'from_tables' in self.clus:
-                clus['from_tables'] = map_join( self.clus['from_tables'], 'aliased' )
+                clus['from_tables'] = map_join(self.clus['from_tables'], 'aliased')
             if 'insert_tables' in self.clus:
-                clus['insert_tables'] = map_join( self.clus['insert_tables'], 'aliased' )
+                clus['insert_tables'] = map_join(self.clus['insert_tables'], 'aliased')
             if 'insert_columns' in self.clus:
-                clus['insert_columns'] = map_join( self.clus['insert_columns'], 'full' )
+                clus['insert_columns'] = map_join(self.clus['insert_columns'], 'full')
             if 'update_tables' in self.clus:
-                clus['update_tables'] = map_join( self.clus['update_tables'], 'aliased' )
+                clus['update_tables'] = map_join(self.clus['update_tables'], 'aliased')
             if 'create_table' in self.clus:
-                clus['create_table'] = map_join( self.clus['create_table'], 'full' )
+                clus['create_table'] = map_join(self.clus['create_table'], 'full')
             if 'alter_table' in self.clus:
-                clus['alter_table'] = map_join( self.clus['alter_table'], 'full' )
+                clus['alter_table'] = map_join(self.clus['alter_table'], 'full')
             if 'drop_tables' in self.clus:
-                clus['drop_tables'] = map_join( self.clus['drop_tables'], 'full' )
+                clus['drop_tables'] = map_join(self.clus['drop_tables'], 'full')
             if 'where_conditions_required' in self.clus:
                 clus['where_conditions'] = ('('+str(self.clus['where_conditions_required'])+') AND ('+str(self.clus['where_conditions'])+')') if 'where_conditions' in self.clus else str(self.clus['where_conditions_required'])
                 #del self.clus['where_conditions_required']
             if 'having_conditions_required' in self.clus:
                 clus['having_conditions'] = ('('+str(self.clus['having_conditions_required'])+') AND ('+str(self.clus['having_conditions'])+')') if 'having_conditions' in self.clus else str(self.clus['having_conditions_required'])
                 #del self.clus['having_conditions_required']
-            #query = self.clauses[ self.clau ].render( self.clus )
-            clus[ self.clau+'_clause' ] = 1
-            query = self.clauses.render( clus )
-        #self.clear( )
+            query = self.clauses[self.clau].render(clus)
+        #self.clear()
         return query
 
-    def createView( self, view ):
+    def createView(self, view):
         if view and self.clau:
-            self.vews[ view ] = {
-                'clau':self.clau,
-                'clus':self.clus,
-                'tbls':self.tbls,
-                'cols':self.cols
+            self.vews[view] = {
+                'clau' : self.clau,
+                'clus' : self.clus,
+                'tbls' : self.tbls,
+                'cols' : self.cols
             }
             # make existing where / having conditions required
-            if 'where_conditions' in self.vews[ view ][ 'clus' ]:
-                if len(self.vews[ view ][ 'clus' ][ 'where_conditions' ]):
-                    self.vews[ view ][ 'clus' ][ 'where_conditions_required' ] = self.vews[ view ][ 'clus' ][ 'where_conditions' ]
-                del self.vews[ view ][ 'clus' ][ 'where_conditions' ]
-            if 'having_conditions' in self.vews[ view ][ 'clus' ]:
-                if len(self.vews[ view ][ 'clus' ][ 'having_conditions' ]):
-                    self.vews[ view ][ 'clus' ][ 'having_conditions_required' ] = self.vews[ view ][ 'clus' ][ 'having_conditions' ]
-                del self.vews[ view ][ 'clus' ][ 'having_conditions' ]
-            self.clear( )
+            if 'where_conditions' in self.vews[view]['clus']:
+                if len(self.vews[view]['clus']['where_conditions']):
+                    self.vews[view]['clus']['where_conditions_required'] = self.vews[view]['clus']['where_conditions']
+                del self.vews[view]['clus']['where_conditions']
+            if 'having_conditions' in self.vews[view]['clus']:
+                if len(self.vews[view]['clus']['having_conditions']):
+                    self.vews[view]['clus']['having_conditions_required'] = self.vews[view]['clus']['having_conditions']
+                del self.vews[view]['clus']['having_conditions']
+            self.clear()
         return self
 
-    def useView( self, view ):
+    def useView(self, view):
         # using custom 'soft' view
         selected_columns = self.clus['select_columns']
 
-        view = self.vews[ view ]
-        self.clus = defaults( self.clus, view['clus'], True, True )
-        self.tbls = defaults( {}, view['tbls'], True )
-        self.cols = defaults( {}, view['cols'], True )
+        view = self.vews[view]
+        self.clus = defaults(self.clus, view['clus'], True, True)
+        self.tbls = defaults({}, view['tbls'], True)
+        self.cols = defaults({}, view['cols'], True)
 
         # handle name resolution and recursive re-aliasing in views
         if selected_columns:
-            selected_columns = self.refs( selected_columns, self.cols, True )
+            selected_columns = self.refs(selected_columns, self.cols, True)
             select_columns = []
             for selected_column in selected_columns:
                 if '*' == selected_column.full:
                     select_columns = select_columns + self.clus['select_columns']
                 else:
-                    select_columns.append( selected_column )
+                    select_columns.append(selected_column)
             self.clus['select_columns'] = select_columns
 
         return self
 
-    def dropView( self, view ):
+    def dropView(self, view):
         if view and (view in self.vews):
-            del self.vews[ view ]
+            del self.vews[view]
         return self
 
-    def prepareTpl( self, tpl, *args ):
+    def prepareTpl(self, tpl, *args):
                                 #, query, left, right
         if tpl:
             argslen = len(args)
@@ -1794,62 +1842,62 @@ class Dialect:
                 right = None
                 use_internal_query = True
             elif 1 == argslen:
-                query = args[ 0 ]
+                query = args[0]
                 left = None
                 right = None
                 use_internal_query = False
             elif 2 == argslen:
                 query = None
-                left = args[ 0 ]
-                right = args[ 1 ]
+                left = args[0]
+                right = args[1]
                 use_internal_query = True
             else: # if 2 < argslen:
-                query = args[ 0 ]
-                left = args[ 1 ]
-                right = args[ 2 ]
+                query = args[0]
+                left = args[1]
+                right = args[2]
                 use_internal_query = False
 
             # custom delimiters
-            left = re.escape( left ) if left else '%'
-            right = re.escape( right ) if right else '%'
+            left = re.escape(left) if left else '%'
+            right = re.escape(right) if right else '%'
             # custom prepared parameter format
-            pattern = re.compile(left + '(([rlfds]:)?[0-9a-zA-Z_]+)' + right)
+            pattern = re.compile(left + '(([rlfids]:)?[0-9a-zA-Z_]+)' + right)
 
             if use_internal_query:
-                sql = Dialect.StringTemplate( self.sql( ), pattern )
-                #self.clear( )
+                sql = Dialect.StringTemplate(self.sql(), pattern)
+                #self.clear()
             else:
-                sql = Dialect.StringTemplate( query, pattern )
+                sql = Dialect.StringTemplate(query, pattern)
 
-            self.tpls[ tpl ] = {
-                'sql':sql,
-                'types':None
+            self.tpls[tpl] = {
+                'sql' : sql,
+                'types' : None
             }
         return self
 
-    def prepared( self, tpl, args ):
+    def prepared(self, tpl, args):
         if tpl and (tpl in self.tpls):
 
             sql = self.tpls[tpl]['sql']
             types = self.tpls[tpl]['types']
             if types is None:
                 # lazy init
-                sql.parse( )
-                types = { }
+                sql.parse()
+                types = {}
                 # extract parameter types
                 for i in range(len(sql.tpl)):
-                    tpli = sql.tpl[ i ]
-                    if not tpli[ 0 ]:
-                        k = tpli[ 1 ].split(':')
+                    tpli = sql.tpl[i]
+                    if not tpli[0]:
+                        k = tpli[1].split(':')
                         if len(k) > 1:
-                            types[ k[1] ] = k[0]
-                            sql.tpl[ i ][ 1 ] = k[1]
+                            types[k[1]] = k[0]
+                            sql.tpl[i][1] = k[1]
                         else:
-                            types[ k[0] ] = "s"
-                            sql.tpl[ i ][ 1 ] = k[0]
+                            types[k[0]] = "s"
+                            sql.tpl[i][1] = k[0]
                 self.tpls[tpl]['types'] = types
 
-            params = { }
+            params = {}
             for k in args:
 
                 v = args[k]
@@ -1863,48 +1911,56 @@ class Dialect:
 
                 elif 'l'==type:
                     # like param
-                    params[k] = self.like( v )
+                    params[k] = self.like(v)
 
                 elif 'f'==type:
                     if is_array(v):
                         # array of references, e.g fields
-                        tmp = array( v )
-                        params[k] = Ref.parse( tmp[0], self ).aliased
-                        for i in range(1,len(tmp)): params[k] += ','+Ref.parse( tmp[i], self ).aliased
+                        tmp = array(v)
+                        params[k] = Ref.parse(tmp[0], self).aliased
+                        for i in range(1,len(tmp)): params[k] += ','+Ref.parse(tmp[i], self).aliased
                     else:
                         # reference, e.g field
-                        params[k] = Ref.parse( v, self ).aliased
+                        params[k] = Ref.parse(v, self).aliased
+
+                elif 'i'==type:
+                    if is_array(v):
+                        # array of integers param
+                        params[k] = ','.join(self.intval2str(array(v)))
+                    else:
+                        # integer param
+                        params[k] = self.intval2str(v)
 
                 elif 'd'==type:
                     if is_array(v):
-                        # array of integers param
-                        params[k] = ','.join(self.intval2str( array(v) ))
+                        # array of floats param
+                        params[k] = ','.join(self.floatval2str(array(v)))
                     else:
-                        # integer param
-                        params[k] = self.intval2str( v )
+                        # float param
+                        params[k] = self.floatval2str(v)
 
                 #elif 's'==type:
                 else:
                     if is_array(v):
                         # array of strings param
-                        params[k] = ','.join(self.quote( array(v) ))
+                        params[k] = ','.join(self.quote(array(v)))
                     else:
                         # string param
-                        params[k] = self.quote( v )
+                        params[k] = self.quote(v)
 
-            return sql.render( params )
+            return sql.render(params)
         return ''
 
-    def prepare( self, query, args, left=None, right=None ):
+    def prepare(self, query, args, left = None, right = None):
         if query and args:
             # custom delimiters
-            left = re.escape( left ) if left else '%'
-            right = re.escape( right ) if right else '%'
+            left = re.escape(left) if left else '%'
+            right = re.escape(right) if right else '%'
 
             # custom prepared parameter format
-            pattern = re.compile(left + '([rlfds]:)?([0-9a-zA-Z_]+)' + right)
+            pattern = re.compile(left + '([rlfids]:)?([0-9a-zA-Z_]+)' + right)
             prepared = ''
-            m = pattern.search( query )
+            m = pattern.search(query)
             while m:
                 pos = m.start(0)
                 le = len(m.group(0))
@@ -1921,82 +1977,87 @@ class Dialect:
 
                     elif 'l'==type:
                         # like param
-                        param = self.like( args[param] )
+                        param = self.like(args[param])
 
                     elif 'f'==type:
                         if is_array(args[param]):
                             # array of references, e.g fields
-                            tmp = array( args[param] )
-                            param = Ref.parse( tmp[0], self ).aliased
-                            for i in range(1,len(tmp)): param += ','+Ref.parse( tmp[i], self ).aliased
+                            tmp = array(args[param])
+                            param = Ref.parse(tmp[0], self).aliased
+                            for i in range(1,len(tmp)): param += ','+Ref.parse(tmp[i], self).aliased
                         else:
                             # reference, e.g field
-                            param = Ref.parse( args[param], self ).aliased
+                            param = Ref.parse(args[param], self).aliased
+
+                    elif 'i'==type:
+                        if is_array(args[param]):
+                            # array of integers param
+                            param = ','.join(self.intval2str(array(args[param])))
+                        else:
+                            # integer param
+                            param = self.intval2str(args[param])
 
                     elif 'd'==type:
                         if is_array(args[param]):
-                            # array of integers param
-                            param = ','.join(self.intval2str( array(args[param]) ))
+                            # array of floats param
+                            param = ','.join(self.floatval2str(array(args[param])))
                         else:
-                            # integer param
-                            param = self.intval2str( args[param] )
+                            # float param
+                            param = self.floatval2str(args[param])
 
                     #elif 's'==type:
                     else:
                         if is_array(args[param]):
                             # array of strings param
-                            param = ','.join(self.quote( array(args[param]) ))
+                            param = ','.join(self.quote(array(args[param])))
                         else:
                             # string param
-                            param = self.quote( args[param] )
+                            param = self.quote(args[param])
 
                     prepared += query[0:pos] + param
                 else:
                     prepared += query[0:pos] + self.quote('')
                 query = query[pos+le:]
-                m = pattern.search( query )
+                m = pattern.search(query)
 
             if len(query): prepared += query
             return prepared
 
         return query
 
-    def dropTpl( self, tpl ):
+    def dropTpl(self, tpl):
         if tpl and (tpl in self.tpls):
-           self.tpls[ tpl ]['sql'].dispose( )
-           del self.tpls[ tpl ]
+           self.tpls[tpl]['sql'].dispose()
+           del self.tpls[tpl]
         return self
 
-    def StartTransaction( self, type=None, start_transaction_clause='start_transaction' ):
+    def StartTransaction(self, type = None, start_transaction_clause = 'start_transaction'):
         if self.clau != start_transaction_clause: self.reset(start_transaction_clause)
         self.clus['type'] = type if not empty(type) else None
         return self
 
-    def CommitTransaction( self, commit_transaction_clause='commit_transaction' ):
+    def CommitTransaction(self, commit_transaction_clause = 'commit_transaction'):
         if self.clau != commit_transaction_clause: self.reset(commit_transaction_clause)
         return self
 
-    def RollbackTransaction( self, rollback_transaction_clause='rollback_transaction' ):
+    def RollbackTransaction(self, rollback_transaction_clause = 'rollback_transaction'):
         if self.clau != rollback_transaction_clause: self.reset(rollback_transaction_clause)
         return self
 
-    def Transaction( self, options, transact_clause='transact' ):
+    def Transaction(self, options, transact_clause = 'transact'):
         if self.clau != transact_clause: self.reset(transact_clause)
         options = {} if empty(options) else options
         self.clus['type'] = options['type'] if options and ('type' in options) and not empty(options['type']) else None
         self.clus['rollback'] = 1 if options and ('rollback' in options) and options['rollback'] else None
         if ('statements' in options) and not empty(options['statements']):
             statements = array(options['statements'])
-            if ('statements' not in self.clus) or not len(self.clus['statements']):
-                self.clus['statements'] = statements
-            else:
-                self.clus['statements'] = self.clus['statements'] + statements
+            self.clus['statements'] = statements if ('statements' not in self.clus) or not len(self.clus['statements']) else self.clus['statements'] + statements
         return self
 
-    def Create( self, table, options=None, create_clause='create' ):
+    def Create(self, table, options = None, create_clause = 'create'):
         if self.clau != create_clause: self.reset(create_clause)
-        options = {'ifnotexists':1} if empty(options) else options
-        table = self.refs( table, self.tbls )
+        options = {'ifnotexists' : 1} if empty(options) else options
+        table = self.refs(table, self.tbls)
         self.clus['create_table'] = table
         self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
         self.clus['ifnotexists'] = 1 if options and ('ifnotexists' in options) and options['ifnotexists'] else None
@@ -2010,9 +2071,9 @@ class Dialect:
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
 
-    def Alter( self, table, options=None, alter_clause='alter' ):
+    def Alter(self, table, options = None, alter_clause = 'alter'):
         if self.clau != alter_clause: self.reset(alter_clause)
-        table = self.refs( table, self.tbls )
+        table = self.refs(table, self.tbls)
         self.clus['alter_table'] = table
         options = {} if empty(options) else options
         self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
@@ -2024,126 +2085,116 @@ class Dialect:
             self.clus['options'] = opts if 'options' not in self.clus else self.clus['options'] + opts
         return self
 
-    def Drop( self, tables='*', options=None, drop_clause='drop' ):
+    def Drop(self, tables = '*', options = None, drop_clause = 'drop'):
         if self.clau != drop_clause: self.reset(drop_clause)
-        view = tables[0] if is_array( tables ) else tables
+        view = tables[0] if is_array(tables) else tables
         if (view in self.vews):
             # drop custom 'soft' view
-            self.dropView( view )
+            self.dropView(view)
             return self
 
         if is_string(tables): tables = tables.split(',')
-        tables = self.refs( '*' if not tables else tables, self.tbls )
-        options = {'ifexists':1} if empty(options) else options
+        tables = self.refs('*' if not tables else tables, self.tbls)
+        options = {'ifexists' : 1} if empty(options) else options
         self.clus['view'] = 1 if options and ('view' in options) and options['view'] else None
         self.clus['ifexists'] = 1 if options and ('ifexists' in options) and options['ifexists'] else None
         self.clus['temporary'] = 1 if options and ('temporary' in options) and options['temporary'] else None
-        if ('drop_tables' not in self.clus) or not len(self.clus['drop_tables']):
-            self.clus['drop_tables'] = tables
-        else:
-            self.clus['drop_tables'] = self.clus['drop_tables'] + tables
+        self.clus['drop_tables'] = tables if ('drop_tables' not in self.clus) or not len(self.clus['drop_tables']) else self.clus['drop_tables'] + tables
         return self
 
-    def Select( self, columns='*', select_clause='select' ):
+    def Select(self, columns = '*', select_clause = 'select'):
         if self.clau != select_clause: self.reset(select_clause)
         if is_string(columns): columns = columns.split(',')
-        columns = self.refs( '*' if not columns else columns, self.cols )
-        if ('select_columns' not in self.clus) or not len(self.clus['select_columns']):
-            self.clus['select_columns'] = columns
-        else:
-            self.clus['select_columns'] = self.clus['select_columns'] + columns
+        columns = self.refs('*' if not columns else columns, self.cols)
+        self.clus['select_columns'] = columns if ('select_columns' not in self.clus) or not len(self.clus['select_columns']) else self.clus['select_columns'] + columns
         return self
 
-    def Union( self, selects, all=False, union_clause='union' ):
+    def Union(self, selects, all = False, union_clause = 'union'):
         if self.clau != union_clause: self.reset(union_clause)
-        if ('union_selects' not in self.clus) or not len(self.clus['union_selects']):
-            self.clus['union_selects'] = array(selects)
-        else:
-            self.clus['union_selects'] = self.clus['union_selects'] + array(selects)
+        self.clus['union_selects'] = array(selects) if ('union_selects' not in self.clus) or not len(self.clus['union_selects']) else self.clus['union_selects'] + array(selects)
         self.clus['union_all'] = '' if bool(all) else None
         return self
 
-    def Insert( self, tables, columns, insert_clause='insert' ):
+    def Insert(self, tables, columns, insert_clause = 'insert'):
         if self.clau != insert_clause: self.reset(insert_clause);
-        view = tables[0] if is_array( tables ) else tables
-        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
+        view = tables[0] if is_array(tables) else tables
+        if (view in self.vews) and self.clau == self.vews[view]['clau']:
             # using custom 'soft' view
-            self.useView( view )
+            self.useView(view)
         else:
             if is_string(tables): tables = tables.split(',')
             if is_string(columns): columns = columns.split(',')
-            tables = self.refs( tables, self.tbls )
-            columns = self.refs( columns, self.cols )
-            if ('insert_tables' not in self.clus) or not len(self.clus['insert_tables']):
-                self.clus['insert_tables'] = tables
-            else:
-                self.clus['insert_tables'] = self.clus['insert_tables'] + tables
-            if ('insert_columns' not in self.clus) or not len(self.clus['insert_columns']):
-                self.clus['insert_columns'] = columns
-            else:
-                self.clus['insert_columns'] = self.clus['insert_columns'] + columns
+            tables = self.refs(tables, self.tbls)
+            columns = self.refs(columns, self.cols)
+            self.clus['insert_tables'] = tables if ('insert_tables' not in self.clus) or not len(self.clus['insert_tables']) else self.clus['insert_tables'] + tables
+            self.clus['insert_columns'] = columns if ('insert_columns' not in self.clus) or not len(self.clus['insert_columns']) else self.clus['insert_columns'] + columns
         return self
 
-    def Values( self, values ):
+    def Values(self, values):
         if empty(values): return self
         # array of arrays
         if not is_array(values) or not is_array(values[0]): values = [values]
         insert_values = []
         for vs in values:
-            vs = array( vs )
+            vs = array(vs)
             if len(vs):
                 vals = []
                 for val in vs:
-                    if is_obj( val ):
+                    if is_obj(val):
                         if 'raw' in val:
-                            vals.append( val['raw'] )
+                            vals.append(val['raw'])
                         elif 'integer' in val:
-                            vals.append( self.intval2str( val['integer'] ) )
+                            vals.append(self.intval2str(val['integer']))
+                        elif 'int' in val:
+                            vals.append(self.intval2str(val['int']))
+                        elif 'float' in val:
+                            vals.append(self.floatval2str(val['float']))
                         elif 'string' in val:
-                            vals.append( self.quote( val['string'] ) )
+                            vals.append(self.quote(val['string']))
                     else:
-                        vals.append( 'NULL' if val is None else (str(val) if is_int(val) else self.quote( val )) )
-                insert_values.append( '(' + ','.join(vals) + ')' )
+                        vals.append('NULL' if val is None else (str(val) if isinstance(val, (int,float)) else self.quote(val)))
+                insert_values.append('(' + ','.join(vals) + ')')
         insert_values = ','.join(insert_values)
         if 'values_values' in self.clus and len(self.clus['values_values']) > 0:
             insert_values = self.clus['values_values'] + ',' + insert_values
         self.clus['values_values'] = insert_values
         return self
 
-    def Update( self, tables, update_clause='update' ):
+    def Update(self, tables, update_clause = 'update'):
         if self.clau != update_clause: self.reset(update_clause)
-        view = tables[0] if is_array( tables ) else tables
-        if (view in self.vews) and self.clau == self.vews[ view ]['clau']:
+        view = tables[0] if is_array(tables) else tables
+        if (view in self.vews) and self.clau == self.vews[view]['clau']:
             # using custom 'soft' view
-            self.useView( view )
+            self.useView(view)
         else:
             if is_string(tables): tables = tables.split(',')
-            tables = self.refs( tables, self.tbls )
-            if ('update_tables' not in self.clus) or not len(self.clus['update_tables']):
-                self.clus['update_tables'] = tables
-            else:
-                self.clus['update_tables'] = self.clus['update_tables'] + tables
+            tables = self.refs(tables, self.tbls)
+            self.clus['update_tables'] = tables if ('update_tables' not in self.clus) or not len(self.clus['update_tables']) else self.clus['update_tables'] + tables
         return self
 
-    def Set( self, fields_values ):
+    def Set(self, fields_values):
         if empty(fields_values): return self
         set_values = []
         COLS = self.cols
         for f in fields_values:
-            field = self.refs( f, COLS )[0].full
+            field = self.refs(f, COLS)[0].full
             value = fields_values[f]
 
             if is_obj(value):
                 if 'raw' in value:
-                    set_values.append( field + " = " + value['raw'] )
+                    set_values.append(field + " = " + str(value['raw']))
                 elif 'integer' in value:
-                    set_values.append( field + " = " + self.intval2str(value['integer']) )
+                    set_values.append(field + " = " + self.intval2str(value['integer']))
+                elif 'int' in value:
+                    set_values.append(field + " = " + self.intval2str(value['int']))
+                elif 'float' in value:
+                    set_values.append(field + " = " + self.floatval2str(value['float']))
                 elif 'string' in value:
-                    set_values.append( field + " = " + self.quote(value['string']) )
+                    set_values.append(field + " = " + self.quote(value['string']))
                 elif 'increment' in value:
-                    set_values.append( field + " = " + field + " + " + self.intval2str(value['increment']) )
+                    set_values.append(field + " = " + field + " + " + str(self.numval(value['increment'])))
                 elif 'decrement' in value:
-                    set_values.append( field + " = " + field + " - " + self.intval2str(value['increment']) )
+                    set_values.append(field + " = " + field + " - " + str(self.numval(value['decrement'])))
                 elif 'case' in value:
                     set_case_value = field + " = CASE"
                     if 'when' in value['case']:
@@ -2155,36 +2206,33 @@ class Dialect:
                         for case_value in value['case']:
                             set_case_value += "\nWHEN " + self.conditions(value['case'][case_value],False) + " THEN " + self.quote(case_value)
                     set_case_value += "\nEND"
-                    set_values.append( set_case_value )
+                    set_values.append(set_case_value)
             else:
-                set_values.append( field + " = " + ('NULL' if value is None else (str(value) if is_int(value) else self.quote(value))) )
+                set_values.append(field + " = " + ('NULL' if value is None else (str(value) if isinstance(value, (int,float)) else self.quote(value))))
         set_values = ','.join(set_values)
         if 'set_values' in self.clus and len(self.clus['set_values']) > 0:
             set_values = self.clus['set_values'] + ',' + set_values
         self.clus['set_values'] = set_values
         return self
 
-    def Delete( self, delete_clause='delete' ):
+    def Delete(self, delete_clause = 'delete'):
         if self.clau != delete_clause: self.reset(delete_clause)
         return self
 
-    def From( self, tables ):
+    def From(self, tables):
         if empty(tables): return self
-        view = tables[0] if is_array( tables ) else tables
-        if (view in self.vews) and (self.clau == self.vews[ view ]['clau']):
+        view = tables[0] if is_array(tables) else tables
+        if (view in self.vews) and (self.clau == self.vews[view]['clau']):
             # using custom 'soft' view
-            self.useView( view )
+            self.useView(view)
         else:
             if is_string(tables): tables = tables.split(',')
-            tables = self.refs( tables, self.tbls )
-            if ('from_tables' not in self.clus) or not len(self.clus['from_tables']):
-                self.clus['from_tables'] = tables
-            else:
-                self.clus['from_tables'] = self.clus['from_tables'] + tables
+            tables = self.refs(tables, self.tbls)
+            self.clus['from_tables'] = tables if ('from_tables' not in self.clus) or not len(self.clus['from_tables']) else self.clus['from_tables'] + tables
         return self
 
-    def Join( self, table, on_cond=None, join_type='' ):
-        table = self.refs( table, self.tbls )[0].aliased
+    def Join(self, table, on_cond = None, join_type = ''):
+        table = self.refs(table, self.tbls )[0].aliased
         join_type = None if empty(join_type) else str(join_type).upper()
         if empty(on_cond):
             join_clause = {
@@ -2193,13 +2241,13 @@ class Dialect:
             }
         else:
             if is_string(on_cond):
-                on_cond = self.refs( on_cond.split('='), self.cols )
+                on_cond = self.refs(on_cond.split('='), self.cols)
                 on_cond = '(' + on_cond[0].full + '=' + on_cond[1].full + ')'
             else:
                 for field in on_cond:
-                    cond = on_cond[ field ]
-                    if not is_obj(cond): on_cond[field] = {'eq':cond,'type':'identifier'}
-                on_cond = '(' + self.conditions( on_cond, False ) + ')'
+                    cond = on_cond[field]
+                    if not is_obj(cond): on_cond[field] = {'eq':cond, 'type':'identifier'}
+                on_cond = '(' + self.conditions(on_cond, False) + ')'
             join_clause = {
                 'table'   : table,
                 'type'    : join_type,
@@ -2209,53 +2257,53 @@ class Dialect:
         else: self.clus['join_clauses'].append(join_clause)
         return self
 
-    def Where( self, conditions, boolean_connective="and" ):
+    def Where(self, conditions, boolean_connective = "and"):
         if empty(conditions): return self
-        boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
+        boolean_connective = str(boolean_connective).upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
-        conditions = self.conditions( conditions, False )
+        conditions = self.conditions(conditions, False)
         if 'where_conditions' in self.clus and len(self.clus['where_conditions']) > 0:
             conditions = self.clus['where_conditions'] + " "+boolean_connective+" " + conditions
         self.clus['where_conditions'] = conditions
         return self
 
-    def Group( self, col ):
-        group_condition = self.refs( col, self.cols )[0].alias
+    def Group(self, col):
+        group_condition = self.refs(col, self.cols)[0].alias
         if 'group_conditions' in self.clus and len(self.clus['group_conditions']) > 0:
             group_condition = self.clus['group_conditions'] + ',' + group_condition
         self.clus['group_conditions'] = group_condition
         return self
 
-    def Having( self, conditions, boolean_connective="and" ):
+    def Having(self, conditions, boolean_connective = "and"):
         if empty(conditions): return self
-        boolean_connective = boolean_connective.upper() if boolean_connective else "AND"
+        boolean_connective = str(boolean_connective).upper() if boolean_connective else "AND"
         if "OR" != boolean_connective: boolean_connective = "AND"
-        conditions = self.conditions( conditions, True )
+        conditions = self.conditions(conditions, True)
         if 'having_conditions' in self.clus and len(self.clus['having_conditions']) > 0:
             conditions = self.clus['having_conditions'] + " "+boolean_connective+" " + conditions
         self.clus['having_conditions'] = conditions
         return self
 
-    def Order( self, col, dir="asc" ):
-        dir = dir.upper() if dir else "ASC"
+    def Order(self, col, dir = "asc"):
+        dir = str(dir).upper() if dir else "ASC"
         if "DESC" != dir: dir = "ASC"
-        order_condition = self.refs( col, self.cols )[0].alias + " " + dir
+        order_condition = self.refs(col, self.cols)[0].alias + " " + dir
         if 'order_conditions' in self.clus and len(self.clus['order_conditions']) > 0:
             order_condition = self.clus['order_conditions'] + ',' + order_condition
         self.clus['order_conditions'] = order_condition
         return self
 
-    def Limit( self, count, offset=0 ):
-        self.clus['count'] = int(count,10) if is_string(count) else count
-        self.clus['offset'] = int(offset,10) if is_string(offset) else offset
+    def Limit(self, count, offset = 0):
+        self.clus['count'] = int(count, 10) if is_string(count) else count
+        self.clus['offset'] = int(offset, 10) if is_string(offset) else offset
         return self
 
-    def Page( self, page, perpage ):
-        page = int(page,10) if is_string(page) else page
-        perpage = int(perpage,10) if is_string(perpage) else perpage
-        return self.Limit( perpage, page*perpage )
+    def Page(self, page, perpage):
+        page = int(page, 10) if is_string(page) else page
+        perpage = int(perpage, 10) if is_string(perpage) else perpage
+        return self.Limit(perpage, page*perpage)
 
-    def conditions( self, conditions, can_use_alias=False ):
+    def conditions(self, conditions, can_use_alias = False):
         if empty(conditions): return ''
         if is_string(conditions): return conditions
 
@@ -2268,7 +2316,7 @@ class Dialect:
 
             value = conditions[f]
 
-            if is_obj( value ):
+            if is_obj(value):
                 if 'raw' in value:
                     conds.append(str(value['raw']))
                     continue
@@ -2305,7 +2353,7 @@ class Dialect:
                     conds.append(' AND '.join(cases))
                     continue
 
-                field = getattr(self.refs( f, COLS )[0], fmt)
+                field = getattr(self.refs(f, COLS)[0], fmt)
                 type = value['type'] if 'type' in value else 'string'
 
                 if 'case' in value:
@@ -2319,13 +2367,13 @@ class Dialect:
                         for case_value in value['case']:
                             cases += " WHEN " + self.conditions(value['case'][case_value], can_use_alias) + " THEN " + self.quote(case_value)
                     cases += " END"
-                    conds.append( cases )
+                    conds.append(cases)
                 elif 'multi_like' in value:
-                    conds.append( self.multi_like(field, value['multi_like']) )
+                    conds.append(self.multi_like(field, value['multi_like']))
                 elif 'like' in value:
-                    conds.append( field + " LIKE " + (str(value['like']) if 'raw' == type else self.like(value['like'])) )
+                    conds.append(field + " LIKE " + (str(value['like']) if 'raw' == type else self.like(value['like'])))
                 elif 'not_like' in value:
-                    conds.append( field + " NOT LIKE " + (str(value['not_like']) if 'raw' == type else self.like(value['not_like'])) )
+                    conds.append(field + " NOT LIKE " + (str(value['not_like']) if 'raw' == type else self.like(value['not_like'])))
                 elif 'contains' in value:
                     v = str(value['contains'])
 
@@ -2333,8 +2381,8 @@ class Dialect:
                         # raw, do nothing
                         pass
                     else:
-                        v = self.quote( v )
-                    conds.append(self.sql_function('strpos', [field,v]) + ' > 0')
+                        v = self.quote(v)
+                    conds.append(self.sql_function('strpos', [field, v]) + ' > 0')
                 elif 'not_contains' in value:
                     v = str(value['not_contains'])
 
@@ -2342,32 +2390,36 @@ class Dialect:
                         # raw, do nothing
                         pass
                     else:
-                        v = self.quote( v )
-                    conds.append(self.sql_function('strpos', [field,v]) + ' = 0')
+                        v = self.quote(v)
+                    conds.append(self.sql_function('strpos', [field, v]) + ' = 0')
                 elif 'in' in value:
-                    v = array( value['in'] )
+                    v = array(value['in'])
 
                     if 'raw' == type:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v[0]):
-                        v = self.intval2str( v );
+                    elif ('int' == type or 'integer' == type) or is_int(v[0]):
+                        v = self.intval2str(v);
+                    elif 'float' == type or is_float(v[0]):
+                        v = self.floatval2str(v);
                     else:
-                        v = self.quote( v )
-                    conds.append( field + " IN (" + ','.join(v) + ")" )
+                        v = self.quote(v)
+                    conds.append(field + " IN (" + ','.join(v) + ")")
                 elif 'not_in' in value:
-                    v = array( value['not_in'] )
+                    v = array(value['not_in'])
 
                     if 'raw' == type:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v[0]):
-                        v = self.intval2str( v );
+                    elif ('int' == type or 'integer' == type) or is_int(v[0]):
+                        v = self.intval2str(v);
+                    elif 'float' == type or is_float(v[0]):
+                        v = self.floatval2str(v);
                     else:
-                        v = self.quote( v )
-                    conds.append( field + " NOT IN (" + ','.join(v) + ")" )
+                        v = self.quote(v)
+                    conds.append(field + " NOT IN (" + ','.join(v) + ")")
                 elif 'between' in value:
-                    v = array( value['between'] )
+                    v = array(value['between'])
 
                     # partial between clause
                     if v[0] is None:
@@ -2375,32 +2427,38 @@ class Dialect:
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or is_int(v[1]):
-                            v[1] = self.intval( v[1] )
+                        elif ('int' == type or 'integer' == type) or is_int(v[1]):
+                            v[1] = self.intval(v[1])
+                        elif 'float' == type or is_float(v[1]):
+                            v[1] = self.floatval(v[1])
                         else:
-                            v[1] = self.quote( v[1] )
-                        conds.append( field + " <= " + str(v[1]) )
+                            v[1] = self.quote(v[1])
+                        conds.append(field + " <= " + str(v[1]))
                     elif v[1] is None:
                         # switch to gte clause
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or is_int(v[0]):
-                            v[0] = self.intval( v[0] )
+                        elif ('int' == type or 'integer' == type) or is_int(v[0]):
+                            v[0] = self.intval(v[0])
+                        elif 'float' == type or is_float(v[0]):
+                            v[0] = self.floatval(v[0])
                         else:
-                            v[0] = self.quote( v[0] )
-                        conds.append( field + " >= " + str(v[0]) )
+                            v[0] = self.quote(v[0])
+                        conds.append(field + " >= " + str(v[0]))
                     else:
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
-                            v = self.intval( v )
+                        elif ('int' == type or 'integer' == type) or (is_int(v[0]) and is_int(v[1])):
+                            v = self.intval(v)
+                        elif 'float' == type or (is_float(v[0]) and is_float(v[1])):
+                            v = self.floatval(v)
                         else:
-                            v = self.quote( v )
-                        conds.append( field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]) )
+                            v = self.quote(v)
+                        conds.append(field + " BETWEEN " + str(v[0]) + " AND " + str(v[1]))
                 elif 'not_between' in value:
-                    v = array( value['not_between'] )
+                    v = array(value['not_between'])
 
                     # partial between clause
                     if v[0] is None:
@@ -2408,102 +2466,116 @@ class Dialect:
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or is_int(v[1]):
-                            v[1] = self.intval( v[1] )
+                        elif ('int' == type or 'integer' == type) or is_int(v[1]):
+                            v[1] = self.intval(v[1])
+                        elif 'float' == type or is_float(v[1]):
+                            v[1] = self.floatval(v[1])
                         else:
-                            v[1] = self.quote( v[1] )
-                        conds.append( field + " > " + str(v[1]) )
+                            v[1] = self.quote(v[1])
+                        conds.append(field + " > " + str(v[1]))
                     elif v[1] is None:
                         # switch to lt clause
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or is_int(v[0]):
-                            v[0] = self.intval( v[0] )
+                        elif ('int' == type or 'integer' == type) or is_int(v[0]):
+                            v[0] = self.intval(v[0])
+                        elif 'float' == type or is_float(v[0]):
+                            v[0] = self.floatval(v[0])
                         else:
-                            v[0] = self.quote( v[0] )
-                        conds.append( field + " < " + str(v[0]) )
+                            v[0] = self.quote(v[0])
+                        conds.append(field + " < " + str(v[0]))
                     else:
                         if 'raw' == type:
                             # raw, do nothing
                             pass
-                        elif 'integer' == type or (is_int(v[0]) and is_int(v[1])):
-                            v = self.intval( v )
+                        elif ('int' == type or 'integer' == type) or (is_int(v[0]) and is_int(v[1])):
+                            v = self.intval(v)
+                        elif 'float' == type or (is_float(v[0]) and is_float(v[1])):
+                            v = self.floatval(v)
                         else:
-                            v = self.quote( v )
-                        conds.append( field + " < " + str(v[0]) + " OR " + field + " > " + str(v[1]) )
+                            v = self.quote(v)
+                        conds.append(field + " < " + str(v[0]) + " OR " + field + " > " + str(v[1]))
                 elif ('gt' in value) or ('gte' in value):
                     op = 'gt' if 'gt' in value else "gte"
-                    v = value[ op ]
+                    v = value[op]
 
                     if 'raw' == type:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v):
-                        v = self.intval( v )
+                    elif ('int' == type or 'integer' == type) or is_int(v):
+                        v = self.intval(v)
+                    elif 'float' == type or is_float(v):
+                        v = self.floatval(v)
                     elif 'identifier' == type or 'field' == type:
-                        v = getattr(self.refs( v, COLS )[0], fmt)
+                        v = getattr(self.refs(v, COLS)[0], fmt)
                     else:
-                        v = self.quote( v )
-                    conds.append( field + (" > " if 'gt'==op else " >= ") + str(v) )
+                        v = self.quote(v)
+                    conds.append(field + (" > " if 'gt'==op else " >= ") + str(v))
                 elif ('lt' in value) or ('lte' in value):
                     op = 'lt' if 'lt' in value else "lte"
-                    v = value[ op ]
+                    v = value[op]
 
                     if 'raw' == type:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v):
-                        v = self.intval( v )
+                    elif ('int' == type or 'integer' == type) or is_int(v):
+                        v = self.intval(v)
+                    elif 'float' == type or is_float(v):
+                        v = self.floatval(v)
                     elif 'identifier' == type or 'field' == type:
-                        v = getattr(self.refs( v, COLS )[0], fmt)
+                        v = getattr(self.refs(v, COLS)[0], fmt)
                     else:
-                        v = self.quote( v )
-                    conds.append( field + (" < " if 'lt'==op else " <= ") + str(v) )
+                        v = self.quote(v)
+                    conds.append(field + (" < " if 'lt'==op else " <= ") + str(v))
                 elif ('not_equal' in value) or ('not_eq' in value):
                     op = 'not_equal' if 'not_equal' in value else "not_eq"
-                    v = value[ op ]
+                    v = value[op]
 
                     if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v):
-                        v = self.intval( v )
+                    elif ('int' == type or 'integer' == type) or is_int(v):
+                        v = self.intval(v)
+                    elif 'float' == type or is_float(v):
+                        v = self.floatval(v)
                     elif 'identifier' == type or 'field' == type:
-                        v = getattr(self.refs( v, COLS )[0], fmt)
+                        v = getattr(self.refs(v, COLS)[0], fmt)
                     else:
-                        v = self.quote( v )
-                    conds.append( (field + " IS NOT NULL") if v is None else (field + " <> " + str(v)) )
+                        v = self.quote(v)
+                    conds.append((field + " IS NOT NULL") if v is None else (field + " <> " + str(v)))
                 elif ('equal' in value) or ('eq' in value):
                     op = 'equal' if 'equal' in value else "eq"
-                    v = value[ op ]
+                    v = value[op]
 
                     if 'raw' == type or v is None:
                         # raw, do nothing
                         pass
-                    elif 'integer' == type or is_int(v):
-                        v = self.intval( v )
+                    elif ('int' == type or 'integer' == type) or is_int(v):
+                        v = self.intval(v)
+                    elif 'float' == type or is_float(v):
+                        v = self.floatval(v)
                     elif 'identifier' == type or 'field' == type:
-                        v = getattr(self.refs( v, COLS )[0], fmt)
+                        v = getattr(self.refs(v, COLS)[0], fmt)
                     else:
-                        v = self.quote( v )
-                    conds.append( (field + " IS NULL") if v is None else (field + " = " + str(v)) )
+                        v = self.quote(v)
+                    conds.append((field + " IS NULL") if v is None else (field + " = " + str(v)))
             else:
-                field = getattr(self.refs( f, COLS )[0], fmt)
-                conds.append( (field + " IS NULL") if value is None else (field + " = " + (str(value) if is_int(value) else self.quote(value))) )
+                field = getattr(self.refs(f, COLS)[0], fmt)
+                conds.append((field + " IS NULL") if value is None else (field + " = " + (str(value) if isinstance(value, (int,float)) else self.quote(value))))
 
         if len(conds): condquery = '(' + ') AND ('.join(conds) + ')'
         return condquery
 
-    def joinConditions( self, join, conditions ):
+    def joinConditions(self, join, conditions):
         j = 0
         conditions_copied = copy.copy(conditions)
         for f in conditions_copied:
 
-            ref = Ref.parse( f, self )
+            ref = Ref.parse(f, self)
             field = ref._col
             if field not in join: continue
-            cond = conditions[ f ]
+            cond = conditions[f]
             main_table = join[field]['table']
             main_id = join[field]['id']
             join_table = join[field]['join']
@@ -2512,7 +2584,7 @@ class Dialect:
             j += 1
             join_alias = join_table+str(j)
 
-            where = { }
+            where = {}
             if ('key' in join[field]) and field != join[field]['key']:
                 join_key = join[field]['key']
                 where[join_alias+'.'+join_key] = field
@@ -2528,12 +2600,12 @@ class Dialect:
                 join_table+" AS "+join_alias,
                 main_table+'.'+main_id+'='+join_alias+'.'+join_id,
                 "inner"
-            ).Where( where )
+            ).Where(where)
 
             del conditions[f]
         return self
 
-    def refs( self, refs, lookup, re_alias=False ):
+    def refs(self, refs, lookup, re_alias = False):
         if re_alias is True:
             for i in range(len(refs)):
                 ref = refs[i]
@@ -2547,7 +2619,7 @@ class Dialect:
 
                     if qualified_full in lookup:
 
-                        ref2 = lookup[ qualified_full ]
+                        ref2 = lookup[qualified_full]
                         alias2 = ref2.alias
                         qualified_full2 = ref2.full
 
@@ -2555,70 +2627,80 @@ class Dialect:
 
                             # handle recursive aliasing
                             #if (qualified_full2 != alias2) and (alias2 in lookup):
-                            #    del lookup[ alias2 ]
+                            #    del lookup[alias2]
 
-                            ref2 = ref2.cloned( ref.alias )
-                            refs[i] = lookup[ alias ] = ref2
+                            ref2 = ref2.cloned(ref.alias)
+                            refs[i] = lookup[alias] = ref2
 
                     elif qualified in lookup:
-                        ref2 = lookup[ qualified ]
-                        if ref2.qualified != qualified: ref2 = lookup[ ref2.qualified ]
+                        ref2 = lookup[qualified]
+                        if ref2.qualified != qualified: ref2 = lookup[ref2.qualified]
                         if ref.full != ref.alias:
-                            ref2 = ref2.cloned( ref.alias, None, ref._func )
+                            ref2 = ref2.cloned(ref.alias, None, ref._func)
                         else:
-                            ref2 = ref2.cloned( None, ref2.alias, ref._func )
-                        refs[i] = lookup[ ref2.alias ] = ref2
+                            ref2 = ref2.cloned(None, ref2.alias, ref._func)
+                        refs[i] = lookup[ref2.alias] = ref2
                         if (ref2.alias != ref2.full) and (ref2.full not in lookup):
-                            lookup[ ref2.full ] = ref2
+                            lookup[ref2.full] = ref2
 
                     else:
 
-                        lookup[ alias ] = ref
+                        lookup[alias] = ref
 
                         if (alias != qualified_full) and (qualified_full not in lookup):
-                            lookup[ qualified_full ] = ref
+                            lookup[qualified_full] = ref
 
                 else:
 
-                    refs[i] = lookup[ alias ]
+                    refs[i] = lookup[alias]
 
         else:
-            rs = array( refs )
-            refs = [ ]
+            rs = array(refs)
+            refs = []
             for i in range(len(rs)):
-                #r = rs[ i ].split(',')
+                #r = rs[i].split(',')
                 #for j in range(len(r)):
-                ref = Ref.parse( rs[ i ], self )
+                ref = Ref.parse(rs[i], self)
                 alias = ref.alias
                 qualified = ref.full
                 if alias not in lookup:
-                    lookup[ alias ] = ref
+                    lookup[alias] = ref
                     if (qualified != alias) and (qualified not in lookup):
-                        lookup[ qualified ] = ref
+                        lookup[qualified] = ref
                 else:
-                    ref = lookup[ alias ]
-                refs.append( ref )
+                    ref = lookup[alias]
+                refs.append(ref)
         return refs
 
-    def tbl( self, table ):
-        if is_array( table ): return [self.tbl( x ) for x in table]
-        return self.p + table
+    def tbl(self, table):
+        if is_array(table): return [self.tbl(x) for x in table]
+        return self.p + str(table)
 
-    def intval( self, v ):
-        if is_int( v ): return v
-        elif is_array( v ): return [self.intval( x ) for x in v]
-        else: return int( v, 10 )
+    def intval(self, v):
+        if is_array(v): return [self.intval(x) for x in v]
+        else: return v if is_int(v) else int(str(v), 10)
 
     def intval2str( self, v ):
-        if is_int( v ): return str(v)
-        elif is_array( v ): return [self.intval2str( x ) for x in v]
-        else: return str(self.intval( v ))
+        if is_array(v): return [self.intval2str(x) for x in v]
+        else: return str(self.intval(v))
 
-    def quote_name( self, v, optional=False ):
+    def floatval(self, v):
+        if is_array(v): return [self.floatval(x) for x in v]
+        else: return v if is_float(v) else float(str(v))
+
+    def floatval2str(self, v):
+        if is_array(v): return [self.floatval2str(x) for x in v]
+        else: return str(self.floatval(v))
+
+    def numval(self, v):
+        if is_array(v): return [self.numval(x) for x in v]
+        else: return v if isinstance(v, (int,float)) else float(str(v))
+
+    def quote_name(self, v, optional = False):
         optional = optional is True
         qn = self.qn
-        if is_array( v ):
-            return [self.quote_name( x, optional ) for x in v]
+        if is_array(v):
+            return [self.quote_name(x, optional) for x in v]
         v = str(v)
         if optional and qn[0] == v[0:len(qn[0])] and qn[1] == v[-len(qn[1]):]:
             return v
@@ -2636,24 +2718,24 @@ class Dialect:
                     ve += c
             return qn[0] + ve + qn[1]
 
-    def quote( self, v ):
-        if is_array( v ): return [self.quote( x ) for x in v]
+    def quote(self, v):
+        if is_array(v): return [self.quote(x) for x in v]
         q = self.q
         e = self.e
         v = str(v)
         hasBackSlash = (-1 != v.find('\\')) #('\\' in v)
         if self.escdb:
             return self.escdb[0](v) if self.escdb[1] else ((e[2] if hasBackSlash else '') + q[0] + self.escdb[0](v) + q[1] + (e[3] if hasBackSlash else ''))
-        return (e[2] if hasBackSlash else '') + q[0] + self.esc( v ) + q[1] + (e[3] if hasBackSlash else '')
+        return (e[2] if hasBackSlash else '') + q[0] + self.esc(v) + q[1] + (e[3] if hasBackSlash else '')
 
-    def esc( self, v ):
+    def esc(self, v):
         global NULL_CHAR
 
-        if is_array( v ): return [self.esc( x ) for x in v]
+        if is_array(v): return [self.esc(x) for x in v]
 
         escdb = self.escdb
         v = str(v)
-        if escdb and not escdb[1]: return escdb[0]( v )
+        if escdb and not escdb[1]: return escdb[0](v)
         else:
             # simple ecsaping using addslashes
             # '"\ and NUL (the NULL byte).
@@ -2664,20 +2746,20 @@ class Dialect:
             for c in v:
                 if q[0] == c: ve += q[2]
                 elif q[1] == c: ve += q[3]
-                else: ve += addslashes( c, chars, esc )
+                else: ve += addslashes(c, chars, esc)
             return ve
 
-    def esc_like( self, v ):
-        if is_array( v ): return [self.esc_like( x ) for x in v]
-        return addslashes( str(v), '_%', '\\' )
+    def esc_like(self, v):
+        if is_array(v): return [self.esc_like(x) for x in v]
+        return addslashes(str(v), '_%', '\\')
 
-    def like( self, v ):
-        if is_array( v ): return [self.like( x ) for x in v]
+    def like(self, v):
+        if is_array(v): return [self.like(x) for x in v]
         q = self.q
         e = ['','','',''] if self.escdb else self.e
-        return e[0] + q[0] + '%' + self.esc_like( self.esc( v ) ) + '%' + q[1] + e[1]
+        return e[0] + q[0] + '%' + self.esc_like(self.esc(v)) + '%' + q[1] + e[1]
 
-    def multi_like( self, f, v, trimmed=True ):
+    def multi_like(self, f, v, trimmed = True):
         trimmed = trimmed is not False
         like = f + " LIKE "
         ORs = v.split(',')
@@ -2685,29 +2767,29 @@ class Dialect:
         for i in range(len(ORs)):
             ANDs = ORs[i].split('+')
             if trimmed: ANDs = filter(len, list(map(lambda x: x.strip(), ANDs)))
-            for j in range(len(ANDs)): ANDs[j] = like + self.like( ANDs[j] )
+            for j in range(len(ANDs)): ANDs[j] = like + self.like(ANDs[j])
             ORs[i] = '(' + ' AND '.join(ANDs) + ')'
         return ' OR '.join(ORs)
 
-    def sql_function( self, f, args=None ):
-        if f not in Dialect.dialects[ self.type ][ 'functions' ]:
+    def sql_function(self, f, args = None):
+        if ('functions' not in Dialect.dialects[self.type]) or (f not in Dialect.dialects[self.type]['functions']):
             raise ValueError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"')
-        f = Dialect.dialects[ self.type ][ 'functions' ][ f ]
+        f = Dialect.dialects[self.type]['functions'][f]
         func = ''
         args = [] if args is None else array(args)
         argslen = len(args)
         is_arg = False
         for fi in f:
-            func += (args[fi-1] if 0<fi and argslen>=fi else '') if is_arg else fi
+            func += (str(args[fi-1]) if 0<fi and argslen>=fi else '') if is_arg else fi
             is_arg = not is_arg
         return func
 
 
-    def sql_type( self, data_type ):
+    def sql_type(self, data_type):
         data_type = str(data_type).upper()
-        if data_type not in Dialect.dialects[ self.type ][ 'types' ]:
+        if ('types' not in Dialect.dialects[self.type]) or (data_type not in Dialect.dialects[self.type]['types']):
             raise ValueError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"')
-        return Dialect.dialects[ self.type ][ 'types' ][ data_type ]
+        return str(Dialect.dialects[self.type]['types'][data_type])
 
 __all__ = ['Dialect']
 

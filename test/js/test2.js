@@ -1,11 +1,11 @@
-var Dialect = require("../src/js/Dialect.js"), echo = console.log;
+var Dialect = require("../../src/js/Dialect.js"), echo = console.log;
 
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( );
 
-var dialect = new Dialect( 'mysql' );
+var dialect = new Dialect('mysql');
 
-echo(dialect.Create('new_table', {
+echo(dialect.clear().Create('new_table', {
     ifnotexists: true,
     columns: [
         {column:'id', type:'bigint(20)', isnotnull:1, auto_increment:1},
@@ -28,7 +28,7 @@ echo(dialect.Create('new_table', {
 
 echo();
 
-echo(dialect.Create('new_view', {
+echo(dialect.clear().Create('new_view', {
     view: true,
     ifnotexists: true,
     columns: ['id', 'name'],

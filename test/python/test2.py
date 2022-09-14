@@ -16,7 +16,7 @@ def import_module(name, path):
     return mod
 
 # import the Dialect.py engine (as a) module, probably you will want to place this in another dir/package
-Dialect = import_module('Dialect', os.path.join(os.path.dirname(__file__), '../src/python/'))
+Dialect = import_module('Dialect', os.path.join(os.path.dirname(__file__), '../../src/python/'))
 if not Dialect:
     print ('Could not load the Dialect Module')
     sys.exit(1)
@@ -24,15 +24,15 @@ else:
     pass
 
 
-def echo( s='' ):
+def echo(s = ''):
     print (s)
 
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( 'postgres' )
+dialect = Dialect('postgres')
 
-echo(dialect.Create('new_table', {
+echo(dialect.clear().Create('new_table', {
     'ifnotexists': True,
     'columns': [
         {'column':'id', 'type':'bigint(20)', 'isnotnull':1, 'auto_increment':1},
@@ -52,7 +52,7 @@ echo(dialect.Create('new_table', {
 
 echo()
 
-echo(dialect.Create('new_view', {
+echo(dialect.clear().Create('new_view', {
     'view': True,
     'ifnotexists': True,
     'columns': ['id', 'name'],

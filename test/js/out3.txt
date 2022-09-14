@@ -1,4 +1,4 @@
-Dialect.VERSION = 1.2.0
+Dialect.VERSION = 1.4.0
 
 SQL dialect = postgresql
 

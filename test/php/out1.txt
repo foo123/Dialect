@@ -1,0 +1,47 @@
+Dialect.VERSION = 1.4.0
+
+SQL dialect = sqlite
+
+SELECT COUNT("t"."f0") AS "f0","t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3","t"."f1" AS "f11","t"."f1" AS "f111",COUNT(DISTINCT("t"."f1")) AS "f22",COUNT(DISTINCT("t"."f2"))
+FROM "t"
+INNER JOIN "t2" ON (("t"."id" = "t2"."id"))
+WHERE (("t"."f1" = '2')) AND (("t"."f2" = '3') OR ("t"."f2" = '1'))
+LIMIT 100 OFFSET 100
+
+SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
+FROM "t"
+WHERE ("t"."f1" = 12)
+LIMIT 100 OFFSET 100
+
+SELECT "t"."f1" AS "f1","t"."f2" AS "f2","t2"."f3" AS "f3"
+FROM "t"
+WHERE ("t"."f1" = 12)
+
+SELECT *
+FROM "table" AS "main"
+INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
+WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE %l:name%) AND ("main"."str" = %str%) AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0)) AND ("main"."null" IS NULL) AND ("main"."not_null" IS NOT NULL)
+ORDER BY "main"."field1" ASC,"main"."field2" ASC
+LIMIT 1000 OFFSET 2000
+
+SELECT *
+FROM "table" AS "main"
+INNER JOIN "usermeta" AS "usermeta1" ON ("main"."ID"="usermeta1"."user_id")
+WHERE ("usermeta1"."meta_key" = 'project') AND ("usermeta1"."meta_value" IN (1,2,3)) AND ("main"."name" LIKE '%na\%me%' ESCAPE '\') AND ("main"."str" = 'a string') AND ("main"."year" = 2000) AND (("main"."foo" = ',*,') OR (instr(',12,',"main"."foo") > 0)) AND ("main"."null" IS NULL) AND ("main"."not_null" IS NOT NULL)
+ORDER BY "main"."field1" ASC,"main"."field2" ASC
+LIMIT 1000 OFFSET 2000
+
+(SELECT *
+FROM "t1"
+LIMIT 10 OFFSET 0)
+UNION ALL
+(SELECT *
+FROM "t2"
+LIMIT 5 OFFSET 0)
+LIMIT 100 OFFSET 0
+
+SELECT *
+FROM "table"
+SELECT *
+FROM "table"
+

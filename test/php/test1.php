@@ -1,6 +1,6 @@
 <?php
-include "../src/php/Dialect.php";
-function echo_($s='')
+include "../../src/php/Dialect.php";
+function echo_($s = '')
 {
     echo $s . PHP_EOL;
 }
@@ -8,7 +8,7 @@ function echo_($s='')
 echo_('Dialect.VERSION = ' . Dialect::VERSION);
 echo_();
 
-$dialect = new Dialect( 'sqlite' );
+$dialect = new Dialect('sqlite');
 
 $conditions = array(
     'main.name'=>array('like'=>'%l:name%','type'=>'raw'),
@@ -20,10 +20,11 @@ $conditions = array(
     )),
     'main.null'=>null,
     'main.not_null'=>array('not_eq'=>null),
-    'main.project' => array('in'=>array(1,2,3),'type'=>'integer')
+    'main.project' => array('in'=>array(1,2,3),'type'=>'int')
 );
 
 $dialect
+    ->clear()
     ->Select('COUNT(t.f0) AS f0,t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     ->From('t')
     ->Join('t2',array('t.id'=>'t2.id'),'inner')
@@ -33,10 +34,11 @@ $dialect
 ;
 
 $dialect
+    ->clear()
     ->Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
     ->From('t')
     ->Where(array(
-        'f1'=>array('eq'=>'%d:id%','type'=>'raw')
+        'f1'=>array('eq'=>'%i:id%','type'=>'raw')
     ))
     ->Limit(100,100)
     ->PrepareTpl('prepared_query')
@@ -45,14 +47,16 @@ $dialect
 $dialect->PrepareTpl(
     'prepared_query2',
     $dialect
+        ->clear()
         ->Select('t.f1 AS f1,t.f2 AS f2,t2.f3 AS f3')
         ->From('t')
         ->Where(array(
-            'f1'=>array('eq'=>'%d:id%','type'=>'raw')
-        ))->sql( )
+            'f1'=>array('eq'=>'%i:id%','type'=>'raw')
+        ))->sql()
 );
 
 $query_soft_view = $dialect
+        ->clear()
         ->Select('*, f1 AS f11, f1 AS f111, COUNT( DISTINCT( f1 ) ) AS f22, COUNT( DISTINCT( f2 ) )')
         ->From('my_view')
         ->Where(array('f2'=>'3'), 'OR')
@@ -65,6 +69,7 @@ $query_prepared = $dialect->prepared('prepared_query',array('id'=>'12'));
 $query_prepared2 = $dialect->prepared('prepared_query2',array('id'=>'12'));
 
 $query = $dialect
+        ->clear()
         ->Select()
         ->Order('main.field1')
         ->From('table AS main')
@@ -81,14 +86,14 @@ $query = $dialect
         ->Where($conditions)
         ->Order('main.field2')
         ->Page(2, 1000)
-        ->sql( )
+        ->sql()
     ;
     
 $prepared = $dialect->prepare($query, array('name'=>'na%me','str'=>'a string'));
 
-$union = $dialect->Union(array($dialect->subquery()->Select('*')->From('t1')->Limit(10)->sql(), $dialect->subquery()->Select('*')->From('t2')->Limit(5)->sql()), true)->Limit(100)->sql( );
+$union = $dialect->clear()->Union(array($dialect->subquery()->Select('*')->From('t1')->Limit(10)->sql(), $dialect->subquery()->Select('*')->From('t2')->Limit(5)->sql()), true)->Limit(100)->sql();
 
-$sql = $dialect->Select()->From('table');
+$sql = $dialect->clear()->Select()->From('table');
 
 echo_( 'SQL dialect = ' . $dialect->type );
 echo_( );

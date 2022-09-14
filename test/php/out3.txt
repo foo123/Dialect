@@ -1,4 +1,4 @@
-Dialect.VERSION = 1.2.0
+Dialect.VERSION = 1.4.0
 
 SQL dialect = mysql
 
@@ -10,8 +10,9 @@ ORDER BY RAND() ASC
 
 'trick\'\\ier'
 
-SELECT `trick``ier` AS `trickier`,`trick'y` AS `tricky`
-FROM `table`
+SELECT *,`trick``ier` AS `trickier`,`trick'y` AS `tricky`
+FROM `table` AS `main`,`table` AS `main`
+ORDER BY RAND() ASC
 
 SELECT *
 FROM `table`

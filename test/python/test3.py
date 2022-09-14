@@ -16,7 +16,7 @@ def import_module(name, path):
     return mod
 
 # import the Dialect.py engine (as a) module, probably you will want to place this in another dir/package
-Dialect = import_module('Dialect', os.path.join(os.path.dirname(__file__), '../src/python/'))
+Dialect = import_module('Dialect', os.path.join(os.path.dirname(__file__), '../../src/python/'))
 if not Dialect:
     print ('Could not load the Dialect Module')
     sys.exit(1)
@@ -24,31 +24,31 @@ else:
     pass
 
 
-def echo( s='' ):
+def echo(s = ''):
     print (s)
 
 echo('Dialect.VERSION = ' + Dialect.VERSION)
 echo( )
 
-dialect = Dialect( 'sqlite' )
+dialect = Dialect('sqlite')
 
-query = dialect.Select().Order(dialect.sql_function('random')).From('table AS main').sql( )
+query = dialect.clear().Select().Order(dialect.sql_function('random')).From('table AS main').sql( )
 
 quoted_id = dialect.quote_name('trick"ier')
 quoted_lit = dialect.quote('trick\'\\ier')
 
-query2 = dialect.Select(quoted_id+' AS trickier, "trick\'y" AS tricky').From('table').sql()
+query2 = dialect.clear().Select(quoted_id+' AS trickier, "trick\'y" AS tricky').From('table').sql()
 
-query3 = dialect.Select().From('table').Where({'id':{'in':dialect.subquery().Select('id').From('anothertable').sql(),'type':'raw'}}).sql( )
+query3 = dialect.clear().Select().From('table').Where({'id':{'in':dialect.subquery().Select('id').From('anothertable').sql(),'type':'raw'}}).sql()
 
 query4 = ''.join([
-        dialect.Insert('table',['col1','col2']).sql( ),
-        dialect.Select('col1,col2').From('anothertable').Where({'id':1}).sql( )
+        dialect.clear().Insert('table',['col1','col2']).sql(),
+        dialect.clear().Select('col1,col2').From('anothertable').Where({'id':1}).sql()
     ])
 
-query5 = dialect.Select('anothertable.col1,anothertable.col2,dynamictable.*').From(['anothertable','('+
+query5 = dialect.clear().Select('anothertable.col1,anothertable.col2,dynamictable.*').From(['anothertable','('+
             dialect.subquery().Select(quoted_id).From('table').Where({'col4':{'like':'foo'}}).sql()+
-        ') AS dynamictable']).Where({'id':1}).sql( )
+        ') AS dynamictable']).Where({'id':1}).sql()
 
 echo( 'SQL dialect = ' + dialect.type )
 echo( )
