@@ -1611,6 +1611,7 @@ class Dialect
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
 
     public static $dialects = array(
+     // https://dev.mysql.com/doc/refman/8.0/en/
      "mysql"            => array(
          "quotes"       => array(array("'","'","\\'","\\'"), array("`","`","``","``"), array("","","",""))
 
@@ -1621,28 +1622,30 @@ class Dialect
         ,"strupper"     => array("UCASE(",1,")")
         ,"trim"         => array("TRIM(",1,")")
         ,"quote"        => array("QUOTE(",1,")")
-        ,"random"       => array("RAND()")
-        ,"now"          => array("NOW()")
+        ,"random"       => "RAND()"
+        ,"now"          => "NOW()"
         )
 
-        ,"types"        => array(
-         "BINARY"       => "VARBINARY"
-        ,"SMALLINT"     => "TINYINT"
-        ,"MEDIUMINT"    => "MEDIUMINT"
-        ,"INT"          => "UNSIGNED INT"
-        ,"SIGNED_INT"   => "INT"
-        ,"BIGINT"       => "UNSIGNED BIGINT"
-        ,"SIGNED_BIGINT"=> "BIGINT"
-        ,"FLOAT"        => "FLOAT"
-        ,"DOUBLE"       => "DOUBLE"
-        ,"BOOL"         => "TINYINT"
-        ,"TIMESTAMP"    => "TIMESTAMP"
-        ,"DATETIME"     => "DATETIME"
-        ,"DATE"         => "DATE"
-        ,"TIME"         => "TIME"
-        ,"VARCHAR"      => "VARCHAR"
-        ,"TEXT"         => "TEXT"
-        ,"BLOB"         => "BLOB"
+        // https://dev.mysql.com/doc/refman/8.0/en/data-types.html
+        ,"types"          => array(
+         "SMALLINT"       => array("TINYINT(",array(1,'255'),") UNSIGNED")
+        ,"SIGNED_SMALLINT"=> array("TINYINT(",array(1,'255'),")")
+        ,"INT"            => array("INT(",array(1,'255'),") UNSIGNED")
+        ,"SIGNED_INT"     => array("INT(",array(1,'255'),")")
+        ,"BIGINT"         => array("BIGINT(",array(1,'255'),") UNSIGNED")
+        ,"SIGNED_BIGINT"  => array("BIGINT(",array(1,'255'),")")
+        ,"FLOAT"          => array("FLOAT(",array(1,'24'),")")
+        ,"DOUBLE"         => array("FLOAT(",array(1,'53'),")")
+        ,"BOOL"           => "TINYINT(1)"
+        ,"TIMESTAMP"      => "TIMESTAMP"
+        ,"DATETIME"       => "DATETIME"
+        ,"DATE"           => "DATE"
+        ,"TIME"           => "TIME"
+        ,"VARBINARY"      => array("VARBINARY(",array(1,'255'),")")
+        ,"VARCHAR"        => array("VARCHAR(",array(1,'255'),")")
+        ,"TEXT"           => "TEXT"
+        ,"BLOB"           => "BLOB"
+        ,"JSON"           => "JSON"
         )
 
         ,"clauses"      => array(
@@ -1662,6 +1665,7 @@ class Dialect
     )
 
 
+    // https://www.postgresql.org/docs/current/index.html
     ,"postgresql"       => array(
          "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\"","\"\""), array("E","","E","") )
 
@@ -1672,28 +1676,30 @@ class Dialect
         ,"strupper"     => array("upper(",1,")")
         ,"trim"         => array("trim(",1,")")
         ,"quote"        => array("quote(",1,")")
-        ,"random"       => array("random()")
-        ,"now"          => array("now()")
+        ,"random"       => "random()"
+        ,"now"          => "now()"
         )
 
+        // https://www.postgresql.org/docs/current/datatype.html
         ,"types"        => array(
-         "BINARY"       => "BYTEA"
-        ,"SMALLINT"     => "SMALLINT"
-        ,"MEDIUMINT"    => "INTEGER"
-        ,"INT"          => "SERIAL"
-        ,"SIGNED_INT"   => "INTEGER"
-        ,"BIGINT"       => "BIGSERIAL"
-        ,"SIGNED_BIGINT"=> "BIGINT"
-        ,"FLOAT"        => "REAL"
-        ,"DOUBLE"       => "DOUBLE PRECISION"
-        ,"BOOL"         => "BOOLEAN"
-        ,"TIMESTAMP"    => "TIMESTAMP WITHOUT TIME ZONE"
-        ,"DATETIME"     => "TIMESTAMP WITHOUT TIME ZONE"
-        ,"DATE"         => "DATE"
-        ,"TIME"         => "TIME WITHOUT TIME ZONE"
-        ,"VARCHAR"      => "VARCHAR"
-        ,"TEXT"         => "TEXT"
-        ,"BLOB"         => "BLOB"
+         "SMALLINT"       => "SMALLSERIAL"
+        ,"SIGNED_SMALLINT"=> "SMALLINT"
+        ,"INT"            => "SERIAL"
+        ,"SIGNED_INT"     => "INTEGER"
+        ,"BIGINT"         => "BIGSERIAL"
+        ,"SIGNED_BIGINT"  => "BIGINT"
+        ,"FLOAT"          => "REAL"
+        ,"DOUBLE"         => "DOUBLE PRECISION"
+        ,"BOOL"           => "BOOLEAN"
+        ,"TIMESTAMP"      => "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATETIME"       => "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATE"           => "DATE"
+        ,"TIME"           => "TIME WITHOUT TIME ZONE"
+        ,"VARBINARY"      => "BYTEA"
+        ,"VARCHAR"        => array("VARCHAR(",array(1,'255'),")")
+        ,"TEXT"           => "TEXT"
+        ,"BLOB"           => "BYTEA"
+        ,"JSON"           => "JSON"
         )
 
         ,"clauses"      => array(
@@ -1713,6 +1719,7 @@ class Dialect
     )
 
 
+    // https://docs.microsoft.com/en-us/sql/t-sql/language-reference?view=sql-server-ver16
     ,"transactsql"      => array(
          "quotes"       => array( array("'","'","''","''"), array("[","]","[","]"), array(""," ESCAPE '\\'","","") )
 
@@ -1723,28 +1730,30 @@ class Dialect
         ,"strupper"     => array("UPPER(",1,")")
         ,"trim"         => array("LTRIM(RTRIM(",1,"))")
         ,"quote"        => array("QUOTENAME(",1,",\"'\")")
-        ,"random"       => array("RAND()")
-        ,"now"          => array("CURRENT_TIMESTAMP")
+        ,"random"       => "RAND()"
+        ,"now"          => "CURRENT_TIMESTAMP"
         )
 
+        // https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-ver16
         ,"types"        => array(
-         "BINARY"       => "VARBINARY"
-        ,"SMALLINT"     => "TINYINT"
-        ,"MEDIUMINT"    => "SMALLINT"
-        ,"INT"          => "INT"
-        ,"SIGNED_INT"   => "INT"
-        ,"BIGINT"       => "BIGINT"
-        ,"SIGNED_BIGINT"=> "BIGINT"
-        ,"FLOAT"        => "FLOAT"
-        ,"DOUBLE"       => "REAL"
-        ,"BOOL"         => "BIT"
-        ,"TIMESTAMP"    => "DATETIME"
-        ,"DATETIME"     => "DATETIME"
-        ,"DATE"         => "DATE"
-        ,"TIME"         => "TIME"
-        ,"VARCHAR"      => "VARCHAR"
-        ,"TEXT"         => "TEXT"
-        ,"BLOB"         => "TEXT"
+         "SMALLINT"       => "SMALLINT"
+        ,"SIGNED_SMALLINT"=> "SMALLINT"
+        ,"INT"            => "INT"
+        ,"SIGNED_INT"     => "INT"
+        ,"BIGINT"         => "BIGINT"
+        ,"SIGNED_BIGINT"  => "BIGINT"
+        ,"FLOAT"          => array("FLOAT(",array(1,'24'),")")
+        ,"DOUBLE"         => array("FLOAT(",array(1,'53'),")")
+        ,"BOOL"           => "BIT"
+        ,"TIMESTAMP"      => "DATETIME"
+        ,"DATETIME"       => "DATETIME"
+        ,"DATE"           => "DATE"
+        ,"TIME"           => "TIME"
+        ,"VARBINARY"      => array("VARBINARY(",array(1,'255'),")")
+        ,"VARCHAR"        => array("VARCHAR(",array(1,'255'),")")
+        ,"TEXT"           => "TEXT"
+        ,"BLOB"           => "IMAGE"
+        ,"JSON"           => "TEXT"
         )
 
         ,"clauses"      => array(
@@ -1764,6 +1773,7 @@ class Dialect
     )
 
 
+    // https://www.sqlite.org/doclist.html
     ,"sqlite"           => array(
          "quotes"       => array( array("'","'","''","''"), array("\"","\"","\"\"","\"\""), array(""," ESCAPE '\\'","","") )
 
@@ -1774,28 +1784,30 @@ class Dialect
         ,"strupper"     => array("upper(",1,")")
         ,"trim"         => array("trim(",1,")")
         ,"quote"        => array("quote(",1,")")
-        ,"random"       => array("random()")
-        ,"now"          => array("datetime('now')")
+        ,"random"       => "random()"
+        ,"now"          => "datetime('now')"
         )
 
-        ,"types"        => array(
-         "BINARY"       => "BLOB"
-        ,"SMALLINT"     => "INTEGER"
-        ,"MEDIUMINT"    => "INTEGER"
-        ,"INT"          => "INTEGER"
-        ,"SIGNED_INT"   => "INTEGER"
-        ,"BIGINT"       => "INTEGER"
-        ,"SIGNED_BIGINT"=> "INTEGER"
-        ,"FLOAT"        => "REAL"
-        ,"DOUBLE"       => "REAL"
-        ,"BOOL"         => "INTEGER"
-        ,"TIMESTAMP"    => "TEXT"
-        ,"DATETIME"     => "TEXT"
-        ,"DATE"         => "TEXT"
-        ,"TIME"         => "TEXT"
-        ,"VARCHAR"      => "TEXT"
-        ,"TEXT"         => "TEXT"
-        ,"BLOB"         => "BLOB"
+        // https://www.sqlite.org/datatype3.html
+        ,"types"           => array(
+         "SMALLINT"       => "INTEGER"
+        ,"SIGNED_SMALLINT"=> "INTEGER"
+        ,"INT"            => "INTEGER"
+        ,"SIGNED_INT"     => "INTEGER"
+        ,"BIGINT"         => "INTEGER"
+        ,"SIGNED_BIGINT"  => "INTEGER"
+        ,"FLOAT"          => "REAL"
+        ,"DOUBLE"         => "REAL"
+        ,"BOOL"           => "INTEGER"
+        ,"TIMESTAMP"      => "TEXT"
+        ,"DATETIME"       => "TEXT"
+        ,"DATE"           => "TEXT"
+        ,"TIME"           => "TEXT"
+        ,"VARBINARY"      => "BLOB"
+        ,"VARCHAR"        => "TEXT"
+        ,"TEXT"           => "TEXT"
+        ,"BLOB"           => "BLOB"
+        ,"JSON"           => "TEXT"
         )
 
         ,"clauses"      => array(
@@ -3518,23 +3530,40 @@ class Dialect
         if (!isset(self::$dialects[$this->type]['functions']) || !isset(self::$dialects[$this->type]['functions'][$f]))
             throw new InvalidArgumentException('Dialect: SQL function "'.$f.'" does not exist for dialect "'.$this->type.'"');
         $f = self::$dialects[$this->type]['functions'][$f];
-        $args = (array)$args;
-        $argslen = count($args);
-        $func = ''; $is_arg = false;
-        foreach ($f as $fi)
+        if (is_array($f))
         {
-            $func .= $is_arg ? (0<$fi && $argslen>=$fi ? (string)$args[$fi-1] : '') : $fi;
-            $is_arg = !$is_arg;
+            $args = (array)$args;
+            $argslen = count($args);
+            $func = ''; $is_arg = false;
+            foreach ($f as $fi)
+            {
+                $func .= $is_arg ? (is_array($fi) ? (0<$fi[0] && $argslen>=$fi[0] ? (string)$args[$fi[0]-1] : (isset($fi[1]) ? (string)$fi[1] : '')) : (0<$fi && $argslen>=$fi ? (string)$args[$fi-1] : '')) : (string)$fi;
+                $is_arg = !$is_arg;
+            }
+            return $func;
         }
-        return $func;
+        return (string)$f;
     }
 
-    public function sql_type($data_type)
+    public function sql_type($data_type, $args = array())
     {
         $data_type = strtoupper((string)$data_type);
         if (!isset(self::$dialects[$this->type]['types']) || !isset(self::$dialects[$this->type]['types'][$data_type]))
             throw new InvalidArgumentException('Dialect: SQL type "'.$data_type.'" does not exist for dialect "'.$this->type.'"');
-        return (string)self::$dialects[$this->type]['types'][$data_type];
+        $d = self::$dialects[$this->type]['types'][$data_type];
+        if (is_array($d))
+        {
+            $args = (array)$args;
+            $argslen = count($args);
+            $dd = ''; $is_arg = false;
+            foreach ($d as $di)
+            {
+                $dd .= $is_arg ? (is_array($di) ? (0<$di[0] && $argslen>=$di[0] ? (string)$args[$di[0]-1] : (isset($di[1]) ? (string)$di[1] : '')) : (0<$di && $argslen>=$di ? (string)$args[$di-1] : '')) : (string)$di;
+                $is_arg = !$is_arg;
+            }
+            return $dd;
+        }
+        return (string)$d;
     }
 
     public static function map_join($arr, $prop, $sep = ',')

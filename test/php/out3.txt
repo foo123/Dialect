@@ -10,9 +10,8 @@ ORDER BY RAND() ASC
 
 'trick\'\\ier'
 
-SELECT *,`trick``ier` AS `trickier`,`trick'y` AS `tricky`
-FROM `table` AS `main`,`table` AS `main`
-ORDER BY RAND() ASC
+SELECT `trick``ier` AS `trickier`,`trick'y` AS `tricky`
+FROM `table`
 
 SELECT *
 FROM `table`

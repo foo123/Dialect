@@ -1433,6 +1433,7 @@ class Dialect:
     Ref = Ref
 
     dialects = {
+     # https://dev.mysql.com/doc/refman/8.0/en/
      "mysql"            : {
          "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
 
@@ -1443,28 +1444,30 @@ class Dialect:
         ,"strupper"     : ["UCASE(",1,")"]
         ,"trim"         : ["TRIM(",1,")"]
         ,"quote"        : ["QUOTE(",1,")"]
-        ,"random"       : ["RAND()"]
-        ,"now"          : ["NOW()"]
+        ,"random"       : "RAND()"
+        ,"now"          : "NOW()"
         }
 
+        # https://dev.mysql.com/doc/refman/8.0/en/data-types.html
         ,"types"        : {
-         "BINARY"       : "VARBINARY"
-        ,"SMALLINT"     : "TINYINT"
-        ,"MEDIUMINT"    : "MEDIUMINT"
-        ,"INT"          : "UNSIGNED INT"
-        ,"SIGNED_INT"   : "INT"
-        ,"BIGINT"       : "UNSIGNED BIGINT"
-        ,"SIGNED_BIGINT": "BIGINT"
-        ,"FLOAT"        : "FLOAT"
-        ,"DOUBLE"       : "DOUBLE"
-        ,"BOOL"         : "TINYINT"
-        ,"TIMESTAMP"    : "TIMESTAMP"
-        ,"DATETIME"     : "DATETIME"
-        ,"DATE"         : "DATE"
-        ,"TIME"         : "TIME"
-        ,"VARCHAR"      : "VARCHAR"
-        ,"TEXT"         : "TEXT"
-        ,"BLOB"         : "BLOB"
+         "SMALLINT"       : ["TINYINT(",[1,'255'],") UNSIGNED"]
+        ,"SIGNED_SMALLINT": ["TINYINT(",[1,'255'],")"]
+        ,"INT"            : ["INT(",[1,'255'],") UNSIGNED"]
+        ,"SIGNED_INT"     : ["INT(",[1,'255'],")"]
+        ,"BIGINT"         : ["BIGINT(",[1,'255'],") UNSIGNED"]
+        ,"SIGNED_BIGINT"  : ["BIGINT(",[1,'255'],")"]
+        ,"FLOAT"          : ["FLOAT(",[1,'24'],")"]
+        ,"DOUBLE"         : ["FLOAT(",[1,'53'],")"]
+        ,"BOOL"           : "TINYINT(1)"
+        ,"TIMESTAMP"      : "TIMESTAMP"
+        ,"DATETIME"       : "DATETIME"
+        ,"DATE"           : "DATE"
+        ,"TIME"           : "TIME"
+        ,"VARBINARY"      : ["VARBINARY(",[1,'255'],")"]
+        ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+        ,"TEXT"           : "TEXT"
+        ,"BLOB"           : "BLOB"
+        ,"JSON"           : "JSON"
         }
 
         ,"clauses"      : {
@@ -1484,6 +1487,7 @@ class Dialect:
     }
 
 
+    # https://www.postgresql.org/docs/current/index.html
     ,"postgresql"       : {
          "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
 
@@ -1494,28 +1498,30 @@ class Dialect:
         ,"strupper"     : ["upper(",1,")"]
         ,"trim"         : ["trim(",1,")"]
         ,"quote"        : ["quote(",1,")"]
-        ,"random"       : ["random()"]
-        ,"now"          : ["now()"]
+        ,"random"       : "random()"
+        ,"now"          : "now()"
         }
 
+        # https://www.postgresql.org/docs/current/datatype.html
         ,"types"        : {
-         "BINARY"       : "BYTEA"
-        ,"SMALLINT"     : "SMALLINT"
-        ,"MEDIUMINT"    : "INTEGER"
-        ,"INT"          : "SERIAL"
-        ,"SIGNED_INT"   : "INTEGER"
-        ,"BIGINT"       : "BIGSERIAL"
-        ,"SIGNED_BIGINT": "BIGINT"
-        ,"FLOAT"        : "REAL"
-        ,"DOUBLE"       : "DOUBLE PRECISION"
-        ,"BOOL"         : "BOOLEAN"
-        ,"TIMESTAMP"    : "TIMESTAMP WITHOUT TIME ZONE"
-        ,"DATETIME"     : "TIMESTAMP WITHOUT TIME ZONE"
-        ,"DATE"         : "DATE"
-        ,"TIME"         : "TIME WITHOUT TIME ZONE"
-        ,"VARCHAR"      : "VARCHAR"
-        ,"TEXT"         : "TEXT"
-        ,"BLOB"         : "BLOB"
+         "SMALLINT"       : "SMALLSERIAL"
+        ,"SIGNED_SMALLINT": "SMALLINT"
+        ,"INT"            : "SERIAL"
+        ,"SIGNED_INT"     : "INTEGER"
+        ,"BIGINT"         : "BIGSERIAL"
+        ,"SIGNED_BIGINT"  : "BIGINT"
+        ,"FLOAT"          : "REAL"
+        ,"DOUBLE"         : "DOUBLE PRECISION"
+        ,"BOOL"           : "BOOLEAN"
+        ,"TIMESTAMP"      : "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATETIME"       : "TIMESTAMP WITHOUT TIME ZONE"
+        ,"DATE"           : "DATE"
+        ,"TIME"           : "TIME WITHOUT TIME ZONE"
+        ,"VARBINARY"      : "BYTEA"
+        ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+        ,"TEXT"           : "TEXT"
+        ,"BLOB"           : "BYTEA"
+        ,"JSON"           : "JSON"
         }
 
         ,"clauses"      : {
@@ -1535,6 +1541,7 @@ class Dialect:
     }
 
 
+    # https://docs.microsoft.com/en-us/sql/t-sql/language-reference?view=sql-server-ver16
     ,"transactsql"      : {
          "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
 
@@ -1545,28 +1552,30 @@ class Dialect:
         ,"strupper"     : ["UPPER(",1,")"]
         ,"trim"         : ["LTRIM(RTRIM(",1,"))"]
         ,"quote"        : ["QUOTENAME(",1,",\"'\")"]
-        ,"random"       : ["RAND()"]
-        ,"now"          : ["CURRENT_TIMESTAMP"]
+        ,"random"       : "RAND()"
+        ,"now"          : "CURRENT_TIMESTAMP"
         }
 
+        # https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-ver16
         ,"types"        : {
-         "BINARY"       : "VARBINARY"
-        ,"SMALLINT"     : "TINYINT"
-        ,"MEDIUMINT"    : "SMALLINT"
-        ,"INT"          : "INT"
-        ,"SIGNED_INT"   : "INT"
-        ,"BIGINT"       : "BIGINT"
-        ,"SIGNED_BIGINT": "BIGINT"
-        ,"FLOAT"        : "FLOAT"
-        ,"DOUBLE"       : "REAL"
-        ,"BOOL"         : "BIT"
-        ,"TIMESTAMP"    : "DATETIME"
-        ,"DATETIME"     : "DATETIME"
-        ,"DATE"         : "DATE"
-        ,"TIME"         : "TIME"
-        ,"VARCHAR"      : "VARCHAR"
-        ,"TEXT"         : "TEXT"
-        ,"BLOB"         : "TEXT"
+         "SMALLINT"       : "SMALLINT"
+        ,"SIGNED_SMALLINT": "SMALLINT"
+        ,"INT"            : "INT"
+        ,"SIGNED_INT"     : "INT"
+        ,"BIGINT"         : "BIGINT"
+        ,"SIGNED_BIGINT"  : "BIGINT"
+        ,"FLOAT"          : ["FLOAT(",[1,'24'],")"]
+        ,"DOUBLE"         : ["FLOAT(",[1,'53'],")"]
+        ,"BOOL"           : "BIT"
+        ,"TIMESTAMP"      : "DATETIME"
+        ,"DATETIME"       : "DATETIME"
+        ,"DATE"           : "DATE"
+        ,"TIME"           : "TIME"
+        ,"VARBINARY"      : ["VARBINARY(",[1,'255'],")"]
+        ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+        ,"TEXT"           : "TEXT"
+        ,"BLOB"           : "IMAGE"
+        ,"JSON"           : "TEXT"
         }
 
         ,"clauses"      : {
@@ -1586,6 +1595,7 @@ class Dialect:
     }
 
 
+    # https://www.sqlite.org/doclist.html
     ,"sqlite"           : {
          "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
 
@@ -1596,28 +1606,30 @@ class Dialect:
         ,"strupper"     : ["upper(",1,")"]
         ,"trim"         : ["trim(",1,")"]
         ,"quote"        : ["quote(",1,")"]
-        ,"random"       : ["random()"]
-        ,"now"          : ["datetime('now')"]
+        ,"random"       : "random()"
+        ,"now"          : "datetime('now')"
         }
 
+        # https://www.sqlite.org/datatype3.html
         ,"types"        : {
-         "BINARY"       : "BLOB"
-        ,"SMALLINT"     : "INTEGER"
-        ,"MEDIUMINT"    : "INTEGER"
-        ,"INT"          : "INTEGER"
-        ,"SIGNED_INT"   : "INTEGER"
-        ,"BIGINT"       : "INTEGER"
-        ,"SIGNED_BIGINT": "INTEGER"
-        ,"FLOAT"        : "REAL"
-        ,"DOUBLE"       : "REAL"
-        ,"BOOL"         : "INTEGER"
-        ,"TIMESTAMP"    : "TEXT"
-        ,"DATETIME"     : "TEXT"
-        ,"DATE"         : "TEXT"
-        ,"TIME"         : "TEXT"
-        ,"VARCHAR"      : "TEXT"
-        ,"TEXT"         : "TEXT"
-        ,"BLOB"         : "BLOB"
+         "SMALLINT"       : "INTEGER"
+        ,"SIGNED_SMALLINT": "INTEGER"
+        ,"INT"            : "INTEGER"
+        ,"SIGNED_INT"     : "INTEGER"
+        ,"BIGINT"         : "INTEGER"
+        ,"SIGNED_BIGINT"  : "INTEGER"
+        ,"FLOAT"          : "REAL"
+        ,"DOUBLE"         : "REAL"
+        ,"BOOL"           : "INTEGER"
+        ,"TIMESTAMP"      : "TEXT"
+        ,"DATETIME"       : "TEXT"
+        ,"DATE"           : "TEXT"
+        ,"TIME"           : "TEXT"
+        ,"VARBINARY"      : "BLOB"
+        ,"VARCHAR"        : "TEXT"
+        ,"TEXT"           : "TEXT"
+        ,"BLOB"           : "BLOB"
+        ,"JSON"           : "TEXT"
         }
 
         ,"clauses"      : {
@@ -2775,21 +2787,33 @@ class Dialect:
         if ('functions' not in Dialect.dialects[self.type]) or (f not in Dialect.dialects[self.type]['functions']):
             raise ValueError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"')
         f = Dialect.dialects[self.type]['functions'][f]
-        func = ''
-        args = [] if args is None else array(args)
-        argslen = len(args)
-        is_arg = False
-        for fi in f:
-            func += (str(args[fi-1]) if 0<fi and argslen>=fi else '') if is_arg else fi
-            is_arg = not is_arg
-        return func
+        if isinstance(f, (list,tuple)):
+            func = ''
+            args = [] if args is None else array(args)
+            argslen = len(args)
+            is_arg = False
+            for fi in f:
+                func += ((str(args[fi[0]-1]) if 0<fi[0] and argslen>=fi[0] else (str(fi[1]) if (1<len(fi)) and not (fi[1] is None) else '')) if isinstance(fi, (list,tuple)) else (str(args[fi-1]) if 0<fi and argslen>=fi else '')) if is_arg else str(fi)
+                is_arg = not is_arg
+            return func
+        return str(f)
 
 
-    def sql_type(self, data_type):
+    def sql_type(self, data_type, args = None):
         data_type = str(data_type).upper()
         if ('types' not in Dialect.dialects[self.type]) or (data_type not in Dialect.dialects[self.type]['types']):
             raise ValueError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"')
-        return str(Dialect.dialects[self.type]['types'][data_type])
+        d = Dialect.dialects[self.type]['types'][data_type]
+        if isinstance(d, (list,tuple)):
+            dd = ''
+            args = [] if args is None else array(args)
+            argslen = len(args)
+            is_arg = False
+            for di in d:
+                dd += ((str(args[di[0]-1]) if 0<di[0] and argslen>=di[0] else (str(di[1]) if (1<len(di)) and not (di[1] is None) else '')) if isinstance(di, (list,tuple)) else (str(args[di-1]) if 0<di and argslen>=di else '')) if is_arg else str(di)
+                is_arg = not is_arg
+            return dd
+        return str(d)
 
 __all__ = ['Dialect']
 

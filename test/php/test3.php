@@ -21,7 +21,7 @@ $query = $dialect
 $quoted_id = $dialect->quote_name('trick`ier');
 $quoted_lit = $dialect->quote('trick\'\\ier');
 
-$query2 = $dialect>clear()->Select($quoted_id.' AS trickier, "trick\'y" AS tricky')->From('table')->sql();
+$query2 = $dialect->clear()->Select($quoted_id.' AS trickier, "trick\'y" AS tricky')->From('table')->sql();
 
 $query3 = $dialect
         ->clear()

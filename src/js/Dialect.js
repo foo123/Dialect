@@ -1692,6 +1692,7 @@ Ref[PROTO] = {
 };
 
 var dialects = {
+ // https://dev.mysql.com/doc/refman/8.0/en/
  "mysql"            : {
      "quotes"       : [ ["'","'","\\'","\\'"], ["`","`","``","``"], ["","","",""] ]
 
@@ -1702,28 +1703,30 @@ var dialects = {
     ,"strupper"     : ["UCASE(",1,")"]
     ,"trim"         : ["TRIM(",1,")"]
     ,"quote"        : ["QUOTE(",1,")"]
-    ,"random"       : ["RAND()"]
-    ,"now"          : ["NOW()"]
+    ,"random"       : "RAND()"
+    ,"now"          : "NOW()"
     }
 
+    // https://dev.mysql.com/doc/refman/8.0/en/data-types.html
     ,"types"        : {
-     "BINARY"       : "VARBINARY"
-    ,"SMALLINT"     : "TINYINT"
-    ,"MEDIUMINT"    : "MEDIUMINT"
-    ,"INT"          : "UNSIGNED INT"
-    ,"SIGNED_INT"   : "INT"
-    ,"BIGINT"       : "UNSIGNED BIGINT"
-    ,"SIGNED_BIGINT": "BIGINT"
-    ,"FLOAT"        : "FLOAT"
-    ,"DOUBLE"       : "DOUBLE"
-    ,"BOOL"         : "TINYINT"
-    ,"TIMESTAMP"    : "TIMESTAMP"
-    ,"DATETIME"     : "DATETIME"
-    ,"DATE"         : "DATE"
-    ,"TIME"         : "TIME"
-    ,"VARCHAR"      : "VARCHAR"
-    ,"TEXT"         : "TEXT"
-    ,"BLOB"         : "BLOB"
+     "SMALLINT"       : ["TINYINT(",[1,'255'],") UNSIGNED"]
+    ,"SIGNED_SMALLINT": ["TINYINT(",[1,'255'],")"]
+    ,"INT"            : ["INT(",[1,'255'],") UNSIGNED"]
+    ,"SIGNED_INT"     : ["INT(",[1,'255'],")"]
+    ,"BIGINT"         : ["BIGINT(",[1,'255'],") UNSIGNED"]
+    ,"SIGNED_BIGINT"  : ["BIGINT(",[1,'255'],")"]
+    ,"FLOAT"          : ["FLOAT(",[1,'24'],")"]
+    ,"DOUBLE"         : ["FLOAT(",[1,'53'],")"]
+    ,"BOOL"           : "TINYINT(1)"
+    ,"TIMESTAMP"      : "TIMESTAMP"
+    ,"DATETIME"       : "DATETIME"
+    ,"DATE"           : "DATE"
+    ,"TIME"           : "TIME"
+    ,"VARBINARY"      : ["VARBINARY(",[1,'255'],")"]
+    ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+    ,"TEXT"           : "TEXT"
+    ,"BLOB"           : "BLOB"
+    ,"JSON"           : "JSON"
     }
 
     ,"clauses"      : {
@@ -1743,6 +1746,7 @@ var dialects = {
 }
 
 
+// https://www.postgresql.org/docs/current/index.html
 ,"postgresql"       : {
      "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], ["E","","E",""] ]
 
@@ -1753,28 +1757,30 @@ var dialects = {
     ,"strupper"     : ["upper(",1,")"]
     ,"trim"         : ["trim(",1,")"]
     ,"quote"        : ["quote(",1,")"]
-    ,"random"       : ["random()"]
-    ,"now"          : ["now()"]
+    ,"random"       : "random()"
+    ,"now"          : "now()"
     }
 
+    // https://www.postgresql.org/docs/current/datatype.html
     ,"types"        : {
-     "BINARY"       : "BYTEA"
-    ,"SMALLINT"     : "SMALLINT"
-    ,"MEDIUMINT"    : "INTEGER"
-    ,"INT"          : "SERIAL"
-    ,"SIGNED_INT"   : "INTEGER"
-    ,"BIGINT"       : "BIGSERIAL"
-    ,"SIGNED_BIGINT": "BIGINT"
-    ,"FLOAT"        : "REAL"
-    ,"DOUBLE"       : "DOUBLE PRECISION"
-    ,"BOOL"         : "BOOLEAN"
-    ,"TIMESTAMP"    : "TIMESTAMP WITHOUT TIME ZONE"
-    ,"DATETIME"     : "TIMESTAMP WITHOUT TIME ZONE"
-    ,"DATE"         : "DATE"
-    ,"TIME"         : "TIME WITHOUT TIME ZONE"
-    ,"VARCHAR"      : "VARCHAR"
-    ,"TEXT"         : "TEXT"
-    ,"BLOB"         : "BLOB"
+     "SMALLINT"       : "SMALLSERIAL"
+    ,"SIGNED_SMALLINT": "SMALLINT"
+    ,"INT"            : "SERIAL"
+    ,"SIGNED_INT"     : "INTEGER"
+    ,"BIGINT"         : "BIGSERIAL"
+    ,"SIGNED_BIGINT"  : "BIGINT"
+    ,"FLOAT"          : "REAL"
+    ,"DOUBLE"         : "DOUBLE PRECISION"
+    ,"BOOL"           : "BOOLEAN"
+    ,"TIMESTAMP"      : "TIMESTAMP WITHOUT TIME ZONE"
+    ,"DATETIME"       : "TIMESTAMP WITHOUT TIME ZONE"
+    ,"DATE"           : "DATE"
+    ,"TIME"           : "TIME WITHOUT TIME ZONE"
+    ,"VARBINARY"      : "BYTEA"
+    ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+    ,"TEXT"           : "TEXT"
+    ,"BLOB"           : "BYTEA"
+    ,"JSON"           : "JSON"
     }
 
     ,"clauses"      : {
@@ -1794,6 +1800,7 @@ var dialects = {
 }
 
 
+// https://docs.microsoft.com/en-us/sql/t-sql/language-reference?view=sql-server-ver16
 ,"transactsql"      : {
      "quotes"       : [ ["'","'","''","''"], ["[","]","[","]"], [""," ESCAPE '\\'","",""] ]
 
@@ -1804,28 +1811,30 @@ var dialects = {
     ,"strupper"     : ["UPPER(",1,")"]
     ,"trim"         : ["LTRIM(RTRIM(",1,"))"]
     ,"quote"        : ["QUOTENAME(",1,",\"'\")"]
-    ,"random"       : ["RAND()"]
-    ,"now"          : ["CURRENT_TIMESTAMP"]
+    ,"random"       : "RAND()"
+    ,"now"          : "CURRENT_TIMESTAMP"
     }
 
+    // https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-ver16
     ,"types"        : {
-     "BINARY"       : "VARBINARY"
-    ,"SMALLINT"     : "TINYINT"
-    ,"MEDIUMINT"    : "SMALLINT"
-    ,"INT"          : "INT"
-    ,"SIGNED_INT"   : "INT"
-    ,"BIGINT"       : "BIGINT"
-    ,"SIGNED_BIGINT": "BIGINT"
-    ,"FLOAT"        : "FLOAT"
-    ,"DOUBLE"       : "REAL"
-    ,"BOOL"         : "BIT"
-    ,"TIMESTAMP"    : "DATETIME"
-    ,"DATETIME"     : "DATETIME"
-    ,"DATE"         : "DATE"
-    ,"TIME"         : "TIME"
-    ,"VARCHAR"      : "VARCHAR"
-    ,"TEXT"         : "TEXT"
-    ,"BLOB"         : "TEXT"
+     "SMALLINT"       : "SMALLINT"
+    ,"SIGNED_SMALLINT": "SMALLINT"
+    ,"INT"            : "INT"
+    ,"SIGNED_INT"     : "INT"
+    ,"BIGINT"         : "BIGINT"
+    ,"SIGNED_BIGINT"  : "BIGINT"
+    ,"FLOAT"          : ["FLOAT(",[1,'24'],")"]
+    ,"DOUBLE"         : ["FLOAT(",[1,'53'],")"]
+    ,"BOOL"           : "BIT"
+    ,"TIMESTAMP"      : "DATETIME"
+    ,"DATETIME"       : "DATETIME"
+    ,"DATE"           : "DATE"
+    ,"TIME"           : "TIME"
+    ,"VARBINARY"      : ["VARBINARY(",[1,'255'],")"]
+    ,"VARCHAR"        : ["VARCHAR(",[1,'255'],")"]
+    ,"TEXT"           : "TEXT"
+    ,"BLOB"           : "IMAGE"
+    ,"JSON"           : "TEXT"
     }
 
     ,"clauses"      : {
@@ -1845,6 +1854,7 @@ var dialects = {
 }
 
 
+// https://www.sqlite.org/doclist.html
 ,"sqlite"           : {
      "quotes"       : [ ["'","'","''","''"], ["\"","\"","\"\"","\"\""], [""," ESCAPE '\\'","",""] ]
 
@@ -1855,28 +1865,30 @@ var dialects = {
     ,"strupper"     : ["upper(",1,")"]
     ,"trim"         : ["trim(",1,")"]
     ,"quote"        : ["quote(",1,")"]
-    ,"random"       : ["random()"]
-    ,"now"          : ["datetime('now')"]
+    ,"random"       : "random()"
+    ,"now"          : "datetime('now')"
     }
 
+    // https://www.sqlite.org/datatype3.html
     ,"types"        : {
-     "BINARY"       : "BLOB"
-    ,"SMALLINT"     : "INTEGER"
-    ,"MEDIUMINT"    : "INTEGER"
-    ,"INT"          : "INTEGER"
-    ,"SIGNED_INT"   : "INTEGER"
-    ,"BIGINT"       : "INTEGER"
-    ,"SIGNED_BIGINT": "INTEGER"
-    ,"FLOAT"        : "REAL"
-    ,"DOUBLE"       : "REAL"
-    ,"BOOL"         : "INTEGER"
-    ,"TIMESTAMP"    : "TEXT"
-    ,"DATETIME"     : "TEXT"
-    ,"DATE"         : "TEXT"
-    ,"TIME"         : "TEXT"
-    ,"VARCHAR"      : "TEXT"
-    ,"TEXT"         : "TEXT"
-    ,"BLOB"         : "BLOB"
+     "SMALLINT"       : "INTEGER"
+    ,"SIGNED_SMALLINT": "INTEGER"
+    ,"INT"            : "INTEGER"
+    ,"SIGNED_INT"     : "INTEGER"
+    ,"BIGINT"         : "INTEGER"
+    ,"SIGNED_BIGINT"  : "INTEGER"
+    ,"FLOAT"          : "REAL"
+    ,"DOUBLE"         : "REAL"
+    ,"BOOL"           : "INTEGER"
+    ,"TIMESTAMP"      : "TEXT"
+    ,"DATETIME"       : "TEXT"
+    ,"DATE"           : "TEXT"
+    ,"TIME"           : "TEXT"
+    ,"VARBINARY"      : "BLOB"
+    ,"VARCHAR"        : "TEXT"
+    ,"TEXT"           : "TEXT"
+    ,"BLOB"           : "BLOB"
+    ,"JSON"           : "TEXT"
     }
 
     ,"clauses"      : {
@@ -3628,24 +3640,42 @@ Dialect[PROTO] = {
         if (!Dialect.dialects[self.type]['functions'] || !hasOwnProperty.call(Dialect.dialects[self.type]['functions'], f))
             throw new TypeError('Dialect: SQL function "'+f+'" does not exist for dialect "'+self.type+'"');
         f = Dialect.dialects[self.type]['functions'][f];
-        args = null != args ? array(args) : [];
-        argslen = args.length;
-        func = ''; is_arg = false;
-        for (i=0,l=f.length; i<l; ++i)
+        if (is_array(f))
         {
-            fi = f[i];
-            func += is_arg ? (0<fi && argslen>=fi ? String(args[fi-1]) : '') : fi;
-            is_arg = !is_arg;
+            args = null != args ? array(args) : [];
+            argslen = args.length;
+            func = ''; is_arg = false;
+            for (i=0,l=f.length; i<l; ++i)
+            {
+                fi = f[i];
+                func += is_arg ? (is_array(fi) ? (0<fi[0] && argslen>=fi[0] ? String(args[fi[0]-1]) : String(null != fi[1] ? fi[1] : '')) : (0<fi && argslen>=fi ? String(args[fi-1]) : '')) : String(fi);
+                is_arg = !is_arg;
+            }
+            return func;
         }
-        return func;
+        return String(f);
     }
 
-    ,sql_type: function(data_type) {
-        var self = this;
+    ,sql_type: function(data_type, args) {
+        var self = this, dd, d, is_arg, i, l, di, argslen;
         data_type = String(data_type).toUpperCase();
         if (!Dialect.dialects[self.type]['types'] || !hasOwnProperty.call(Dialect.dialects[self.type]['types'], data_type))
             throw new TypeError('Dialect: SQL type "'+data_type+'" does not exist for dialect "'+self.type+'"');
-        return String(Dialect.dialects[self.type]['types'][data_type]);
+        d = Dialect.dialects[self.type]['types'][data_type];
+        if (is_array(d))
+        {
+            args = null != args ? array(args) : [];
+            argslen = args.length;
+            dd = ''; is_arg = false;
+            for (i=0,l=d.length; i<l; ++i)
+            {
+                di = d[i];
+                dd += is_arg ? (is_array(di) ? (0<di[0] && argslen>=di[0] ? String(args[di[0]-1]) : String(null != di[1] ? di[1] : '')) : (0<di && argslen>=di ? String(args[di-1]) : '')) : String(di);
+                is_arg = !is_arg;
+            }
+            return dd;
+        }
+        return String(d);
     }
 };
 

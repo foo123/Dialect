@@ -2,15 +2,15 @@ Dialect.VERSION = 1.4.0
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name=[new_table] AND xtype='U')
 CREATE TABLE [new_table] (
-id bigint(20) NOT NULL,
-name tinytext NOT NULL DEFAULT '',
-categoryid bigint(20) NOT NULL DEFAULT 0,
-companyid bigint(20) NOT NULL DEFAULT 0,
-fields text NOT NULL DEFAULT '',
-start datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
-end datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
-status tinyint(8) unsigned NOT NULL DEFAULT 0,
-extra text NOT NULL DEFAULT ''
+id BIGINT NOT NULL,
+name VARCHAR(100) NOT NULL DEFAULT '',
+categoryid BIGINT NOT NULL DEFAULT 0,
+companyid BIGINT NOT NULL DEFAULT 0,
+fields TEXT NOT NULL DEFAULT '',
+start DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+end DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+status SMALLINT NOT NULL DEFAULT 0,
+extra TEXT NOT NULL DEFAULT ''
 )
 GO
 
