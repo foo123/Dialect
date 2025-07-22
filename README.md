@@ -5,7 +5,7 @@ Dialect
 
 ![Dialect](/dialect.jpg)
 
-version **1.4.0**
+version **1.4.1**
 
 
 [Etymology of *"dialect"*](http://www.etymonline.com/index.php?term=dialect)

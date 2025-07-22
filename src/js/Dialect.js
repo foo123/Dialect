@@ -2,7 +2,7 @@
 *   Dialect,
 *   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, JavaScript
 *
-*   @version: 1.4.0
+*   @version: 1.4.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1944,7 +1944,7 @@ function Dialect(type)
     self.qn = Dialect.dialects[self.type]['quotes'][1];
     self.e  = Dialect.dialects[self.type]['quotes'][2] || ['','','',''];
 }
-Dialect.VERSION = "1.4.0";
+Dialect.VERSION = "1.4.1";
 //Dialect.TPL_RE = /\$\(([^\)]+)\)/g;
 Dialect.dialects = dialects;
 Dialect.aliases = dialect_aliases;
@@ -2706,7 +2706,7 @@ Dialect[PROTO] = {
     }
 
     ,Set: function(fields_values) {
-        var self = this, set_values, set_case_value, f, field, value, COLS;
+        var self = this, set_values, set_case_value, f, field, value, case_value, COLS;
         if (empty(fields_values)) return self;
         set_values = [];
         COLS = self.cols;

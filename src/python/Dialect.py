@@ -2,7 +2,7 @@
 #   Dialect,
 #   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, JavaScript
 #
-#   @version: 1.4.0
+#   @version: 1.4.1
 #   https://github.com/foo123/Dialect
 #
 #   Abstract the construction of SQL queries
@@ -1425,7 +1425,7 @@ class Dialect:
     https://github.com/foo123/Dialect
     """
 
-    VERSION = '1.4.0'
+    VERSION = '1.4.1'
 
     #TPL_RE = re.compile(r'\$\(([^\)]+)\)')
     StringTemplate = StringTemplate

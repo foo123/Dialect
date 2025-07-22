@@ -3,7 +3,7 @@
 *   Dialect,
 *   a simple and flexible Cross-Platform & Cross-Vendor SQL Query Builder for PHP, Python, JavaScript
 *
-*   @version: 1.4.0
+*   @version: 1.4.1
 *   https://github.com/foo123/Dialect
 *
 *   Abstract the construction of SQL queries
@@ -1607,7 +1607,7 @@ class DialectRef
 
 class Dialect
 {
-    const VERSION = "1.4.0";
+    const VERSION = "1.4.1";
     //const TPL_RE = '/\\$\\(([^\\)]+)\\)/';
 
     public static $dialects = array(
